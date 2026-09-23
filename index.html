@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Krua Flow ลงเวลางาน</title>
+  <style>
+    :root{--bg:#f5f7fa;--card:#fff;--text:#15171a;--muted:#6b7280;--line:#d8dee8;--accent:#2563eb;--ok:#0a7b3e;--bad:#b42318;--green:#eafaf1;--yellow:#fff8e6;--blue:#eef6ff;--red:#fff0ef}
+    *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif}
+    body{min-height:100vh}.app{width:min(100%,760px);margin:auto;padding:18px 14px 44px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.brand{font-size:30px;font-weight:950;line-height:1}.sub{font-size:21px;font-weight:850;margin-top:8px}.device{font-size:16px;color:var(--muted);margin-top:4px}.clock{text-align:right;font-size:30px;font-weight:950;white-space:nowrap}.date{font-size:16px;color:var(--muted);font-weight:700;margin-top:4px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin:14px 0}.step{font-size:23px;font-weight:950;margin-bottom:13px}.label{font-size:18px;font-weight:850;margin:10px 0 8px}.select,.pin{width:100%;height:64px;border:2px solid var(--line);border-radius:16px;background:#fff;font-size:23px;font-weight:800;padding:0 16px;outline:none}.select:focus,.pin:focus{border-color:var(--accent)}.pin{text-align:center;letter-spacing:.32em;font-size:30px}.pinstate{min-height:30px;font-size:18px;font-weight:800;margin-top:10px}.ok{color:var(--ok)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+    .actions{display:grid;grid-template-columns:1fr;gap:12px}.action{min-height:82px;border:0;border-radius:20px;font-size:29px;font-weight:950;padding:14px 18px;text-align:left;cursor:pointer}.action:disabled{opacity:.35}.in{background:var(--green);color:#075d2d}.breakout{background:var(--yellow);color:#6c4300}.breakin{background:var(--blue);color:#0b4b91}.out{background:var(--red);color:#8d1610}
+    .cameraWrap{display:none}.cameraWrap.show{display:block}.cameraBox{position:relative;width:100%;overflow:hidden;border-radius:22px;background:#111;aspect-ratio:3/4;max-height:68vh}.cameraBox video,.cameraBox img{width:100%;height:100%;object-fit:cover;display:block}.cameraBox video{transform:scaleX(-1)}.camStatus{font-size:18px;font-weight:800;margin:10px 0}.controls{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}.btn{border:0;border-radius:18px;min-height:66px;font-size:24px;font-weight:950;padding:12px 16px;cursor:pointer}.btn:disabled{opacity:.4}.primary{background:var(--accent);color:#fff}.secondary{background:#edf0f5;color:#171717}.danger{background:#fee8e7;color:#9b2119}.save{background:#0a7b3e;color:#fff;min-height:76px;font-size:28px}.selection{font-size:22px;font-weight:950;margin:2px 0 10px}.selection span{display:block;color:var(--muted);font-size:17px;margin-top:4px}.errorBox{display:none;background:#fff0ef;border:1px solid #ffc4be;color:#8d1610;border-radius:16px;padding:13px 14px;font-size:17px;font-weight:800;margin-top:12px}.errorBox.show{display:block}
+    .setup{display:none}.setup.show{display:block}.setup input{width:100%;height:60px;border:2px solid var(--line);border-radius:15px;font-size:18px;padding:0 14px;margin-bottom:12px}.setup .pinAdmin{text-align:center;font-size:27px;letter-spacing:.25em}.hint{font-size:15px;color:var(--muted);line-height:1.5}
+    .success{position:fixed;inset:0;background:#f2fff7;z-index:99;display:none;align-items:center;justify-content:center;padding:24px;text-align:center}.success.show{display:flex}.successIcon{font-size:86px;color:var(--ok);font-weight:950;line-height:1}.successTitle{font-size:42px;font-weight:1000;color:var(--ok);margin-top:10px}.successName{font-size:30px;font-weight:950;margin-top:18px}.successMeta{font-size:24px;font-weight:850;margin-top:8px}.overlay{position:fixed;inset:0;background:rgba(255,255,255,.86);z-index:80;display:none;align-items:center;justify-content:center;text-align:center;padding:24px}.overlay.show{display:flex}.loader{font-size:27px;font-weight:950}.small{font-size:15px;color:var(--muted);margin-top:8px}
+    .footer{text-align:center;color:#838a96;font-size:14px;margin-top:24px}.adminReset{border:0;background:transparent;color:#808080;text-decoration:underline;font-size:13px;margin-top:14px}
+    @media(max-width:420px){.app{padding:13px 10px 36px}.brand{font-size:27px}.sub{font-size:19px}.clock{font-size:27px}.card{padding:15px;border-radius:19px}.step{font-size:21px}.select,.pin{height:61px;font-size:21px}.pin{font-size:28px}.action{font-size:27px;min-height:78px}.btn{font-size:22px}.save{font-size:26px}}
+  </style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div><div class="brand">Krua Flow</div><div class="sub">ลงเวลางานพนักงาน</div><div class="device" id="deviceText">กำลังเชื่อมต่อ...</div></div>
+    <div><div class="clock" id="clock">--:--:--</div><div class="date" id="dateText">--/--/----</div></div>
+  </header>
+
+  <section id="setupPanel" class="card setup">
+    <div class="step">ตั้งค่าโทรศัพท์ร้านครั้งแรก</div>
+    <div class="label">Web App URL ของ Google Apps Script</div>
+    <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <div class="label">PIN Admin 6 หลัก</div>
+    <input id="adminPin" class="pinAdmin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="off">
+    <button id="activateBtn" class="btn primary" type="button">ลงทะเบียนเป็นเครื่องร้าน</button>
+    <div id="setupStatus" class="errorBox"></div>
+    <p class="hint">การลงทะเบียนใหม่ด้วย PIN Admin จะทำให้โทรศัพท์เครื่องนี้เป็นเครื่องลงเวลาหลัก และยกเลิกเครื่องเดิมโดยอัตโนมัติ</p>
+  </section>
+
+  <div id="mainFlow" style="display:none">
+    <section class="card">
+      <div class="step">1. เลือกชื่อและยืนยันรหัส</div>
+      <div class="label">ชื่อพนักงาน</div>
+      <select id="employeeSelect" class="select"><option value="">กรุณาเลือกชื่อพนักงาน</option></select>
+      <div class="label">รหัสลงเวลา 4 หลัก</div>
+      <input id="employeePin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
+      <div id="pinState" class="pinstate muted">เลือกชื่อและกรอกรหัส 4 หลัก</div>
+    </section>
+
+    <section class="card">
+      <div class="step">2. เลือกรายการ</div>
+      <div class="actions">
+        <button class="action in" data-action="IN" disabled>เข้างาน</button>
+        <button class="action breakout" data-action="BREAK_OUT" disabled>เริ่มพัก</button>
+        <button class="action breakin" data-action="BREAK_IN" disabled>กลับจากพัก</button>
+        <button class="action out" data-action="OUT" disabled>เลิกงาน</button>
+      </div>
+    </section>
+
+    <section id="cameraSection" class="card cameraWrap">
+      <div class="step">3. ถ่ายรูปและบันทึก</div>
+      <div id="selectionText" class="selection"></div>
+      <div class="cameraBox">
+        <video id="video" autoplay muted playsinline></video>
+        <img id="preview" alt="รูปก่อนบันทึก" style="display:none">
+      </div>
+      <div id="camStatus" class="camStatus muted">กำลังเปิดกล้องหน้า...</div>
+      <div id="camError" class="errorBox"></div>
+      <div class="controls">
+        <button id="captureBtn" class="btn primary" type="button" disabled>ถ่ายรูป</button>
+        <button id="retakeBtn" class="btn secondary" type="button" style="display:none">ถ่ายใหม่</button>
+        <button id="saveBtn" class="btn save" type="button" style="display:none">บันทึกเวลา</button>
+        <button id="cancelBtn" class="btn secondary" type="button">ยกเลิกรายการ</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer">Krua Flow Attendance V4<br>กล้องหน้า • PIN 4 หลัก • เครื่องร้านเท่านั้น<br><button id="resetSetupBtn" class="adminReset" type="button">ตั้งค่าเครื่องใหม่</button></div>
+</main>
+
+<div id="busy" class="overlay"><div><div class="loader" id="busyText">กำลังประมวลผล...</div><div class="small">กรุณารอสักครู่</div></div></div>
+<div id="success" class="success"><div><div class="successIcon">✓</div><div class="successTitle">บันทึกสำเร็จ</div><div id="successName" class="successName"></div><div id="successMeta" class="successMeta"></div></div></div>
+<iframe name="apiSink" id="apiSink" style="display:none"></iframe>
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = {apiUrl:'',deviceToken:'',deviceId:'STORE-01',employees:[],employee:null,pin:'',pinVerified:false,action:'',stream:null,photoData:'',serverOffset:0};
+  const actionLabels={IN:'เข้างาน',BREAK_OUT:'เริ่มพัก',BREAK_IN:'กลับจากพัก',OUT:'เลิกงาน'};
+  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4';
+
+  function uid(){return (crypto.randomUUID?crypto.randomUUID():('r-'+Date.now()+'-'+Math.random().toString(16).slice(2)));}
+  function digitsOnly(v,n){return String(v||'').replace(/\D/g,'').slice(0,n)}
+  function showBusy(msg){$('busyText').textContent=msg||'กำลังประมวลผล...';$('busy').classList.add('show')}
+  function hideBusy(){$('busy').classList.remove('show')}
+  function setSetupError(msg){$('setupStatus').textContent=msg;$('setupStatus').classList.toggle('show',!!msg)}
+  function setCamError(msg){$('camError').textContent=msg;$('camError').classList.toggle('show',!!msg)}
+  function serverNow(){return new Date(Date.now()+state.serverOffset)}
+  function updateServerOffset(serverEpochMs, sentAt){if(!serverEpochMs)return;const now=Date.now();const midpoint=sentAt?Math.round((sentAt+now)/2):now;state.serverOffset=Number(serverEpochMs)-midpoint}
+  function thaiDateTime(d){const z=n=>String(n).padStart(2,'0');return `${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()+543} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`}
+  function tick(){const d=serverNow(),z=n=>String(n).padStart(2,'0');$('clock').textContent=`${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;$('dateText').textContent=`${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()+543}`}
+  setInterval(tick,1000);tick();
+
+  function sanitizeApiUrl(url){url=String(url||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(url))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return url.split('?')[0]}
+  function randomDeviceToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
+
+  function postBridge(payload){
+    return new Promise((resolve,reject)=>{
+      const requestId=uid();payload.requestId=requestId;
+      const form=document.createElement('form');form.method='POST';form.action=state.apiUrl;form.target='apiSink';form.style.display='none';
+      const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=JSON.stringify(payload);form.appendChild(input);document.body.appendChild(form);
+      try{form.submit()}catch(e){form.remove();reject(e);return}
+      setTimeout(()=>form.remove(),5000);
+      pollStatus(requestId,resolve,reject,0);
+    });
+  }
+
+  function pollStatus(requestId,resolve,reject,attempt){
+    if(attempt>55){reject(new Error('เซิร์ฟเวอร์ตอบช้าเกินไป กรุณาลองใหม่'));return}
+    const cb='__kfcb_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt;
+    const script=document.createElement('script');
+    let done=false;const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};script.remove()};
+    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),500);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
+    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),650)};
+    script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
+    document.head.appendChild(script);
+    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),650)}},4000);
+  }
+
+  async function activate(){
+    try{
+      state.apiUrl=sanitizeApiUrl($('apiUrl').value);const adminPin=digitsOnly($('adminPin').value,6);if(adminPin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');
+      const token=randomDeviceToken();showBusy('กำลังลงทะเบียนเครื่องร้าน...');const sent=Date.now();
+      const res=await postBridge({op:'activate',adminPin,deviceToken:token});updateServerOffset(res.serverEpochMs,sent);
+      state.deviceToken=token;localStorage.setItem(LS_API,state.apiUrl);localStorage.setItem(LS_TOKEN,token);$('adminPin').value='';setSetupError('');await bootstrap();
+    }catch(e){setSetupError(e.message||String(e))}finally{hideBusy()}
+  }
+
+  async function bootstrap(){
+    try{
+      showBusy('กำลังโหลดรายชื่อพนักงาน...');const sent=Date.now();const res=await postBridge({op:'bootstrap',deviceToken:state.deviceToken});updateServerOffset(res.serverEpochMs,sent);
+      state.deviceId=res.deviceId||'STORE-01';state.employees=res.employees||[];$('deviceText').textContent='เครื่อง '+state.deviceId;
+      const sel=$('employeeSelect');sel.innerHTML='<option value="">กรุณาเลือกชื่อพนักงาน</option>';
+      state.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name} (${e.id})`;sel.appendChild(o)});
+      $('setupPanel').classList.remove('show');$('mainFlow').style.display='block';resetFlow();
+    }catch(e){
+      localStorage.removeItem(LS_TOKEN);state.deviceToken='';$('mainFlow').style.display='none';$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl||'';setSetupError('เครื่องนี้ยังไม่ได้รับอนุญาต: '+(e.message||String(e)));
+    }finally{hideBusy()}
+  }
+
+  function resetFlow(){
+    stopCamera();state.employee=null;state.pin='';state.pinVerified=false;state.action='';state.photoData='';
+    $('employeeSelect').value='';$('employeePin').value='';$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';
+    document.querySelectorAll('.action').forEach(b=>b.disabled=true);$('cameraSection').classList.remove('show');$('preview').style.display='none';$('video').style.display='block';$('captureBtn').style.display='';$('captureBtn').disabled=true;$('retakeBtn').style.display='none';$('saveBtn').style.display='none';setCamError('');
+  }
+
+  async function validatePin(){
+    const id=$('employeeSelect').value,pin=digitsOnly($('employeePin').value,4);state.pin=pin;state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true);
+    if(!id||pin.length!==4){$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';return}
+    $('pinState').className='pinstate muted';$('pinState').textContent='กำลังตรวจสอบชื่อและรหัส...';
+    try{const sent=Date.now();const res=await postBridge({op:'validatePin',deviceToken:state.deviceToken,employeeId:id,employeePin:pin});updateServerOffset(res.serverEpochMs,sent);state.employee={id:res.employeeId,name:res.employeeName};state.pinVerified=true;$('pinState').className='pinstate ok';$('pinState').textContent='✓ ชื่อและรหัสถูกต้อง';document.querySelectorAll('.action').forEach(b=>b.disabled=false)}
+    catch(e){state.employee=null;$('pinState').className='pinstate bad';$('pinState').textContent=e.message||'ชื่อและรหัสไม่ตรงกัน'}
+  }
+
+  async function startCamera(action){
+    if(!state.pinVerified||!state.employee)return;state.action=action;state.photoData='';$('cameraSection').classList.add('show');$('selectionText').innerHTML=`${state.employee.name}<span>${state.employee.id} • ${actionLabels[action]}</span>`;$('preview').style.display='none';$('video').style.display='block';$('retakeBtn').style.display='none';$('saveBtn').style.display='none';$('captureBtn').style.display='';$('captureBtn').disabled=true;setCamError('');$('camStatus').textContent='กำลังเปิดกล้องหน้า...';$('cameraSection').scrollIntoView({behavior:'smooth',block:'start'});
+    stopCamera();
+    try{
+      let s;try{s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:'user'},width:{ideal:1280},height:{ideal:960}},audio:false})}catch(e){s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:false})}
+      state.stream=s;$('video').srcObject=s;await $('video').play();$('camStatus').textContent='กล้องหน้าพร้อมแล้ว';$('camStatus').className='camStatus ok';$('captureBtn').disabled=false;
+    }catch(e){$('camStatus').textContent='เปิดกล้องหน้าไม่สำเร็จ';$('camStatus').className='camStatus bad';setCamError('กรุณาอนุญาต Camera ในเบราว์เซอร์ แล้วกดรายการอีกครั้ง ('+(e.name||'Camera error')+')')}
+  }
+
+  function stopCamera(){if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}$('video').srcObject=null}
+
+  function capture(){
+    const v=$('video');if(!state.stream||!v.videoWidth){setCamError('กล้องยังไม่พร้อม กรุณารอสักครู่');return}
+    const maxDim=1280;let sw=v.videoWidth,sh=v.videoHeight,scale=Math.min(1,maxDim/Math.max(sw,sh));let w=Math.round(sw*scale),h=Math.round(sh*scale);
+    const c=$('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.save();ctx.translate(w,0);ctx.scale(-1,1);ctx.drawImage(v,0,0,w,h);ctx.restore();
+    const bar=Math.max(150,Math.round(h*.22));ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(0,h-bar,w,bar);ctx.fillStyle='#fff';const p=Math.max(16,Math.round(w*.035));ctx.font=`900 ${Math.round(p*1.12)}px sans-serif`;ctx.fillText('Krua Flow Attendance',p,h-bar+p*1.45);ctx.font=`800 ${p}px sans-serif`;ctx.fillText(`${state.employee.name} • ${state.employee.id}`,p,h-bar+p*2.75);ctx.fillText(`${actionLabels[state.action]} • ${thaiDateTime(serverNow())}`,p,h-bar+p*4.05);ctx.font=`700 ${Math.round(p*.82)}px sans-serif`;ctx.fillText(`DEVICE ${state.deviceId}`,p,h-bar+p*5.18);
+    state.photoData=c.toDataURL('image/jpeg',.82);$('preview').src=state.photoData;$('preview').style.display='block';$('video').style.display='none';stopCamera();$('captureBtn').style.display='none';$('retakeBtn').style.display='';$('saveBtn').style.display='';$('camStatus').textContent='ตรวจรูปแล้วกด “บันทึกเวลา”';$('camStatus').className='camStatus ok';
+  }
+
+  async function retake(){await startCamera(state.action)}
+
+  async function saveAttendance(){
+    if(!state.photoData||!state.pinVerified||!state.employee)return;
+    try{showBusy('กำลังบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=res.employeeName;$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},2800)}
+    catch(e){hideBusy();setCamError(e.message||String(e));$('saveBtn').disabled=false}
+  }
+
+  $('activateBtn').addEventListener('click',activate);
+  $('adminPin').addEventListener('input',e=>e.target.value=digitsOnly(e.target.value,6));
+  $('employeeSelect').addEventListener('change',()=>{state.pinVerified=false;state.employee=null;$('employeePin').value='';state.pin='';document.querySelectorAll('.action').forEach(b=>b.disabled=true);$('pinState').className='pinstate muted';$('pinState').textContent=$('employeeSelect').value?'กรอกรหัสลงเวลา 4 หลัก':'เลือกชื่อและกรอกรหัส 4 หลัก';$('employeePin').focus()});
+  let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4)pinTimer=setTimeout(validatePin,220);else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
+  document.querySelectorAll('.action').forEach(b=>b.addEventListener('click',()=>startCamera(b.dataset.action)));
+  $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
+  $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
+  window.addEventListener('pagehide',stopCamera);
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+
+  state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
+  if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
+})();
+</script>
+</body>
+</html>

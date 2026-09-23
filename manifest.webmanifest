@@ -1,0 +1,10 @@
+{
+  "name": "Krua Flow Attendance",
+  "short_name": "Krua Flow",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#ffffff",
+  "lang": "th",
+  "description": "ระบบลงเวลางานพนักงาน Krua Flow สำหรับโทรศัพท์ร้าน"
+}
