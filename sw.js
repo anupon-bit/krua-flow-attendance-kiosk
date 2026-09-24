@@ -1,4 +1,4 @@
-const CACHE='krua-flow-attendance-v5-fast-multidevice';
+const CACHE='krua-flow-attendance-v6-nickname';
 const SHELL=['./','./index.html','./manifest.webmanifest','./config.js'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
