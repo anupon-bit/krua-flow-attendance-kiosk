@@ -50,7 +50,7 @@
       <div id="pinState" class="pinstate muted">เลือกชื่อและกรอกรหัส 4 หลัก</div>
     </section>
 
-    <section class="card">
+    <section id="actionSection" class="card">
       <div class="step">2. เลือกรายการ</div>
       <div class="actions">
         <button class="action in" data-action="IN" disabled>เข้างาน</button>
@@ -162,7 +162,7 @@
     const id=$('employeeSelect').value,pin=digitsOnly($('employeePin').value,4);state.pin=pin;state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true);
     if(!id||pin.length!==4){$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';return}
     $('pinState').className='pinstate muted';$('pinState').textContent='กำลังตรวจสอบชื่อและรหัส...';
-    try{const sent=Date.now();const res=await postBridge({op:'validatePin',deviceToken:state.deviceToken,employeeId:id,employeePin:pin});updateServerOffset(res.serverEpochMs,sent);state.employee={id:res.employeeId,name:res.employeeName};state.pinVerified=true;$('pinState').className='pinstate ok';$('pinState').textContent='✓ ชื่อและรหัสถูกต้อง';document.querySelectorAll('.action').forEach(b=>b.disabled=false)}
+    try{const sent=Date.now();const res=await postBridge({op:'validatePin',deviceToken:state.deviceToken,employeeId:id,employeePin:pin});updateServerOffset(res.serverEpochMs,sent);state.employee={id:res.employeeId,name:res.employeeName};state.pinVerified=true;$('pinState').className='pinstate ok';$('pinState').textContent='✓ ชื่อและรหัสถูกต้อง — เลือกรายการด้านล่าง';document.querySelectorAll('.action').forEach(b=>b.disabled=false);setTimeout(()=>$('actionSection').scrollIntoView({behavior:'smooth',block:'center'}),120)}
     catch(e){state.employee=null;$('pinState').className='pinstate bad';$('pinState').textContent=e.message||'ชื่อและรหัสไม่ตรงกัน'}
   }
 
@@ -197,12 +197,12 @@
   $('activateBtn').addEventListener('click',activate);
   $('adminPin').addEventListener('input',e=>e.target.value=digitsOnly(e.target.value,6));
   $('employeeSelect').addEventListener('change',()=>{state.pinVerified=false;state.employee=null;$('employeePin').value='';state.pin='';document.querySelectorAll('.action').forEach(b=>b.disabled=true);$('pinState').className='pinstate muted';$('pinState').textContent=$('employeeSelect').value?'กรอกรหัสลงเวลา 4 หลัก':'เลือกชื่อและกรอกรหัส 4 หลัก';$('employeePin').focus()});
-  let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4)pinTimer=setTimeout(validatePin,220);else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
+  let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4){e.target.blur();$('pinState').className='pinstate muted';$('pinState').textContent='กำลังตรวจสอบชื่อและรหัส...';pinTimer=setTimeout(validatePin,180)}else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
   document.querySelectorAll('.action').forEach(b=>b.addEventListener('click',()=>startCamera(b.dataset.action)));
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
   $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
-  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-3-camera-live').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
+  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-4-pin-autohide').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
 
   state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
   if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
