@@ -18,5 +18,53 @@
 <div id="msg" class="msg"></div>
 </section></div>
 <script>
-(function(){const $=id=>document.getElementById(id),state={api:''},pending={};function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}function apiUrl(v){v=String(v||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(v))throw new Error('Backend URL ไม่ถูกต้อง');return v.split('?')[0]}window.addEventListener('message',e=>{if(e.source!==$('sink').contentWindow)return;const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!m.requestId||!pending[m.requestId])return;const p=pending[m.requestId];delete pending[m.requestId];const r=m.result||{};r.ok?p.resolve(r.data||{}):p.reject(new Error(r.error||'ทำรายการไม่สำเร็จ'))});function call(p){return new Promise((resolve,reject)=>{const id=uid();p.requestId=id;pending[id]={resolve,reject};const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='sink';f.style.display='none';const i=document.createElement('input');i.type='hidden';i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);f.submit();setTimeout(()=>f.remove(),3000);setTimeout(()=>{if(pending[id]){delete pending[id];reject(new Error('Backend ตอบช้าเกินไป'))}},20000)})}function setMsg(t,ok){const m=$('msg');m.textContent=t;m.className='msg '+(ok?'ok':'err')}async function boot(){try{state.api=apiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');const r=await call({op:'leaveBootstrap'});const s=$('employee');s.innerHTML='<option value="">เลือกชื่อพนักงาน</option>';r.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=(e.nickname||e.name)+' ('+e.id+')';s.appendChild(o)})}catch(e){setMsg(e.message||String(e),false)}}$('pin').oninput=e=>e.target.value=String(e.target.value||'').replace(/\D/g,'').slice(0,4);$('submitBtn').onclick=async()=>{try{$('busy').classList.add('show');setMsg('',true);const leave={employeeId:$('employee').value,employeePin:$('pin').value,leaveType:$('leaveType').value,startDate:$('startDate').value,endDate:$('endDate').value,duration:$('duration').value,reason:$('reason').value.trim()};const r=await call({op:'leaveSubmit',leave});setMsg('ส่งคำขอลาเรียบร้อย เลขที่ '+r.leaveId+' รอ Admin อนุมัติ',true);$('reason').value=''}catch(e){setMsg(e.message||String(e),false)}finally{$('busy').classList.remove('show')}};boot()})();
+(function(){
+const $=id=>document.getElementById(id),state={api:''};
+function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
+function apiUrl(v){v=String(v||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(v))throw new Error('Backend URL ไม่ถูกต้อง');return v.split('?')[0]}
+function setMsg(t,ok){const m=$('msg');m.textContent=t||'';m.className='msg '+(t?(ok?'ok':'err'):'')}
+function pollStatus(requestId,resolve,reject,attempt){
+  if(attempt>12){reject(new Error('Backend ยังไม่รองรับระบบขอลา หรือยังไม่ได้อัปเดตเวอร์ชัน'));return}
+  const cb='__kfl_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt,s=document.createElement('script');let done=false;
+  function clean(){if(done)return;done=true;try{delete window[cb]}catch(e){};s.remove()}
+  window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),650);return}if(r.ok)resolve(r.data||{});else reject(new Error(r.error||'ทำรายการไม่สำเร็จ'))};
+  s.onerror=()=>{clean();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),800)};
+  s.src=state.api+'?api=status&requestId='+encodeURIComponent(requestId)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+  document.head.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),800)}},2500)
+}
+function call(p){
+  return new Promise((resolve,reject)=>{
+    const id=uid();p.requestId=id;
+    const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='sink';f.style.display='none';
+    const i=document.createElement('input');i.type='hidden';i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);
+    try{f.submit()}catch(e){f.remove();reject(e);return}
+    setTimeout(()=>f.remove(),3000);
+    setTimeout(()=>pollStatus(id,resolve,reject,0),350)
+  })
+}
+async function boot(){
+  try{
+    state.api=apiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');
+    const r=await call({op:'leaveBootstrap'});
+    const s=$('employee');s.innerHTML='<option value="">เลือกชื่อพนักงาน</option>';
+    (r.employees||[]).forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=(e.nickname||e.name)+' ('+e.id+')';s.appendChild(o)});
+    if(!(r.employees||[]).length)throw new Error('ไม่พบรายชื่อพนักงาน');
+    setMsg('',true)
+  }catch(e){
+    $('employee').innerHTML='<option value="">ระบบขอลายังไม่พร้อม</option>';
+    setMsg((e.message||String(e))+' — หากยังไม่ได้อัปเดต Backend V6.1 ให้ทำขั้นตอนนั้นก่อน',false)
+  }
+}
+$('pin').oninput=e=>e.target.value=String(e.target.value||'').replace(/\D/g,'').slice(0,4);
+$('submitBtn').onclick=async()=>{
+  try{
+    $('busy').classList.add('show');setMsg('',true);
+    const leave={employeeId:$('employee').value,employeePin:$('pin').value,leaveType:$('leaveType').value,startDate:$('startDate').value,endDate:$('endDate').value,duration:$('duration').value,reason:$('reason').value.trim()};
+    if(!leave.employeeId||leave.employeePin.length!==4||!leave.leaveType||!leave.startDate||!leave.endDate)throw new Error('กรุณากรอกข้อมูลให้ครบ');
+    const r=await call({op:'leaveSubmit',leave});
+    setMsg('ส่งคำขอลาเรียบร้อย เลขที่ '+r.leaveId+' รอ Admin อนุมัติ',true);$('reason').value=''
+  }catch(e){setMsg(e.message||String(e),false)}finally{$('busy').classList.remove('show')}
+};
+boot()
+})();
 </script></body></html>
