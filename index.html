@@ -91,7 +91,7 @@
   const $ = id => document.getElementById(id);
   const state = {apiUrl:'',deviceToken:'',deviceId:'STORE-01',employees:[],employee:null,pin:'',pinVerified:false,action:'',stream:null,photoData:'',serverOffset:0};
   const actionLabels={IN:'เข้างาน',BREAK_OUT:'เริ่มพัก',BREAK_IN:'กลับจากพัก',OUT:'เลิกงาน'};
-  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4', LS_CACHE='kruaFlowKioskCacheV5';
+  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4', LS_CACHE='kruaFlowKioskCacheV6Nickname';
 
   function uid(){return (crypto.randomUUID?crypto.randomUUID():('r-'+Date.now()+'-'+Math.random().toString(16).slice(2)));}
   function digitsOnly(v,n){return String(v||'').replace(/\D/g,'').slice(0,n)}
@@ -150,7 +150,7 @@
     state.employees=(data&&data.employees)||[];
     $('deviceText').textContent='เครื่อง '+state.deviceId+(fromCache?' • พร้อมใช้งาน':'');
     const sel=$('employeeSelect');sel.innerHTML='<option value="">กรุณาเลือกชื่อพนักงาน</option>';
-    state.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name} (${e.id})`;sel.appendChild(o)});
+    state.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;const display=(e.nickname||'').trim()||e.name;o.textContent=`${display} (${e.id})`;sel.appendChild(o)});
     $('setupPanel').classList.remove('show');$('mainFlow').style.display='block';resetFlow();
   }
 
@@ -225,7 +225,7 @@
 
   async function saveAttendance(){
     if(!state.photoData||!state.pinVerified||!state.employee)return;
-    try{showBusy('กำลังตรวจรหัสและบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=res.employeeName;$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},1400)}
+    try{showBusy('กำลังตรวจรหัสและบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=(res.employeeNickname||res.employeeName);$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},1400)}
     catch(e){hideBusy();setCamError(e.message||String(e));$('saveBtn').disabled=false}
   }
 
