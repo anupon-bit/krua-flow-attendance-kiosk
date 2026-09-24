@@ -21,6 +21,7 @@
     .footer{text-align:center;color:#838a96;font-size:14px;margin-top:24px}.adminReset{border:0;background:transparent;color:#808080;text-decoration:underline;font-size:13px;margin-top:14px}
     @media(max-width:420px){.app{padding:13px 10px 36px}.brand{font-size:27px}.sub{font-size:19px}.clock{font-size:27px}.card{padding:15px;border-radius:19px}.step{font-size:21px}.select,.pin{height:61px;font-size:21px}.pin{font-size:28px}.action{font-size:27px;min-height:78px}.btn{font-size:22px}.save{font-size:26px}}
   </style>
+  <script src="./config.js"></script>
 </head>
 <body>
 <main class="app">
@@ -31,8 +32,7 @@
 
   <section id="setupPanel" class="card setup">
     <div class="step">ตั้งค่าโทรศัพท์ร้านครั้งแรก</div>
-    <div class="label">Web App URL ของ Google Apps Script</div>
-    <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <div class="hint" style="margin-bottom:12px">Backend ส่วนกลางพร้อมใช้งาน</div>
     <div class="label">PIN Admin 6 หลัก</div>
     <input id="adminPin" class="pinAdmin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="off">
     <button id="activateBtn" class="btn primary" type="button">ลงทะเบียนเป็นเครื่องร้าน</button>
@@ -133,7 +133,7 @@
 
   async function activate(){
     try{
-      state.apiUrl=sanitizeApiUrl($('apiUrl').value);const adminPin=digitsOnly($('adminPin').value,6);if(adminPin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');
+      state.apiUrl=sanitizeApiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');const adminPin=digitsOnly($('adminPin').value,6);if(adminPin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');
       const token=randomDeviceToken();showBusy('กำลังลงทะเบียนเครื่องร้าน...');const sent=Date.now();
       const res=await postBridge({op:'activate',adminPin,deviceToken:token});updateServerOffset(res.serverEpochMs,sent);
       state.deviceToken=token;localStorage.setItem(LS_API,state.apiUrl);localStorage.setItem(LS_TOKEN,token);$('adminPin').value='';setSetupError('');await bootstrap();
@@ -148,7 +148,7 @@
       state.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name} (${e.id})`;sel.appendChild(o)});
       $('setupPanel').classList.remove('show');$('mainFlow').style.display='block';resetFlow();
     }catch(e){
-      localStorage.removeItem(LS_TOKEN);state.deviceToken='';$('mainFlow').style.display='none';$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl||'';setSetupError('เครื่องนี้ยังไม่ได้รับอนุญาต: '+(e.message||String(e)));
+      localStorage.removeItem(LS_TOKEN);state.deviceToken='';$('mainFlow').style.display='none';$('setupPanel').classList.add('show');setSetupError('เครื่องนี้ยังไม่ได้รับอนุญาต: '+(e.message||String(e)));
     }finally{hideBusy()}
   }
 
@@ -207,8 +207,8 @@
   window.addEventListener('pagehide',stopCamera);
   if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){}})}
 
-  state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
-  if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
+  state.apiUrl=((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||localStorage.getItem(LS_API)||'');state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
+  if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show')}
 })();
 </script>
 </body>
