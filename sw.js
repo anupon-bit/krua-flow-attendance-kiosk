@@ -1,4 +1,4 @@
-const CACHE='krua-flow-attendance-v4-3-camera-live';
+const CACHE='krua-flow-attendance-v4-4-pin-autohide';
 const SHELL=['./','./index.html','./manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
