@@ -32,7 +32,7 @@
       <div class="grid2">
         <div class="field"><label class="req">สาขาทำงาน</label><select class="select" id="branch" required><option value="">เลือกสาขา</option><option value="KORAT">โคราช</option><option value="UDOMSUK">อุดมสุข</option></select></div>
         <div class="field"><label class="req">ตำแหน่ง</label><select class="select" id="position" required><option value="">เลือกตำแหน่ง</option><option value="MANAGER">ผู้จัดการ</option><option value="SUPERVISOR">หัวหน้างาน</option><option value="STAFF">พนักงาน</option></select></div>
-        <div class="field"><label>วันที่เริ่มงาน</label><input class="input" id="startDate" type="date"></div>
+        <div class="field"><label>วันที่เริ่มงาน</label><input class="input" id="startDate" type="date"><div class="help" id="tenureDisplay">อายุงาน: -</div></div>
       </div>
     </section>
     <section class="card">
@@ -43,7 +43,7 @@
         <div class="field"><label>ชื่อเล่น</label><input class="input" id="nickname"></div>
         <div class="field"><label class="req">เบอร์โทร</label><input class="input" id="phone" type="tel" inputmode="tel" required></div>
         <div class="field"><label>Email / LINE</label><input class="input" id="contact"></div>
-        <div class="field"><label class="req">วันเดือนปีเกิด</label><input class="input" id="birthDate" type="date" required></div>
+        <div class="field"><label class="req">วันเดือนปีเกิด</label><input class="input" id="birthDate" type="date" required><div class="help" id="ageDisplay">อายุ: -</div></div>
       </div>
     </section>
     <section class="card">
@@ -89,12 +89,16 @@ const state={api:(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'',
 function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
 function showErr(m){$('error').textContent=m||'';$('error').classList.toggle('show',!!m)}
 function busy(v){$('busy').classList.toggle('show',!!v)}
+function dateOnly(v){if(!v)return null;const p=String(v).split('-').map(Number);if(p.length!==3||!p[0]||!p[1]||!p[2])return null;return new Date(p[0],p[1]-1,p[2])}
+function calcAge(v){const d=dateOnly(v);if(!d)return '-';const t=new Date();let y=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))y--;return y>=0?y+' ปี':'-'}
+function calcTenure(v,endValue){const s=dateOnly(v);if(!s)return '-';const e=dateOnly(endValue)||new Date();if(e<s)return 'ยังไม่เริ่มงาน';let y=e.getFullYear()-s.getFullYear(),m=e.getMonth()-s.getMonth(),d=e.getDate()-s.getDate();if(d<0){m--;const prev=new Date(e.getFullYear(),e.getMonth(),0);d+=prev.getDate()}if(m<0){y--;m+=12}return (y?y+' ปี ':'')+(m?m+' เดือน ':'')+d+' วัน'}
+function refreshDerived(){$('ageDisplay').textContent='อายุ: '+calcAge($('birthDate').value);$('tenureDisplay').textContent='อายุงาน: '+calcTenure($('startDate').value)}
 function postBridge(payload){return new Promise((resolve,reject)=>{const requestId=uid();payload.requestId=requestId;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.type='hidden';i.name='payload';i.value=JSON.stringify(payload);f.appendChild(i);document.body.appendChild(f);try{f.submit()}catch(e){f.remove();reject(e);return}setTimeout(()=>f.remove(),3000);poll(requestId,resolve,reject,0)})}
 function poll(id,resolve,reject,n){if(n>22){reject(new Error('ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่'));return}const cb='__reg_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n;const s=document.createElement('script');let done=false;const clean=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){}s.remove()};window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>poll(id,resolve,reject,n+1),600);return}r.ok?resolve(r.data||{}):reject(new Error(r.error||'ส่งข้อมูลไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>poll(id,resolve,reject,n+1),800)};s.src=state.api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.head.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>poll(id,resolve,reject,n+1),800)}},4000)}
 async function makePhoto(file){if(!file)return'';const img=new Image();const url=URL.createObjectURL(file);await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url});const max=1000,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=$('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);return c.toDataURL('image/jpeg',.72)}
 $('photo').addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f){state.photoData='';$('preview').style.display='none';return}state.photoData=await makePhoto(f);$('preview').src=state.photoData;$('preview').style.display='block'});
 $('sameAddress').addEventListener('change',()=>{if($('sameAddress').checked){$('currentAddress').value=$('registeredAddress').value;$('currentAddress').readOnly=true}else{$('currentAddress').readOnly=false}});
-$('registeredAddress').addEventListener('input',()=>{if($('sameAddress').checked)$('currentAddress').value=$('registeredAddress').value});
+$('registeredAddress').addEventListener('input',()=>{if($('sameAddress').checked)$('currentAddress').value=$('registeredAddress').value});$('birthDate').addEventListener('change',refreshDerived);$('startDate').addEventListener('change',refreshDerived);refreshDerived();
 $('form').addEventListener('submit',async e=>{e.preventDefault();showErr('');if(!state.api){showErr('ระบบยังไม่พร้อม กรุณาติดต่อ Admin');return}const r={branch:$('branch').value,position:$('position').value,startDate:$('startDate').value,firstName:$('firstName').value.trim(),lastName:$('lastName').value.trim(),nickname:$('nickname').value.trim(),phone:$('phone').value.trim(),contact:$('contact').value.trim(),birthDate:$('birthDate').value,registeredAddress:$('registeredAddress').value.trim(),currentAddress:$('currentAddress').value.trim(),emergencyName:$('emergencyName').value.trim(),emergencyPhone:$('emergencyPhone').value.trim(),emergencyRelationship:$('emergencyRelationship').value.trim(),photoData:state.photoData,consent:$('consent').checked};try{busy(1);const res=await postBridge({op:'employeeRegistrationSubmit',registration:r});$('form').style.display='none';$('rid').textContent='เลขอ้างอิง: '+(res.registrationId||'');$('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'})}catch(err){showErr(err.message||String(err))}finally{busy(0)}});
 })();
 </script>
