@@ -31,13 +31,13 @@
   </header>
 
   <section id="setupPanel" class="card setup">
-    <div class="step">ตั้งค่าโทรศัพท์ร้านครั้งแรก</div>
+    <div class="step">เปิดใช้งานเครื่องนี้</div>
     <div class="hint" style="margin-bottom:12px">Backend ส่วนกลางพร้อมใช้งาน</div>
     <div class="label">PIN Admin 6 หลัก</div>
     <input id="adminPin" class="pinAdmin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="off">
-    <button id="activateBtn" class="btn primary" type="button">ลงทะเบียนเป็นเครื่องร้าน</button>
+    <button id="activateBtn" class="btn primary" type="button">เปิดใช้งานเครื่องนี้</button>
     <div id="setupStatus" class="errorBox"></div>
-    <p class="hint">การลงทะเบียนใหม่ด้วย PIN Admin จะทำให้โทรศัพท์เครื่องนี้เป็นเครื่องลงเวลาหลัก และยกเลิกเครื่องเดิมโดยอัตโนมัติ</p>
+    <p class="hint">ใส่ PIN Admin ครั้งเดียว เครื่องนี้จะจำสิทธิ์ไว้ และสามารถใช้พร้อมกับเครื่องอื่นได้</p>
   </section>
 
   <div id="mainFlow" style="display:none">
@@ -91,7 +91,7 @@
   const $ = id => document.getElementById(id);
   const state = {apiUrl:'',deviceToken:'',deviceId:'STORE-01',employees:[],employee:null,pin:'',pinVerified:false,action:'',stream:null,photoData:'',serverOffset:0};
   const actionLabels={IN:'เข้างาน',BREAK_OUT:'เริ่มพัก',BREAK_IN:'กลับจากพัก',OUT:'เลิกงาน'};
-  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4';
+  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4', LS_CACHE='kruaFlowKioskCacheV5';
 
   function uid(){return (crypto.randomUUID?crypto.randomUUID():('r-'+Date.now()+'-'+Math.random().toString(16).slice(2)));}
   function digitsOnly(v,n){return String(v||'').replace(/\D/g,'').slice(0,n)}
@@ -131,25 +131,57 @@
     setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)}},3500);
   }
 
+  function saveKioskCache(){
+    try{
+      localStorage.setItem(LS_CACHE,JSON.stringify({deviceId:state.deviceId,employees:state.employees,savedAt:Date.now()}));
+    }catch(e){}
+  }
+
+  function getKioskCache(){
+    try{
+      const x=JSON.parse(localStorage.getItem(LS_CACHE)||'null');
+      if(!x||!Array.isArray(x.employees)||!x.employees.length)return null;
+      return x;
+    }catch(e){return null}
+  }
+
+  function renderKiosk(data,fromCache){
+    state.deviceId=(data&&data.deviceId)||state.deviceId||'KIOSK';
+    state.employees=(data&&data.employees)||[];
+    $('deviceText').textContent='เครื่อง '+state.deviceId+(fromCache?' • พร้อมใช้งาน':'');
+    const sel=$('employeeSelect');sel.innerHTML='<option value="">กรุณาเลือกชื่อพนักงาน</option>';
+    state.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name} (${e.id})`;sel.appendChild(o)});
+    $('setupPanel').classList.remove('show');$('mainFlow').style.display='block';resetFlow();
+  }
+
   async function activate(){
     try{
       state.apiUrl=sanitizeApiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');const adminPin=digitsOnly($('adminPin').value,6);if(adminPin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');
       const token=randomDeviceToken();showBusy('กำลังลงทะเบียนเครื่องร้าน...');const sent=Date.now();
       const res=await postBridge({op:'activate',adminPin,deviceToken:token});updateServerOffset(res.serverEpochMs,sent);
-      state.deviceToken=token;localStorage.setItem(LS_API,state.apiUrl);localStorage.setItem(LS_TOKEN,token);$('adminPin').value='';setSetupError('');await bootstrap();
+      state.deviceToken=token;localStorage.setItem(LS_API,state.apiUrl);localStorage.setItem(LS_TOKEN,token);$('adminPin').value='';setSetupError('');await bootstrap(false);
     }catch(e){setSetupError(e.message||String(e))}finally{hideBusy()}
   }
 
-  async function bootstrap(){
+  async function bootstrap(silent){
     try{
-      showBusy('กำลังโหลดรายชื่อพนักงาน...');const sent=Date.now();const res=await postBridge({op:'bootstrap',deviceToken:state.deviceToken});updateServerOffset(res.serverEpochMs,sent);
-      state.deviceId=res.deviceId||'STORE-01';state.employees=res.employees||[];$('deviceText').textContent='เครื่อง '+state.deviceId;
-      const sel=$('employeeSelect');sel.innerHTML='<option value="">กรุณาเลือกชื่อพนักงาน</option>';
-      state.employees.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`${e.name} (${e.id})`;sel.appendChild(o)});
-      $('setupPanel').classList.remove('show');$('mainFlow').style.display='block';resetFlow();
+      if(!silent)showBusy('กำลังโหลดรายชื่อพนักงาน...');
+      const sent=Date.now();const res=await postBridge({op:'bootstrap',deviceToken:state.deviceToken});updateServerOffset(res.serverEpochMs,sent);
+      renderKiosk(res,false);saveKioskCache();setSetupError('');
     }catch(e){
-      localStorage.removeItem(LS_TOKEN);state.deviceToken='';$('mainFlow').style.display='none';$('setupPanel').classList.add('show');setSetupError('เครื่องนี้ยังไม่ได้รับอนุญาต: '+(e.message||String(e)));
-    }finally{hideBusy()}
+      const msg=e&&e.message?e.message:String(e);
+      const unauthorized=/ไม่ได้รับอนุญาต|ยังไม่ได้ลงทะเบียน|Device Token/i.test(msg);
+      const cached=getKioskCache();
+      if(unauthorized){
+        localStorage.removeItem(LS_TOKEN);localStorage.removeItem(LS_CACHE);state.deviceToken='';
+        $('mainFlow').style.display='none';$('setupPanel').classList.add('show');setSetupError('เครื่องนี้ยังไม่ได้เปิดใช้งาน กรุณาใส่ PIN Admin');
+      }else if(cached){
+        renderKiosk(cached,true);
+        $('deviceText').textContent='เครื่อง '+(cached.deviceId||'KIOSK')+' • ใช้ข้อมูลล่าสุดในเครื่อง';
+      }else{
+        $('mainFlow').style.display='none';$('setupPanel').classList.add('show');setSetupError('เชื่อมต่อระบบไม่สำเร็จ กรุณาลองอีกครั้ง');
+      }
+    }finally{if(!silent)hideBusy()}
   }
 
   function resetFlow(){
@@ -203,12 +235,17 @@
   let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4){e.target.blur();pinTimer=setTimeout(validatePin,80)}else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
   document.querySelectorAll('.action').forEach(b=>b.addEventListener('click',()=>startCamera(b.dataset.action)));
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
-  $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
+  $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);localStorage.removeItem(LS_CACHE);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
   if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){}})}
 
   state.apiUrl=((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||localStorage.getItem(LS_API)||'');state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
-  if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show')}
+  if(state.apiUrl&&state.deviceToken){
+    const cached=getKioskCache();
+    if(cached){renderKiosk(cached,true);setTimeout(()=>bootstrap(true),50)}
+    else{bootstrap(false)}
+    setInterval(()=>bootstrap(true),300000);
+  }else{$('setupPanel').classList.add('show')}
 })();
 </script>
 </body>
