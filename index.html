@@ -120,27 +120,39 @@
   function sanitizeApiUrl(url){url=String(url||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(url))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return url.split('?')[0]}
   function randomDeviceToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 
+  const bridgePending=new Map();
+  window.addEventListener('message',e=>{
+    if(e.source!==$('apiSink').contentWindow)return;
+    const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!m.requestId)return;
+    const p=bridgePending.get(m.requestId);if(!p)return;
+    const r=m.result||{};
+    if(r.ok)p.resolve(r.data||{});else p.reject(new Error(r.error||'ทำรายการไม่สำเร็จ'));
+  });
+
   function postBridge(payload){
     return new Promise((resolve,reject)=>{
-      const requestId=uid();payload.requestId=requestId;
+      const requestId=uid();payload.requestId=requestId;let settled=false,fallbackTimer,hardTimer;
+      const finish=(ok,value)=>{if(settled)return;settled=true;clearTimeout(fallbackTimer);clearTimeout(hardTimer);bridgePending.delete(requestId);ok?resolve(value):reject(value)};
+      bridgePending.set(requestId,{resolve:data=>finish(true,data),reject:err=>finish(false,err)});
       const form=document.createElement('form');form.method='POST';form.action=state.apiUrl;form.target='apiSink';form.style.display='none';
       const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=JSON.stringify(payload);form.appendChild(input);document.body.appendChild(form);
-      try{form.submit()}catch(e){form.remove();reject(e);return}
+      try{form.submit()}catch(e){form.remove();finish(false,e);return}
       setTimeout(()=>form.remove(),5000);
-      pollStatus(requestId,resolve,reject,0);
+      fallbackTimer=setTimeout(()=>pollStatus(requestId,data=>finish(true,data),err=>finish(false,err),0),3500);
+      hardTimer=setTimeout(()=>finish(false,new Error('เซิร์ฟเวอร์ตอบช้าเกินไป กรุณากดรีเฟรชแล้วลองใหม่')),30000);
     });
   }
 
   function pollStatus(requestId,resolve,reject,attempt){
-    if(attempt>55){reject(new Error('เซิร์ฟเวอร์ตอบช้าเกินไป กรุณาลองใหม่'));return}
+    if(attempt>14){reject(new Error('เซิร์ฟเวอร์ตอบช้าเกินไป กรุณาลองใหม่'));return}
     const cb='__kfcb_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt;
     const script=document.createElement('script');
     let done=false;const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};script.remove()};
-    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),500);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
-    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),650)};
+    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),1200);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
+    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),1400)};
     script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
     document.head.appendChild(script);
-    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),650)}},4000);
+    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),1400)}},7000);
   }
 
   async function activate(){
@@ -214,7 +226,7 @@
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
   $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
-  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-5-action-icons').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
+  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-6-fast-bridge').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
 
   state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
   if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
