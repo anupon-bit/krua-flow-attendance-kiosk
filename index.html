@@ -14,7 +14,7 @@
     *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif}
     body{min-height:100vh}.app{width:min(100%,760px);margin:auto;padding:18px 14px 44px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.brand{font-size:30px;font-weight:950;line-height:1}.sub{font-size:21px;font-weight:850;margin-top:8px}.device{font-size:16px;color:var(--muted);margin-top:4px}.clock{text-align:right;font-size:30px;font-weight:950;white-space:nowrap}.date{font-size:16px;color:var(--muted);font-weight:700;margin-top:4px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin:14px 0}.step{font-size:23px;font-weight:950;margin-bottom:13px}.label{font-size:18px;font-weight:850;margin:10px 0 8px}.select,.pin{width:100%;height:64px;border:2px solid var(--line);border-radius:16px;background:#fff;font-size:23px;font-weight:800;padding:0 16px;outline:none}.select:focus,.pin:focus{border-color:var(--accent)}.pin{text-align:center;letter-spacing:.32em;font-size:30px}.pinstate{min-height:30px;font-size:18px;font-weight:800;margin-top:10px}.ok{color:var(--ok)}.bad{color:var(--bad)}.muted{color:var(--muted)}
-    .actions{display:grid;grid-template-columns:1fr;gap:12px}.action{min-height:82px;border:0;border-radius:20px;font-size:29px;font-weight:950;padding:14px 18px;text-align:left;cursor:pointer}.action:disabled{opacity:.35}.in{background:var(--green);color:#075d2d}.breakout{background:var(--yellow);color:#6c4300}.breakin{background:var(--blue);color:#0b4b91}.out{background:var(--red);color:#8d1610}
+    .actions{display:grid;grid-template-columns:1fr;gap:12px}.action{min-height:82px;border:0;border-radius:20px;font-size:29px;font-weight:950;padding:14px 18px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:16px;overflow:visible}.actionIcon{width:38px;height:38px;min-width:38px;display:block;overflow:visible;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.action:disabled{opacity:.35}.in{background:var(--green);color:#075d2d}.breakout{background:var(--yellow);color:#6c4300}.breakin{background:var(--blue);color:#0b4b91}.out{background:var(--red);color:#8d1610}
     .cameraWrap{display:none}.cameraWrap.show{display:block}.cameraBox{position:relative;width:100%;overflow:hidden;border-radius:22px;background:#111;aspect-ratio:3/4;max-height:68vh}.cameraBox video,.cameraBox img{width:100%;height:100%;object-fit:cover;display:block}.cameraBox video{transform:scaleX(-1)}.camStatus{font-size:18px;font-weight:800;margin:10px 0}.controls{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}.btn{border:0;border-radius:18px;min-height:66px;font-size:24px;font-weight:950;padding:12px 16px;cursor:pointer}.btn:disabled{opacity:.4}.primary{background:var(--accent);color:#fff}.secondary{background:#edf0f5;color:#171717}.danger{background:#fee8e7;color:#9b2119}.save{background:#0a7b3e;color:#fff;min-height:76px;font-size:28px}.selection{font-size:22px;font-weight:950;margin:2px 0 10px}.selection span{display:block;color:var(--muted);font-size:17px;margin-top:4px}.errorBox{display:none;background:#fff0ef;border:1px solid #ffc4be;color:#8d1610;border-radius:16px;padding:13px 14px;font-size:17px;font-weight:800;margin-top:12px}.errorBox.show{display:block}
     .setup{display:none}.setup.show{display:block}.setup input{width:100%;height:60px;border:2px solid var(--line);border-radius:15px;font-size:18px;padding:0 14px;margin-bottom:12px}.setup .pinAdmin{text-align:center;font-size:27px;letter-spacing:.25em}.hint{font-size:15px;color:var(--muted);line-height:1.5}
     .success{position:fixed;inset:0;background:#f2fff7;z-index:99;display:none;align-items:center;justify-content:center;padding:24px;text-align:center}.success.show{display:flex}.successIcon{font-size:86px;color:var(--ok);font-weight:950;line-height:1}.successTitle{font-size:42px;font-weight:1000;color:var(--ok);margin-top:10px}.successName{font-size:30px;font-weight:950;margin-top:18px}.successMeta{font-size:24px;font-weight:850;margin-top:8px}.overlay{position:fixed;inset:0;background:rgba(255,255,255,.86);z-index:80;display:none;align-items:center;justify-content:center;text-align:center;padding:24px}.overlay.show{display:flex}.loader{font-size:27px;font-weight:950}.small{font-size:15px;color:var(--muted);margin-top:8px}
@@ -53,10 +53,22 @@
     <section id="actionSection" class="card">
       <div class="step">2. เลือกรายการ</div>
       <div class="actions">
-        <button class="action in" data-action="IN" disabled>เข้างาน</button>
-        <button class="action breakout" data-action="BREAK_OUT" disabled>เริ่มพัก</button>
-        <button class="action breakin" data-action="BREAK_IN" disabled>กลับจากพัก</button>
-        <button class="action out" data-action="OUT" disabled>เลิกงาน</button>
+        <button class="action in" data-action="IN" disabled>
+          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path><path d="M8 3.8 6.3 2.5"></path><path d="M16 3.8l1.7-1.3"></path></svg>
+          <span>เข้างาน</span>
+        </button>
+        <button class="action breakout" data-action="BREAK_OUT" disabled>
+          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h11v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"></path><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"></path><path d="M8 4v2"></path><path d="M12 4v2"></path></svg>
+          <span>เริ่มพัก</span>
+        </button>
+        <button class="action breakin" data-action="BREAK_IN" disabled>
+          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 4 12l6 6"></path><path d="M4 12h10a6 6 0 0 1 6 6"></path></svg>
+          <span>กลับจากพัก</span>
+        </button>
+        <button class="action out" data-action="OUT" disabled>
+          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5v16h-5"></path><path d="M10 8l4 4-4 4"></path><path d="M14 12H3"></path></svg>
+          <span>เลิกงาน</span>
+        </button>
       </div>
     </section>
 
@@ -202,7 +214,7 @@
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
   $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
-  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-4-pin-autohide').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
+  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-5-action-icons').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
 
   state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
   if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
