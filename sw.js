@@ -5,7 +5,7 @@ self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;
   const u=new URL(e.request.url);
-  if(u.pathname.endsWith('/admin.html')||u.pathname.endsWith('/register.html')){
+  if(u.pathname.endsWith('/admin.html')||u.pathname.endsWith('/register.html')||u.pathname.endsWith('/dashboard.html')||u.pathname.endsWith('/leave.html')){
     e.respondWith(fetch(new Request(e.request,{cache:'no-store'})));
     return;
   }
