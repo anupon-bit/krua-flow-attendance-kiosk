@@ -138,21 +138,21 @@
       const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=JSON.stringify(payload);form.appendChild(input);document.body.appendChild(form);
       try{form.submit()}catch(e){form.remove();finish(false,e);return}
       setTimeout(()=>form.remove(),5000);
-      fallbackTimer=setTimeout(()=>pollStatus(requestId,data=>finish(true,data),err=>finish(false,err),0),3500);
-      hardTimer=setTimeout(()=>finish(false,new Error('เซิร์ฟเวอร์ตอบช้าเกินไป กรุณากดรีเฟรชแล้วลองใหม่')),30000);
+      fallbackTimer=setTimeout(()=>pollStatus(requestId,data=>finish(true,data),err=>finish(false,err),0),350);
+      hardTimer=setTimeout(()=>finish(false,new Error('เชื่อมต่อ Backend เกิน 15 วินาที กรุณากดรีเฟรชแล้วลองใหม่')),15000);
     });
   }
 
   function pollStatus(requestId,resolve,reject,attempt){
-    if(attempt>14){reject(new Error('เซิร์ฟเวอร์ตอบช้าเกินไป กรุณาลองใหม่'));return}
+    if(attempt>12){reject(new Error('เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'));return}
     const cb='__kfcb_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt;
     const script=document.createElement('script');
     let done=false;const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};script.remove()};
-    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),1200);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
-    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),1400)};
+    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),700);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
+    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)};
     script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
     document.head.appendChild(script);
-    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),1400)}},7000);
+    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)}},7000);
   }
 
   async function activate(){
@@ -226,7 +226,7 @@
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
   $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
-  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-6-fast-bridge').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
+  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-7-fast-bootstrap').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
 
   state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
   if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
