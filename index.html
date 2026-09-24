@@ -53,22 +53,10 @@
     <section id="actionSection" class="card">
       <div class="step">2. เลือกรายการ</div>
       <div class="actions">
-        <button class="action in" data-action="IN" disabled>
-          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path><path d="M8 3.8 6.3 2.5"></path><path d="M16 3.8l1.7-1.3"></path></svg>
-          <span>เข้างาน</span>
-        </button>
-        <button class="action breakout" data-action="BREAK_OUT" disabled>
-          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h11v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"></path><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"></path><path d="M8 4v2"></path><path d="M12 4v2"></path></svg>
-          <span>เริ่มพัก</span>
-        </button>
-        <button class="action breakin" data-action="BREAK_IN" disabled>
-          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 4 12l6 6"></path><path d="M4 12h10a6 6 0 0 1 6 6"></path></svg>
-          <span>กลับจากพัก</span>
-        </button>
-        <button class="action out" data-action="OUT" disabled>
-          <svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5v16h-5"></path><path d="M10 8l4 4-4 4"></path><path d="M14 12H3"></path></svg>
-          <span>เลิกงาน</span>
-        </button>
+        <button class="action in" data-action="IN" disabled><svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>เข้างาน</span></button>
+        <button class="action breakout" data-action="BREAK_OUT" disabled><svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h11v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"></path><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"></path></svg><span>เริ่มพัก</span></button>
+        <button class="action breakin" data-action="BREAK_IN" disabled><svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 4 12l6 6"></path><path d="M4 12h10a6 6 0 0 1 6 6"></path></svg><span>กลับจากพัก</span></button>
+        <button class="action out" data-action="OUT" disabled><svg class="actionIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5v16h-5"></path><path d="M10 8l4 4-4 4"></path><path d="M14 12H3"></path></svg><span>เลิกงาน</span></button>
       </div>
     </section>
 
@@ -120,26 +108,14 @@
   function sanitizeApiUrl(url){url=String(url||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(url))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return url.split('?')[0]}
   function randomDeviceToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 
-  const bridgePending=new Map();
-  window.addEventListener('message',e=>{
-    if(e.source!==$('apiSink').contentWindow)return;
-    const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!m.requestId)return;
-    const p=bridgePending.get(m.requestId);if(!p)return;
-    const r=m.result||{};
-    if(r.ok)p.resolve(r.data||{});else p.reject(new Error(r.error||'ทำรายการไม่สำเร็จ'));
-  });
-
   function postBridge(payload){
     return new Promise((resolve,reject)=>{
-      const requestId=uid();payload.requestId=requestId;let settled=false,fallbackTimer,hardTimer;
-      const finish=(ok,value)=>{if(settled)return;settled=true;clearTimeout(fallbackTimer);clearTimeout(hardTimer);bridgePending.delete(requestId);ok?resolve(value):reject(value)};
-      bridgePending.set(requestId,{resolve:data=>finish(true,data),reject:err=>finish(false,err)});
+      const requestId=uid();payload.requestId=requestId;
       const form=document.createElement('form');form.method='POST';form.action=state.apiUrl;form.target='apiSink';form.style.display='none';
       const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=JSON.stringify(payload);form.appendChild(input);document.body.appendChild(form);
-      try{form.submit()}catch(e){form.remove();finish(false,e);return}
+      try{form.submit()}catch(e){form.remove();reject(e);return}
       setTimeout(()=>form.remove(),5000);
-      fallbackTimer=setTimeout(()=>pollStatus(requestId,data=>finish(true,data),err=>finish(false,err),0),350);
-      hardTimer=setTimeout(()=>finish(false,new Error('เชื่อมต่อ Backend เกิน 15 วินาที กรุณากดรีเฟรชแล้วลองใหม่')),15000);
+      pollStatus(requestId,resolve,reject,0);
     });
   }
 
@@ -152,7 +128,7 @@
     script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)};
     script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
     document.head.appendChild(script);
-    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)}},7000);
+    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)}},3500);
   }
 
   async function activate(){
@@ -183,15 +159,18 @@
   }
 
   async function validatePin(){
-    const id=$('employeeSelect').value,pin=digitsOnly($('employeePin').value,4);state.pin=pin;state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true);
-    if(!id||pin.length!==4){$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';return}
-    $('pinState').className='pinstate muted';$('pinState').textContent='กำลังตรวจสอบชื่อและรหัส...';
-    try{const sent=Date.now();const res=await postBridge({op:'validatePin',deviceToken:state.deviceToken,employeeId:id,employeePin:pin});updateServerOffset(res.serverEpochMs,sent);state.employee={id:res.employeeId,name:res.employeeName};state.pinVerified=true;$('pinState').className='pinstate ok';$('pinState').textContent='✓ ชื่อและรหัสถูกต้อง — เลือกรายการด้านล่าง';document.querySelectorAll('.action').forEach(b=>b.disabled=false);setTimeout(()=>$('actionSection').scrollIntoView({behavior:'smooth',block:'center'}),120)}
-    catch(e){state.employee=null;$('pinState').className='pinstate bad';$('pinState').textContent=e.message||'ชื่อและรหัสไม่ตรงกัน'}
+    const id=$('employeeSelect').value,pin=digitsOnly($('employeePin').value,4);
+    state.pin=pin;state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true);
+    if(!id||pin.length!==4){state.employee=null;$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';return}
+    const emp=state.employees.find(e=>String(e.id)===String(id));
+    if(!emp){state.employee=null;$('pinState').className='pinstate bad';$('pinState').textContent='ไม่พบพนักงาน กรุณาเลือกชื่อใหม่';return}
+    state.employee={id:emp.id,name:emp.name};state.pinVerified=true;
+    $('pinState').className='pinstate ok';$('pinState').textContent='✓ รหัสครบ 4 หลัก — เลือกรายการได้เลย';
+    document.querySelectorAll('.action').forEach(b=>b.disabled=false);
+    setTimeout(()=>$('actionSection').scrollIntoView({behavior:'smooth',block:'center'}),60);
   }
-
   async function startCamera(action){
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setCamError('เบราว์เซอร์นี้ไม่รองรับกล้องสด กรุณาเปิดลิงก์นี้ด้วย Chrome หรือ Safari โดยตรง ไม่ใช้เบราว์เซอร์ใน LINE/Facebook');return;}
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setCamError('เบราว์เซอร์นี้ไม่รองรับกล้องสด กรุณาเปิดด้วย Chrome โดยตรง');return;}
     if(!state.pinVerified||!state.employee)return;state.action=action;state.photoData='';$('cameraSection').classList.add('show');$('selectionText').innerHTML=`${state.employee.name}<span>${state.employee.id} • ${actionLabels[action]}</span>`;$('preview').style.display='none';$('video').style.display='block';$('retakeBtn').style.display='none';$('saveBtn').style.display='none';$('captureBtn').style.display='';$('captureBtn').disabled=true;setCamError('');$('camStatus').textContent='กำลังเปิดกล้องหน้า...';$('cameraSection').scrollIntoView({behavior:'smooth',block:'start'});
     stopCamera();
     try{
@@ -204,29 +183,29 @@
 
   function capture(){
     const v=$('video');if(!state.stream||!v.videoWidth){setCamError('กล้องยังไม่พร้อม กรุณารอสักครู่');return}
-    const maxDim=1280;let sw=v.videoWidth,sh=v.videoHeight,scale=Math.min(1,maxDim/Math.max(sw,sh));let w=Math.round(sw*scale),h=Math.round(sh*scale);
+    const maxDim=800;let sw=v.videoWidth,sh=v.videoHeight,scale=Math.min(1,maxDim/Math.max(sw,sh));let w=Math.round(sw*scale),h=Math.round(sh*scale);
     const c=$('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.save();ctx.translate(w,0);ctx.scale(-1,1);ctx.drawImage(v,0,0,w,h);ctx.restore();
     const bar=Math.max(150,Math.round(h*.22));ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(0,h-bar,w,bar);ctx.fillStyle='#fff';const p=Math.max(16,Math.round(w*.035));ctx.font=`900 ${Math.round(p*1.12)}px sans-serif`;ctx.fillText('Krua Flow Attendance',p,h-bar+p*1.45);ctx.font=`800 ${p}px sans-serif`;ctx.fillText(`${state.employee.name} • ${state.employee.id}`,p,h-bar+p*2.75);ctx.fillText(`${actionLabels[state.action]} • ${thaiDateTime(serverNow())}`,p,h-bar+p*4.05);ctx.font=`700 ${Math.round(p*.82)}px sans-serif`;ctx.fillText(`DEVICE ${state.deviceId}`,p,h-bar+p*5.18);
-    state.photoData=c.toDataURL('image/jpeg',.82);$('preview').src=state.photoData;$('preview').style.display='block';$('video').style.display='none';stopCamera();$('captureBtn').style.display='none';$('retakeBtn').style.display='';$('saveBtn').style.display='';$('camStatus').textContent='ตรวจรูปแล้วกด “บันทึกเวลา”';$('camStatus').className='camStatus ok';
+    state.photoData=c.toDataURL('image/jpeg',.68);$('preview').src=state.photoData;$('preview').style.display='block';$('video').style.display='none';stopCamera();$('captureBtn').style.display='none';$('retakeBtn').style.display='';$('saveBtn').style.display='';$('camStatus').textContent='ตรวจรูปแล้วกด “บันทึกเวลา”';$('camStatus').className='camStatus ok';
   }
 
   async function retake(){await startCamera(state.action)}
 
   async function saveAttendance(){
     if(!state.photoData||!state.pinVerified||!state.employee)return;
-    try{showBusy('กำลังบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=res.employeeName;$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},2800)}
+    try{showBusy('กำลังตรวจรหัสและบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=res.employeeName;$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},1400)}
     catch(e){hideBusy();setCamError(e.message||String(e));$('saveBtn').disabled=false}
   }
 
   $('activateBtn').addEventListener('click',activate);
   $('adminPin').addEventListener('input',e=>e.target.value=digitsOnly(e.target.value,6));
   $('employeeSelect').addEventListener('change',()=>{state.pinVerified=false;state.employee=null;$('employeePin').value='';state.pin='';document.querySelectorAll('.action').forEach(b=>b.disabled=true);$('pinState').className='pinstate muted';$('pinState').textContent=$('employeeSelect').value?'กรอกรหัสลงเวลา 4 หลัก':'เลือกชื่อและกรอกรหัส 4 หลัก';$('employeePin').focus()});
-  let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4){e.target.blur();$('pinState').className='pinstate muted';$('pinState').textContent='กำลังตรวจสอบชื่อและรหัส...';pinTimer=setTimeout(validatePin,180)}else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
+  let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4){e.target.blur();pinTimer=setTimeout(validatePin,80)}else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
   document.querySelectorAll('.action').forEach(b=>b.addEventListener('click',()=>startCamera(b.dataset.action)));
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
   $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
-  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith('krua-flow-attendance-v4-')&&k!=='krua-flow-attendance-v4-7-fast-bootstrap').map(k=>caches.delete(k)))}const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){console.warn('SW update',e)}})}
+  if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){}})}
 
   state.apiUrl=localStorage.getItem(LS_API)||'';state.deviceToken=localStorage.getItem(LS_TOKEN)||'';
   if(state.apiUrl&&state.deviceToken){bootstrap()}else{$('setupPanel').classList.add('show');$('apiUrl').value=state.apiUrl}
