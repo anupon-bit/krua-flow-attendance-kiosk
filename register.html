@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Krua Flow ลงทะเบียนพนักงาน</title>
+<script src="./config.js"></script>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--text:#17191f;--muted:#6d7480;--line:#d9dee8;--blue:#2865ee;--green:#087a3d;--red:#9b2b23}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI","Noto Sans Thai",sans-serif}
+.wrap{max-width:760px;margin:auto;padding:18px 14px 42px}.brand{font-size:32px;font-weight:950}.sub{color:var(--muted);font-weight:750;margin-top:4px}
+.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;margin:14px 0}.card h2{margin:0 0 14px;font-size:23px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-weight:850;margin:0 0 7px}.req:after{content:" *";color:var(--red)}
+.input,.select,.textarea{width:100%;border:1px solid #cfd5df;border-radius:14px;background:#fff;font:inherit;font-size:17px}.input,.select{min-height:52px;padding:0 13px}.textarea{min-height:96px;padding:12px 13px;resize:vertical}
+.help{font-size:14px;color:var(--muted);line-height:1.45}.btn{width:100%;min-height:60px;border:0;border-radius:16px;background:var(--blue);color:#fff;font-size:20px;font-weight:950;cursor:pointer}.btn:disabled{opacity:.5}
+.photoBox{border:1px dashed #b9c2d0;border-radius:16px;padding:14px;text-align:center}.preview{width:150px;height:190px;object-fit:cover;border-radius:14px;display:none;margin:10px auto 0}
+.msg{display:none;padding:12px 14px;border-radius:14px;margin-top:12px;font-weight:850}.msg.show{display:block}.err{background:#fff0ee;color:#93241d}.ok{background:#eaf8ef;color:#086b38}
+.overlay{position:fixed;inset:0;background:rgba(255,255,255,.88);display:none;align-items:center;justify-content:center;z-index:10;text-align:center;padding:20px}.overlay.show{display:flex}.overlay strong{font-size:24px}
+.success{display:none;text-align:center;padding:32px 18px}.success.show{display:block}.success .icon{font-size:68px;color:var(--green);font-weight:950}.success h2{font-size:30px;margin:6px 0}.rid{font-weight:900;color:var(--muted)}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.45}.consent input{margin-top:4px;transform:scale(1.25)}
+@media(max-width:620px){.grid2{grid-template-columns:1fr}.brand{font-size:29px}.wrap{padding:13px 10px 34px}}
+</style>
+</head>
+<body>
+<div class="overlay" id="busy"><div><strong>กำลังส่งข้อมูล...</strong><div class="help">กรุณารอสักครู่</div></div></div>
+<main class="wrap">
+  <div class="brand">Krua Flow</div><div class="sub">แบบลงทะเบียนข้อมูลพนักงาน</div>
+  <form id="form">
+    <section class="card">
+      <h2>ข้อมูลการทำงาน</h2>
+      <div class="grid2">
+        <div class="field"><label class="req">สาขาทำงาน</label><select class="select" id="branch" required><option value="">เลือกสาขา</option><option value="KORAT">โคราช</option><option value="UDOMSUK">อุดมสุข</option></select></div>
+        <div class="field"><label class="req">ตำแหน่ง</label><select class="select" id="position" required><option value="">เลือกตำแหน่ง</option><option value="MANAGER">ผู้จัดการ</option><option value="SUPERVISOR">หัวหน้างาน</option><option value="STAFF">พนักงาน</option></select></div>
+        <div class="field"><label>วันที่เริ่มงาน</label><input class="input" id="startDate" type="date"></div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>ข้อมูลส่วนบุคคล</h2>
+      <div class="grid2">
+        <div class="field"><label class="req">ชื่อ</label><input class="input" id="firstName" required></div>
+        <div class="field"><label class="req">นามสกุล</label><input class="input" id="lastName" required></div>
+        <div class="field"><label>ชื่อเล่น</label><input class="input" id="nickname"></div>
+        <div class="field"><label class="req">เบอร์โทร</label><input class="input" id="phone" type="tel" inputmode="tel" required></div>
+        <div class="field"><label>Email / LINE</label><input class="input" id="contact"></div>
+        <div class="field"><label class="req">วันเดือนปีเกิด</label><input class="input" id="birthDate" type="date" required></div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>ที่อยู่</h2>
+      <div class="field"><label class="req">ที่อยู่ทะเบียนบ้าน</label><textarea class="textarea" id="registeredAddress" required></textarea></div>
+      <div class="consent" style="margin:10px 0"><input type="checkbox" id="sameAddress"><label for="sameAddress">ที่อยู่ปัจจุบันเหมือนที่อยู่ทะเบียนบ้าน</label></div>
+      <div class="field"><label class="req">ที่อยู่ปัจจุบัน</label><textarea class="textarea" id="currentAddress" required></textarea></div>
+    </section>
+    <section class="card">
+      <h2>บุคคลติดต่อกรณีฉุกเฉิน</h2>
+      <div class="grid2">
+        <div class="field"><label class="req">ชื่อผู้ติดต่อ</label><input class="input" id="emergencyName" required></div>
+        <div class="field"><label class="req">เบอร์โทร</label><input class="input" id="emergencyPhone" type="tel" inputmode="tel" required></div>
+        <div class="field"><label>ความสัมพันธ์</label><input class="input" id="emergencyRelationship" placeholder="เช่น บิดา / มารดา / คู่สมรส"></div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>รูปถ่ายพนักงาน</h2>
+      <div class="photoBox">
+        <input id="photo" type="file" accept="image/*" capture="user">
+        <div class="help">ใช้รูปหน้าตรง เห็นใบหน้าชัดเจน</div>
+        <img class="preview" id="preview" alt="รูปตัวอย่าง">
+      </div>
+      <p class="help">เพื่อความปลอดภัย ข้อมูลบัตรประชาชนและบัญชีธนาคารไม่รับผ่านลิงก์สาธารณะนี้ ให้ส่งกับ Admin โดยตรงเมื่อจำเป็น</p>
+    </section>
+    <section class="card">
+      <label class="consent"><input type="checkbox" id="consent" required><span>ข้าพเจ้ายืนยันว่าข้อมูลถูกต้อง และยินยอมให้ร้านใช้ข้อมูลนี้เพื่อการบริหารงานบุคคล การลงเวลา และการจ่ายค่าจ้าง</span></label>
+    </section>
+    <button class="btn" id="submitBtn" type="submit">ส่งข้อมูลลงทะเบียน</button>
+    <div class="msg err" id="error"></div>
+  </form>
+  <section class="card success" id="success">
+    <div class="icon">✓</div><h2>ส่งข้อมูลสำเร็จ</h2>
+    <p>ข้อมูลถูกส่งให้ Admin ตรวจสอบแล้ว</p><div class="rid" id="rid"></div>
+  </section>
+</main>
+<iframe name="apiSink" id="apiSink" style="display:none"></iframe>
+<canvas id="canvas" style="display:none"></canvas>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const state={api:(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'',photoData:''};
+function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
+function showErr(m){$('error').textContent=m||'';$('error').classList.toggle('show',!!m)}
+function busy(v){$('busy').classList.toggle('show',!!v)}
+function postBridge(payload){return new Promise((resolve,reject)=>{const requestId=uid();payload.requestId=requestId;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.type='hidden';i.name='payload';i.value=JSON.stringify(payload);f.appendChild(i);document.body.appendChild(f);try{f.submit()}catch(e){f.remove();reject(e);return}setTimeout(()=>f.remove(),3000);poll(requestId,resolve,reject,0)})}
+function poll(id,resolve,reject,n){if(n>22){reject(new Error('ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่'));return}const cb='__reg_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n;const s=document.createElement('script');let done=false;const clean=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){}s.remove()};window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>poll(id,resolve,reject,n+1),600);return}r.ok?resolve(r.data||{}):reject(new Error(r.error||'ส่งข้อมูลไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>poll(id,resolve,reject,n+1),800)};s.src=state.api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.head.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>poll(id,resolve,reject,n+1),800)}},4000)}
+async function makePhoto(file){if(!file)return'';const img=new Image();const url=URL.createObjectURL(file);await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url});const max=1000,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=$('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);return c.toDataURL('image/jpeg',.72)}
+$('photo').addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f){state.photoData='';$('preview').style.display='none';return}state.photoData=await makePhoto(f);$('preview').src=state.photoData;$('preview').style.display='block'});
+$('sameAddress').addEventListener('change',()=>{if($('sameAddress').checked){$('currentAddress').value=$('registeredAddress').value;$('currentAddress').readOnly=true}else{$('currentAddress').readOnly=false}});
+$('registeredAddress').addEventListener('input',()=>{if($('sameAddress').checked)$('currentAddress').value=$('registeredAddress').value});
+$('form').addEventListener('submit',async e=>{e.preventDefault();showErr('');if(!state.api){showErr('ระบบยังไม่พร้อม กรุณาติดต่อ Admin');return}const r={branch:$('branch').value,position:$('position').value,startDate:$('startDate').value,firstName:$('firstName').value.trim(),lastName:$('lastName').value.trim(),nickname:$('nickname').value.trim(),phone:$('phone').value.trim(),contact:$('contact').value.trim(),birthDate:$('birthDate').value,registeredAddress:$('registeredAddress').value.trim(),currentAddress:$('currentAddress').value.trim(),emergencyName:$('emergencyName').value.trim(),emergencyPhone:$('emergencyPhone').value.trim(),emergencyRelationship:$('emergencyRelationship').value.trim(),photoData:state.photoData,consent:$('consent').checked};try{busy(1);const res=await postBridge({op:'employeeRegistrationSubmit',registration:r});$('form').style.display='none';$('rid').textContent='เลขอ้างอิง: '+(res.registrationId||'');$('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'})}catch(err){showErr(err.message||String(err))}finally{busy(0)}});
+})();
+</script>
+</body>
+</html>
