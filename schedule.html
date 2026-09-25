@@ -511,24 +511,62 @@ async function publishMonth(){
   if(state.dirtyWeeks.size){const ok=await saveDraft(false);if(!ok)return}
   const weeks=Object.keys(state.weekData).filter(w=>state.weekData[w].version&&state.weekData[w].version.status==='DRAFT');
   if(!weeks.length){alert('ไม่มี Draft ที่รอประกาศในเดือนนี้');return}
-  busy(1,'กำลังประกาศตาราง '+weeks.length+' สัปดาห์...');
+
+  const btn=$('publish'),oldText=btn.textContent;
+  btn.disabled=true;btn.textContent='กำลังประกาศ 0/'+weeks.length;
+  $('versionText').innerHTML='<span class="status draft">กำลังประกาศ '+weeks.length+' สัปดาห์...</span>';
+
   try{
-    for(const w of weeks){
+    let done=0;
+    const firstPass=await Promise.all(weeks.map(async w=>{
       const v=state.weekData[w].version;
       try{
         await call({op:'managerPublishSchedule',portalToken:state.token,versionId:v.versionId,branchCode:state.branch,departmentCode:state.department,weekStart:w},{timeoutMs:60000});
+        done++;btn.textContent='กำลังประกาศ '+done+'/'+weeks.length;
+        return{week:w,ok:true};
       }catch(e){
-        if(/Publish ไม่ได้|กำลังคน|ลาที่ล็อก/.test(e.message||'')){
-          const reason=prompt('สัปดาห์ '+w+'\n'+e.message+'\n\nหากต้องการ Override ให้ระบุเหตุผล');
-          if(!reason)throw e;
-          await call({op:'managerPublishSchedule',portalToken:state.token,versionId:v.versionId,branchCode:state.branch,departmentCode:state.department,weekStart:w,allowOverride:true,overrideReason:reason},{timeoutMs:60000});
-        }else throw e;
+        done++;btn.textContent='กำลังประกาศ '+done+'/'+weeks.length;
+        return{week:w,ok:false,error:e};
       }
+    }));
+
+    const failed=firstPass.filter(x=>!x.ok),successWeeks=firstPass.filter(x=>x.ok).map(x=>x.week);
+
+    for(const w of successWeeks){
+      const wd=state.weekData[w],v=wd&&wd.version;
+      if(v){wd.version=Object.assign({},v,{status:'PUBLISHED'});wd.publishedVersion=wd.version}
     }
-    alert('ประกาศตารางเดือนนี้เรียบร้อย พนักงานจะเห็นใน Employee Portal');
-    await loadMonth();
-  }catch(e){alert(e.message)}
-  finally{busy(0)}
+
+    const unresolved=[];
+    for(const x of failed){
+      const msg=x.error&&x.error.message||'ประกาศตารางไม่สำเร็จ';
+      if(/Publish ไม่ได้|กำลังคน|ลาที่ล็อก/.test(msg)){
+        const reason=prompt('สัปดาห์ '+x.week+'\n'+msg+'\n\nหากต้องการ Override ให้ระบุเหตุผล');
+        if(reason){
+          const v=state.weekData[x.week].version;
+          try{
+            await call({op:'managerPublishSchedule',portalToken:state.token,versionId:v.versionId,branchCode:state.branch,departmentCode:state.department,weekStart:x.week,allowOverride:true,overrideReason:reason},{timeoutMs:60000});
+            state.weekData[x.week].version=Object.assign({},v,{status:'PUBLISHED'});
+            state.weekData[x.week].publishedVersion=state.weekData[x.week].version;
+          }catch(e){unresolved.push(x.week+': '+e.message)}
+        }else unresolved.push(x.week+': ยังไม่ได้ Override');
+      }else unresolved.push(x.week+': '+msg);
+    }
+
+    writeMonthCache();renderVersionText();
+
+    if(unresolved.length){
+      alert('ประกาศสำเร็จบางสัปดาห์\n\n'+unresolved.join('\n'));
+    }else{
+      alert('ประกาศตารางเดือนนี้เรียบร้อย พนักงานจะเห็นใน Employee Portal');
+    }
+
+    loadMonth().catch(()=>{});
+  }catch(e){
+    alert(e.message);
+  }finally{
+    btn.disabled=false;btn.textContent=oldText;
+  }
 }
 
 function sourceDateForPreviousMonth(cur,prevFirst){
