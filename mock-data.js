@@ -74,7 +74,7 @@
     if(op==='managerGetShiftSwapRequests') return {rows:swaps.filter(x=>p.status==='ALL'||x.status===p.status)};
     if(op==='managerReviewShiftSwap'){const x=swaps.find(x=>x.swapId===p.swapId);if(x)x.status=p.decision;return{ok:true}}
     if(op==='managerGetDailyChecks') return {rows:daily};
-    if(op==='managerResolveDailyCheck'){const x=daily.find(x=>x.checkId===p.checkId);if(x){x.status='RESOLVED';x.resolutionNote=p.note;x.resolvedAt='09:05';x.resolvedBy:'E001'}return{ok:true}}
+    if(op==='managerResolveDailyCheck'){const x=daily.find(x=>x.checkId===p.checkId);if(x){x.status='RESOLVED';x.resolutionNote=p.note;x.resolvedAt='09:05';x.resolvedBy='E001'}return{ok:true}}
     if(op==='managerGetSchedule') return {items:scheduleItems.filter(x=>x.weekStart===p.weekStart&&(p.branchCode==='KORAT'||p.branchCode==='UDOMSUK')),version:p.weekStart===iso(nextMon)?{versionId:'VER-1',versionNo:1,status:'DRAFT'}:null,publishedVersion:null};
     if(op==='managerSaveSchedule'){scheduleItems=(p.items||[]).map((x,i)=>Object.assign({},x,{scheduleId:'SCH-M-'+i,versionId:'VER-MOCK',weekStart:p.weekStart}));return{version:{versionId:'VER-MOCK',versionNo:2,status:'DRAFT'}}}
     if(op==='managerPublishSchedule') return {ok:true};
