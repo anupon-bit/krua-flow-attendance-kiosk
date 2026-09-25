@@ -146,7 +146,7 @@ button,input,select{font:inherit}.wrap{max-width:1720px;margin:auto;padding:14px
 (()=> {
 const $=id=>document.getElementById(id);
 const KEY='kruaFlowPortalTokenV7',EXP='kruaFlowPortalTokenV7Exp';
-const state={api:'',token:'',summary:null,scopes:[],branch:'',department:'',team:[],items:[],leaves:[],locks:{},shifts:[],weekData:{},dirtyWeeks:new Set(),editDate:'',editShift:'',queryApplied:false};
+const state={api:'',token:'',summary:null,scopes:[],branch:'',department:'',team:[],items:[],leaves:[],locks:{},shifts:[],weekData:{},dirtyWeeks:new Set(),editDate:'',editShift:'',queryApplied:false,loadSeq:0};
 const pending={};
 
 function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
@@ -169,6 +169,29 @@ function finishCall(id,ok,value){const p=pending[id];if(!p)return;clearTimeout(p
 function pollCall(id,n){if(!pending[id])return;if(n>18){finishCall(id,false,new Error('Backend ไม่ตอบสนองหลังรอ 45 วินาที'));return}const cb='__kfs_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n,s=document.createElement('script');let done=false;function clean(){done=true;try{delete window[cb]}catch(e){window[cb]=undefined}s.remove()}window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>pollCall(id,n+1),900);return}r.ok?finishCall(id,true,r.data||{}):finishCall(id,false,new Error(r.error||'ทำรายการไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>pollCall(id,n+1),1000)};s.src=state.api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.body.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>pollCall(id,n+1),900)}},3500)}
 function call(p,opts){opts=opts||{};if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,fallback:null,timeout:null};try{f.submit()}catch(e){delete pending[id];f.remove();rej(e);return}setTimeout(()=>f.remove(),3000);pending[id].fallback=setTimeout(()=>{if(pending[id])pollCall(id,0)},700);pending[id].timeout=setTimeout(()=>finishCall(id,false,new Error(opts.timeoutMessage||'Backend ตอบช้าเกินไป กรุณาลองใหม่')),opts.timeoutMs||45000)})}
 function token(){const t=localStorage.getItem(KEY)||'',e=Number(localStorage.getItem(EXP)||0);return t&&e>Date.now()?t:''}
+function monthCacheKey(){return 'kfManagerMonthV73:'+state.branch+':'+state.department+':'+$('month').value}
+function readMonthCache(){
+  try{
+    const x=JSON.parse(localStorage.getItem(monthCacheKey())||'null');
+    if(x&&x.at&&Date.now()-x.at<21600000&&Array.isArray(x.items)){
+      state.team=x.team||state.team;state.shifts=x.shifts||state.shifts;state.leaves=x.leaves||[];
+      state.items=x.items||[];state.weekData=x.weekData||{};buildLocks(state.leaves);return true;
+    }
+  }catch(e){}
+  return false
+}
+function writeMonthCache(){
+  try{localStorage.setItem(monthCacheKey(),JSON.stringify({at:Date.now(),team:state.team,shifts:state.shifts,leaves:state.leaves,items:state.items,weekData:state.weekData}))}catch(e){}
+}
+function replaceWeekSchedule(week,sch){
+  const s=new Date(week+'T00:00:00'),e=plus(s,6),a=iso(s),b=iso(e);
+  state.items=state.items.filter(x=>x.date<a||x.date>b);
+  (sch.items||[]).forEach(x=>state.items.push(Object.assign({},x)));
+  state.weekData[week]={version:sch.version||null,publishedVersion:sch.publishedVersion||null};
+}
+function selectedMonthIsCurrent(){
+  const d=monthStart($('month').value),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()
+}
 
 function query(){const q=new URLSearchParams(location.search);return{branch:q.get('branch')||'',department:q.get('department')||''}}
 function syncScopeSelectors(){
@@ -231,44 +254,65 @@ async function boot(){
   state.api=apiUrl();state.token=token();if(!state.token){location.href='./portal.html';return}
   try{
     busy(1,'กำลังเตรียมหน้าจัดตาราง...');
-    const [s,pb]=await Promise.all([
-      call({op:'managerSummary',portalToken:state.token},{timeoutMs:60000}),
-      call({op:'portalBootstrap',portalToken:state.token},{timeoutMs:60000})
-    ]);
-    state.summary=s;state.scopes=s.scopes||[];state.shifts=(pb.shifts||[]).filter(x=>x.active!==false);
-    syncScopeSelectors();
+    const s=await call({op:'managerSummary',portalToken:state.token},{timeoutMs:60000});
+    state.summary=s;state.scopes=s.scopes||[];syncScopeSelectors();
     const now=new Date();$('month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-    await loadMonth();
+    busy(0);
+    loadMonth().catch(e=>alert(e.message));
   }catch(e){
-    alert(e.message);if(/สิทธิ์|Session|เข้าสู่ระบบ/.test(e.message))location.href='./portal.html';
-  }finally{busy(0)}
+    busy(0);alert(e.message);if(/สิทธิ์|Session|เข้าสู่ระบบ/.test(e.message))location.href='./portal.html';
+  }
 }
 
 async function loadMonth(){
   if(!state.branch||!state.department)return;
-  const range=calendarRange();
+  const seq=++state.loadSeq,range=calendarRange();
   $('monthTitle').textContent=monthLabel(range.first);
-  busy(1,'กำลังโหลดตารางรายเดือน...');
-  try{
-    const base=[
-      call({op:'managerGetTeam',portalToken:state.token,branchCode:state.branch,departmentCode:state.department},{timeoutMs:60000}),
-      call({op:'managerGetLeaveRequests',portalToken:state.token,status:'PENDING'},{timeoutMs:60000}),
-      call({op:'managerGetLeaveRequests',portalToken:state.token,status:'APPROVED'},{timeoutMs:60000})
-    ];
-    const scheduleCalls=range.weeks.map(w=>call({op:'managerGetSchedule',portalToken:state.token,branchCode:state.branch,departmentCode:state.department,weekStart:w},{timeoutMs:60000}));
-    const all=await Promise.all(base.concat(scheduleCalls));
-    state.team=all[0].rows||[];
-    state.leaves=(all[1].rows||[]).concat(all[2].rows||[]);
-    buildLocks(state.leaves);
-    state.weekData={};state.items=[];
-    range.weeks.forEach((w,i)=>{
-      const sch=all[i+3]||{};
-      state.weekData[w]={version:sch.version||null,publishedVersion:sch.publishedVersion||null};
-      (sch.items||[]).forEach(x=>state.items.push(Object.assign({},x)));
-    });
-    state.dirtyWeeks.clear();
+  state.dirtyWeeks.clear();
+
+  const hadCache=readMonthCache();
+  if(!hadCache){
+    state.items=[];state.weekData={};state.leaves=[];state.locks={};
     render();
-  }finally{busy(0)}
+  }else render();
+  $('versionText').innerHTML='<span class="status none">กำลังอัปเดตข้อมูล...</span>';
+
+  let anchor=selectedMonthIsCurrent()?weekKey(iso(new Date())):range.weeks[0];
+  if(!range.weeks.includes(anchor))anchor=range.weeks[0];
+  const rest=range.weeks.filter(w=>w!==anchor);
+
+  const restJobs=rest.map(w=>call({op:'managerGetSchedule',portalToken:state.token,branchCode:state.branch,departmentCode:state.department,weekStart:w},{timeoutMs:60000})
+    .then(sch=>{
+      if(seq!==state.loadSeq)return;
+      replaceWeekSchedule(w,sch||{});render();writeMonthCache();
+    }).catch(()=>{}));
+
+  try{
+    const b=await call({op:'managerScheduleBundle',portalToken:state.token,branchCode:state.branch,departmentCode:state.department,weekStart:anchor},{timeoutMs:60000});
+    if(seq!==state.loadSeq)return;
+    state.team=b.team||state.team;
+    state.shifts=(b.shifts||state.shifts||[]).filter(x=>x.active!==false);
+    state.leaves=b.leaves||[];
+    buildLocks(state.leaves);
+    replaceWeekSchedule(anchor,b.schedule||{});
+    render();writeMonthCache();
+  }catch(bundleErr){
+    if(seq!==state.loadSeq)return;
+    const [team,pb,pend,app,sch]=await Promise.all([
+      call({op:'managerGetTeam',portalToken:state.token,branchCode:state.branch,departmentCode:state.department},{timeoutMs:60000}),
+      call({op:'portalBootstrap',portalToken:state.token},{timeoutMs:60000}),
+      call({op:'managerGetLeaveRequests',portalToken:state.token,status:'PENDING'},{timeoutMs:60000}),
+      call({op:'managerGetLeaveRequests',portalToken:state.token,status:'APPROVED'},{timeoutMs:60000}),
+      call({op:'managerGetSchedule',portalToken:state.token,branchCode:state.branch,departmentCode:state.department,weekStart:anchor},{timeoutMs:60000})
+    ]);
+    if(seq!==state.loadSeq)return;
+    state.team=team.rows||[];state.shifts=(pb.shifts||[]).filter(x=>x.active!==false);
+    state.leaves=(pend.rows||[]).concat(app.rows||[]);buildLocks(state.leaves);
+    replaceWeekSchedule(anchor,sch||{});render();writeMonthCache();
+  }
+
+  await Promise.allSettled(restJobs);
+  if(seq===state.loadSeq){render();writeMonthCache()}
 }
 
 function render(){
@@ -523,8 +567,8 @@ function moveMonth(delta){
 }
 
 $('managerBtn').onclick=()=>location.href='./manager.html';
-$('branch').onchange=()=>{state.branch=$('branch').value;syncScopeSelectors();loadMonth()};
-$('department').onchange=()=>{state.department=$('department').value;loadMonth()};
+$('branch').onchange=()=>{state.branch=$('branch').value;syncScopeSelectors();state.team=[];state.items=[];state.leaves=[];state.locks={};state.weekData={};loadMonth()};
+$('department').onchange=()=>{state.department=$('department').value;state.team=[];state.items=[];state.leaves=[];state.locks={};state.weekData={};loadMonth()};
 $('month').onchange=loadMonth;
 $('prevMonth').onclick=()=>moveMonth(-1);
 $('nextMonth').onclick=()=>moveMonth(1);
