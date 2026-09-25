@@ -47,6 +47,7 @@
   }
   function handle(p){
     const op=p.op;
+    if(op==='adminLoginFast'||op==='adminLogin') return {token:'MOCK-ADMIN',adminToken:'MOCK-ADMIN',sessionToken:'MOCK-ADMIN',expiresIn:28800,summary:{employees:employees,registrations:[],nextEmployeeId:'E007',sheetUrl:''}};
     if(op==='portalLogin') return {token:'MOCK-PORTAL',expiresIn:21600,employee:employee()};
     if(op==='portalLogout') return {ok:true};
     if(op==='portalBootstrap') return {employee:employee(),shifts,branches,departments,notifications:notifications.filter(x=>x.status==='UNREAD').length};
