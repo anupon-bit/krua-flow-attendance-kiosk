@@ -1,10 +1,33 @@
 {
-  "name": "Krua Flow Attendance",
+  "name": "Krua Flow Workforce",
   "short_name": "Krua Flow",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f5f7fa",
-  "theme_color": "#ffffff",
+  "theme_color": "#0e5b8b",
   "lang": "th",
-  "description": "ระบบลงเวลางานพนักงาน Krua Flow สำหรับโทรศัพท์ร้าน"
+  "description": "Krua Flow Attendance, Employee Portal, Manager Schedule and Payroll",
+  "shortcuts": [
+    {
+      "name": "ลงเวลา",
+      "short_name": "ลงเวลา",
+      "url": "./index.html"
+    },
+    {
+      "name": "พื้นที่พนักงาน",
+      "short_name": "พนักงาน",
+      "url": "./portal.html"
+    },
+    {
+      "name": "ผู้จัดการ",
+      "short_name": "Manager",
+      "url": "./manager.html"
+    },
+    {
+      "name": "ลงทะเบียน",
+      "short_name": "ลงทะเบียน",
+      "url": "./register.html"
+    }
+  ]
 }
