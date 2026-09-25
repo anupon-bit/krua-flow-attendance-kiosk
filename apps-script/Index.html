@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Krua Flow ลงเวลางานพนักงาน V3.5</title>
+  <style>
+    :root{
+      --bg:#f7f8fa;--card:#fff;--text:#0d1b3d;--muted:#667085;--line:#d0d5dd;
+      --accent:#1d4ed8;--green:#00a947;--yellow:#e9a600;--blue:#1976d2;--red:#df2525;
+      --purple:#5b35b5;--ok:#067647;--danger:#b42318
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;min-height:100%;background:var(--bg);font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif;color:var(--text);-webkit-text-size-adjust:100%}
+    button,input{font-family:inherit}
+    button{touch-action:manipulation}
+    main{width:100%;max-width:760px;margin:0 auto;padding:16px 16px 36px}
+
+    .top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-bottom:18px}
+    .brand-wrap{display:flex;align-items:center;gap:12px;min-width:0}
+    .brand-icon{width:58px;height:58px;border:4px solid #12265e;border-radius:18px;display:grid;place-items:center;font-size:32px;background:#fff;flex:0 0 auto}
+    .brand{font-size:38px;line-height:1;font-weight:950;letter-spacing:-.5px;color:#07163d}
+    .subtitle{font-size:24px;line-height:1.15;font-weight:850;margin-top:6px;color:#111b39}
+    .timebox{background:#edf4ff;border-radius:20px;padding:10px 14px;text-align:center;min-width:170px}
+    .date{font-size:18px;font-weight:750;color:#4b5563;white-space:nowrap}
+    .clock{font-size:32px;font-weight:950;font-variant-numeric:tabular-nums;line-height:1.05;margin-top:4px;color:#07163d}
+    .device{font-size:15px;color:#667085;font-weight:700;margin-top:6px}
+
+    .section-title{font-size:30px;font-weight:950;margin:18px 0 12px;color:#07163d}
+    .panel{background:#fff;border:1px solid #d8dee8;border-radius:24px;padding:14px;margin-bottom:16px}
+
+
+    .employee-select-wrap{background:#fff;border:1px solid #d8dee8;border-radius:24px;padding:14px;margin-bottom:16px}
+    .employee-select{width:100%;min-height:92px;border:3px solid #c8d0dc;border-radius:22px;background:#fff;color:#07163d;padding:12px 54px 12px 18px;font-size:30px;font-weight:950;line-height:1.2;appearance:auto;-webkit-appearance:menulist}
+    .employee-select:focus{outline:none;border-color:#315fd4;box-shadow:0 0 0 4px #dbe8ff}
+    .employee-hint{font-size:17px;color:#667085;font-weight:700;margin-top:9px;padding:0 4px}
+    .pin-wrap{background:#fff;border:1px solid #d8dee8;border-radius:24px;padding:14px;margin-bottom:16px}
+    .pin-input{width:100%;min-height:92px;border:3px solid #c8d0dc;border-radius:22px;background:#fff;color:#07163d;padding:12px 18px;font-size:40px;font-weight:950;line-height:1.2;text-align:center;letter-spacing:16px;font-variant-numeric:tabular-nums}
+    .pin-input:focus{outline:none;border-color:#315fd4;box-shadow:0 0 0 4px #dbe8ff}
+    .pin-input:disabled{background:#f1f3f5;color:#98a2b3}
+    .pin-hint{font-size:17px;color:#667085;font-weight:700;margin-top:9px;padding:0 4px;text-align:center}
+    .pin-status{font-size:20px;min-height:30px;line-height:1.3;margin-top:8px;font-weight:900;text-align:center}
+    .pin-status.ok{color:var(--ok)}.pin-status.bad{color:var(--danger)}
+    .employees{display:grid;grid-template-columns:1fr;gap:12px}
+    .emp{width:100%;min-height:104px;border:2px solid #c8d0dc;border-radius:22px;background:#fff;padding:14px 16px;display:grid;grid-template-columns:66px minmax(0,1fr) 34px;align-items:center;gap:12px;text-align:left;color:#07163d;cursor:pointer}
+    .emp.active{border-color:#315fd4;background:#eef5ff;box-shadow:0 0 0 2px #dbe8ff inset}
+    .person-icon{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#e8f1ff;color:#164a8a;font-size:34px}
+    .emp-name{font-size:30px;font-weight:950;line-height:1.08}
+    .emp-code{font-size:18px;color:#667085;font-weight:800;margin-top:7px}
+    .chev{font-size:46px;line-height:1;color:#32445f;font-weight:500;text-align:right}
+
+    .actions{display:grid;grid-template-columns:1fr;gap:12px}
+    .action{width:100%;min-height:108px;border:0;border-radius:24px;padding:12px 16px;display:grid;grid-template-columns:70px minmax(0,1fr) 34px;align-items:center;gap:14px;text-align:left;cursor:pointer;color:#07163d;transition:opacity .15s,transform .08s}
+    .action:active:not(.disabled){transform:scale(.995)}
+    .action.disabled{opacity:.30;cursor:not-allowed;pointer-events:none}
+    .action-icon{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:30px;font-weight:900}
+    .action-label{font-size:35px;font-weight:950;line-height:1.02}
+    .action-sub{font-size:19px;font-weight:700;margin-top:7px;color:#263552}
+    .in{background:#dff8e8}.in .action-icon{background:var(--green)}.in .chev{color:#07843a}
+    .breakout{background:#fff3cf}.breakout .action-icon{background:var(--yellow)}.breakout .chev{color:#8b5b00}
+    .breakin{background:#e4f1ff}.breakin .action-icon{background:var(--blue)}.breakin .chev{color:#1467b2}
+    .out{background:#ffe3e3}.out .action-icon{background:var(--red)}.out .chev{color:#b91c1c}
+
+    .photo-panel{background:#f0eaff;border:2px solid #c9b7ff;border-radius:24px;padding:16px;margin-bottom:16px}
+    .photo-idle{min-height:138px;display:grid;grid-template-columns:78px minmax(0,1fr);align-items:center;gap:16px;padding:6px 10px}
+    .camera-icon{width:72px;height:72px;border-radius:20px;display:grid;place-items:center;background:#5a35b5;color:#fff;font-size:38px}
+    .photo-main{font-size:29px;font-weight:950;color:#48239a;line-height:1.1}
+    .photo-sub{font-size:18px;font-weight:700;color:#554c71;line-height:1.35;margin-top:7px}
+    .photo-selected{margin-top:10px;font-size:18px;font-weight:800;color:#4b328a}
+    .camera-area{display:none;margin-top:12px}
+    .camera-area.show{display:block}
+    #lastPhoto{width:100%;aspect-ratio:3/4;max-height:620px;object-fit:cover;border-radius:22px;background:#111;display:none}
+    .camera-actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+    .save-time{min-height:86px;border:0;border-radius:22px;background:#00a947;color:#fff;font-size:30px;font-weight:950;cursor:pointer}
+    .save-time:disabled{opacity:.40;cursor:not-allowed}
+    .retake{min-height:70px;border:0;border-radius:20px;background:#5b35b5;color:#fff;font-size:24px;font-weight:950;cursor:pointer}
+    .retake:disabled{opacity:.4}
+    .cancel{min-height:58px;border:0;border-radius:16px;background:#fff;color:#555;border:1px solid #d4c9ed;font-size:20px;font-weight:800;cursor:pointer}
+    .status{font-size:19px;min-height:28px;line-height:1.35;margin-top:10px;font-weight:800}
+    .status.ok{color:var(--ok)}.status.bad{color:var(--danger)}
+    .success-card{display:none;position:fixed;inset:0;background:rgba(244,255,248,.97);z-index:45;align-items:center;justify-content:center;padding:24px;text-align:center}
+    .success-card.show{display:flex}
+    .success-inner{width:100%;max-width:620px;background:#ecfdf3;border:4px solid #22c55e;border-radius:34px;padding:36px 24px}
+    .success-mark{font-size:78px;line-height:1}
+    .success-title{font-size:48px;font-weight:950;color:#087443;line-height:1.1;margin-top:8px}
+    .success-detail{font-size:28px;font-weight:900;color:#245c45;margin-top:16px;line-height:1.35}
+
+    .admin-link{text-align:center;margin:26px 0 4px}.admin-link button{border:0;background:transparent;color:#777;font-size:15px;text-decoration:underline;padding:12px}
+
+    .modal{display:none;position:fixed;inset:0;background:#0008;padding:12px;overflow:auto;z-index:50}.modal.show{display:block}
+    .modalbox{background:#fff;max-width:980px;margin:10px auto;border-radius:20px;padding:18px;color:#171717}.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}input{font-size:18px;padding:12px;border:1px solid #ddd;border-radius:12px}.tablewrap{overflow:auto;border:1px solid #ddd;border-radius:12px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:10px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}th{background:#f2f2f2;position:sticky;top:0}.btn{border:0;border-radius:14px;padding:14px 18px;font-size:17px;font-weight:800;cursor:pointer}.primary{background:#1f5eff;color:#fff}.secondary{background:#eee}.danger{background:#ffe3e0;color:#b42318}.admin-code{font-size:13px;color:#666;font-weight:700;margin-top:3px}
+
+    @media(max-width:600px){
+      main{max-width:none;padding:12px 12px 30px}
+      .top{grid-template-columns:minmax(0,1fr) 150px;gap:8px;margin-bottom:12px}
+      .brand-wrap{gap:8px}.brand-icon{width:48px;height:48px;font-size:27px;border-width:3px;border-radius:15px}
+      .brand{font-size:31px}.subtitle{font-size:21px;margin-top:4px}.timebox{min-width:0;padding:8px 9px;border-radius:16px}.date{font-size:14px}.clock{font-size:27px}.device{font-size:14px;margin-top:4px}
+      .section-title{font-size:27px;margin:15px 0 9px}.panel{border-radius:20px;padding:12px;margin-bottom:13px}
+      .employee-select-wrap{border-radius:20px;padding:12px;margin-bottom:13px}.employee-select{min-height:88px;font-size:28px;border-radius:18px;padding:12px 44px 12px 16px}.employee-hint{font-size:16px}
+      .pin-wrap{border-radius:20px;padding:12px;margin-bottom:13px}.pin-input{min-height:88px;font-size:38px;border-radius:18px;letter-spacing:14px}.pin-hint{font-size:16px}.pin-status{font-size:19px}
+      .emp{min-height:96px;border-radius:18px;grid-template-columns:54px minmax(0,1fr) 28px;padding:11px 13px;gap:10px}.person-icon{width:50px;height:50px;font-size:29px}.emp-name{font-size:28px}.emp-code{font-size:17px}.chev{font-size:40px}
+      .action{min-height:100px;border-radius:20px;grid-template-columns:60px minmax(0,1fr) 28px;padding:10px 13px;gap:11px}.action-icon{width:56px;height:56px;font-size:26px}.action-label{font-size:32px}.action-sub{font-size:17px}.photo-panel{border-radius:20px;padding:13px}.photo-idle{grid-template-columns:64px minmax(0,1fr);gap:12px;min-height:120px;padding:5px}.camera-icon{width:60px;height:60px;font-size:32px;border-radius:17px}.photo-main{font-size:27px}.photo-sub{font-size:17px}.photo-selected{font-size:17px}.retake{min-height:74px;font-size:25px}.cancel{min-height:54px;font-size:19px}.status{font-size:18px}.success-title{font-size:29px}.success-detail{font-size:19px}
+      .save-time{min-height:82px;font-size:29px}.retake{min-height:66px;font-size:23px}.success-inner{padding:32px 18px}.success-mark{font-size:72px}.success-title{font-size:44px}.success-detail{font-size:26px}
+      .admin-grid{grid-template-columns:1fr}.modalbox{margin:2px auto;padding:14px}input{font-size:20px;min-height:54px}table{font-size:16px}th,td{padding:12px 9px}
+    }
+    @media(max-width:390px){
+      .top{grid-template-columns:minmax(0,1fr) 136px}.brand-icon{display:none}.brand{font-size:29px}.subtitle{font-size:19px}.clock{font-size:25px}.date{font-size:13px}
+      .section-title{font-size:25px}.emp-name{font-size:26px}.action-label{font-size:29px}.photo-main{font-size:25px}
+    }
+  
+    .admin-employee-list{display:grid;grid-template-columns:1fr;gap:14px;margin-top:10px}
+    .admin-employee-card{border:2px solid #dfe5ef;border-radius:20px;padding:16px;background:#fff}
+    .admin-employee-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+    .admin-employee-name{font-size:22px;font-weight:950;color:#07163d;line-height:1.25}
+    .admin-employee-id{font-size:15px;font-weight:800;color:#667085;margin-top:4px}
+    .admin-active{font-size:14px;font-weight:900;padding:6px 10px;border-radius:999px;background:#eaf7ee;color:#176b35;white-space:nowrap}
+    .admin-inactive{background:#f2f4f7;color:#667085}
+    .admin-pin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .admin-pin-row input{width:100%;min-height:58px;border:2px solid #cfd7e4;border-radius:16px;padding:10px 14px;font-size:26px;font-weight:950;text-align:center;letter-spacing:8px;box-sizing:border-box}
+    .admin-pin-row .btn{min-height:58px;padding:10px 16px}
+    .admin-toggle-row{margin-top:10px}
+    .admin-toggle-row .btn{width:100%;min-height:52px}
+    @media(max-width:420px){.admin-pin-row{grid-template-columns:1fr}.admin-pin-row .btn{width:100%}}
+
+  </style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <div class="brand-wrap"><div class="brand-icon">♨</div><div><div class="brand">Krua Flow</div><div class="subtitle">ลงเวลางานพนักงาน</div></div></div>
+      <div class="device" id="deviceText">กำลังโหลดเครื่อง...</div>
+    </div>
+    <div class="timebox"><div class="date" id="dateText"></div><div class="clock" id="clock"></div></div>
+  </header>
+
+  <div class="section-title">1. เลือกชื่อพนักงาน</div>
+  <section class="employee-select-wrap">
+    <select class="employee-select" id="employeeSelect" aria-label="เลือกชื่อพนักงาน">
+      <option value="">-- เลือกชื่อพนักงาน --</option>
+    </select>
+    <div class="employee-hint">เลือกชื่อของตัวเองก่อน แล้วจึงเลือกรายการลงเวลา</div>
+  </section>
+
+  <div class="section-title">2. ใส่รหัสพนักงาน 4 หลัก</div>
+  <section class="pin-wrap">
+    <input id="employeePin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="done" placeholder="••••" aria-label="รหัสพนักงาน 4 หลัก" disabled>
+    <div class="pin-hint">ต้องเป็นตัวเลข 4 หลัก และต้องตรงกับชื่อที่เลือก</div>
+    <div class="pin-status" id="pinStatus">เลือกชื่อพนักงานก่อน</div>
+  </section>
+
+  <input id="cameraInput" type="file" accept="image/*" capture="user" hidden>
+
+  <div class="section-title">3. เลือกรายการ</div>
+  <section class="panel">
+    <div class="actions">
+      <label class="action in disabled" data-action="IN" for="cameraInput" role="button" aria-disabled="true">
+        <span class="action-icon">▶</span><span><div class="action-label">เข้างาน</div><div class="action-sub">แตะแล้วเปิดกล้องหน้าทันที</div></span><span class="chev">›</span>
+      </label>
+      <label class="action breakout disabled" data-action="BREAK_OUT" for="cameraInput" role="button" aria-disabled="true">
+        <span class="action-icon">☕</span><span><div class="action-label">เริ่มพัก</div><div class="action-sub">แตะแล้วเปิดกล้องหน้าทันที</div></span><span class="chev">›</span>
+      </label>
+      <label class="action breakin disabled" data-action="BREAK_IN" for="cameraInput" role="button" aria-disabled="true">
+        <span class="action-icon">▶</span><span><div class="action-label">กลับจากพัก</div><div class="action-sub">แตะแล้วเปิดกล้องหน้าทันที</div></span><span class="chev">›</span>
+      </label>
+      <label class="action out disabled" data-action="OUT" for="cameraInput" role="button" aria-disabled="true">
+        <span class="action-icon">■</span><span><div class="action-label">เลิกงาน</div><div class="action-sub">แตะแล้วเปิดกล้องหน้าทันที</div></span><span class="chev">›</span>
+      </label>
+    </div>
+  </section>
+
+  <div class="section-title">4. ถ่ายรูป</div>
+  <section class="photo-panel" id="photoPanel">
+    <div class="photo-idle" id="photoIdle">
+      <div class="camera-icon">📷</div>
+      <div><div class="photo-main">ถ่ายรูปด้วยกล้องหน้า</div><div class="photo-sub">เลือกชื่อ ใส่รหัส 4 หลักให้ถูกต้อง แล้วเลือกรายการ โทรศัพท์จะเรียกกล้องหน้า เมื่อถ่ายเสร็จตรวจรูปก่อน แล้วกด “บันทึกเวลา”</div><div class="photo-selected" id="photoSelected">ยังไม่ได้เลือกพนักงาน</div></div>
+    </div>
+    <div class="camera-area" id="cameraArea">
+      <canvas id="canvas" hidden></canvas>
+      <img id="lastPhoto" alt="ภาพที่ถ่าย">
+      <div class="camera-actions">
+        <button class="save-time" id="saveBtn" type="button" disabled>✓ บันทึกเวลา</button>
+        <label class="retake" id="retakeBtn" for="cameraInput" role="button" style="display:grid;place-items:center;text-align:center">📷 เปิดกล้องหน้า / ถ่ายใหม่</label>
+        <button class="cancel" id="cancelBtn" type="button">ยกเลิกรายการนี้</button>
+      </div>
+      <div class="status" id="cameraStatus"></div>
+    </div>
+  </section>
+
+  <section class="success-card" id="successCard"><div class="success-inner"><div class="success-mark">✓</div><div class="success-title">บันทึกสำเร็จ</div><div class="success-detail" id="successDetail"></div></div></section>
+
+  <div class="admin-link"><button id="adminOpen">สำหรับผู้ดูแลระบบ</button></div>
+</main>
+
+<div class="modal" id="adminModal">
+ <div class="modalbox">
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h2 style="margin:0">Admin</h2><button class="btn secondary" id="adminClose">ปิด</button></div>
+  <div id="adminLoginBox" style="max-width:360px;margin-top:16px">
+    <div class="field"><label>PIN ผู้ดูแล 6 หลัก</label><input id="adminPin" inputmode="numeric" maxlength="6" type="password"></div>
+    <button class="btn primary" id="adminLoginBtn">เข้าสู่ระบบ</button>
+    <div class="status" id="adminLoginStatus"></div>
+  </div>
+  <div id="adminPanel" style="display:none;margin-top:16px">
+    <div class="admin-grid">
+      <section class="panel"><h3 style="margin-top:0">เพิ่มพนักงาน</h3><div class="field"><label>รหัส</label><input id="newEmpId" placeholder="E004"></div><div class="field"><label>ชื่อ</label><input id="newEmpName"></div><div class="field"><label>รหัสลงเวลา 4 หลัก</label><input id="newEmpPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="ตัวเลข 4 หลัก"></div><div class="field"><label>ลำดับ</label><input id="newEmpSort" inputmode="numeric" value="99"></div><button class="btn primary" id="addEmpBtn">เพิ่มพนักงาน</button></section>
+      <section class="panel"><h3 style="margin-top:0">ความปลอดภัย</h3><div class="field"><label>เปลี่ยน PIN Admin</label><input id="newAdminPin" inputmode="numeric" maxlength="6" type="password" placeholder="6 หลัก"></div><button class="btn secondary" id="changePinBtn">เปลี่ยน PIN</button><div style="margin-top:14px"><a id="sheetLink" target="_blank" rel="noopener">เปิด Google Sheet หลังบ้าน</a></div></section>
+    </div>
+    <section class="panel"><h3 style="margin-top:0">พนักงานและรหัสลงเวลา</h3><div style="font-size:15px;color:#667085;font-weight:700;margin-bottom:10px">ตั้งหรือเปลี่ยนรหัสตัวเลข 4 หลักของพนักงานแต่ละคนได้ตรงนี้</div><div id="adminEmployees" class="admin-employee-list"></div></section>
+    <section class="panel"><h3 style="margin-top:0">รายการล่าสุด</h3><div class="tablewrap"><table><thead><tr><th>เวลา Server</th><th>พนักงาน</th><th>รายการ</th><th>รูป</th><th>สถานะ</th></tr></thead><tbody id="adminAttendance"></tbody></table></div></section>
+    <button class="btn secondary" id="adminRefresh">รีเฟรช</button> <button class="btn danger" id="adminLogout">ออกจาก Admin</button>
+  </div>
+ </div>
+</div>
+
+<script>
+(()=>{
+  let employees=[], selected=null, selectedAction=null, config=null, adminToken='', saving=false, pendingPhotoData='', photoCapturedAt='', pinVerified=false, pinCheckSeq=0;
+  const $=id=>document.getElementById(id);
+  const actionBtns=[...document.querySelectorAll('.action')];
+  function setActionsEnabled(enabled){actionBtns.forEach(x=>{x.classList.toggle('disabled',!enabled);x.setAttribute('aria-disabled',String(!enabled));});}
+  const pad=n=>String(n).padStart(2,'0');
+
+  function refreshClock(){
+    const d=new Date();
+    $('clock').textContent=`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    $('dateText').textContent=d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  }
+  refreshClock();setInterval(refreshClock,1000);
+
+  function errText(e){return (e&&e.message)||String(e||'เกิดข้อผิดพลาด')}
+  function server(fn,args=[],ok=()=>{},bad=()=>{}){google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn](...args)}
+  function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+  function bLabel(a){return({IN:'เข้างาน',BREAK_OUT:'เริ่มพัก',BREAK_IN:'กลับจากพัก',OUT:'เลิกงาน'})[a]||a}
+
+  function load(){
+    server('getPublicConfig',[],c=>{config=c;$('deviceText').textContent='เครื่อง '+c.deviceId});
+    server('getEmployees',[],list=>{employees=list;renderEmployeeDropdown()});
+  }
+
+  function renderEmployeeDropdown(){
+    const sel=$('employeeSelect');
+    const current=selected?.id||'';
+    sel.innerHTML='<option value="">-- เลือกชื่อพนักงาน --</option>';
+    employees.forEach(e=>{
+      const op=document.createElement('option');
+      op.value=e.id;op.textContent=`${e.name} (${e.id})`;sel.appendChild(op);
+    });
+    if(current && employees.some(e=>e.id===current)) sel.value=current;
+  }
+
+  function clearPinState(focusPin=false){
+    pinVerified=false;pinCheckSeq++;setActionsEnabled(false);
+    const pin=$('employeePin');pin.readOnly=false;pin.value='';pin.disabled=!selected;
+    $('pinStatus').className='pin-status';
+    $('pinStatus').textContent=selected?'กรอกรหัสตัวเลข 4 หลัก':'เลือกชื่อพนักงานก่อน';
+    if(focusPin && selected) setTimeout(()=>{try{pin.focus()}catch(e){}},80);
+  }
+
+  $('employeeSelect').addEventListener('change',()=>{
+    if(saving)return;
+    const id=$('employeeSelect').value;
+    selected=employees.find(e=>e.id===id)||null;
+    selectedAction=null;pendingPhotoData='';photoCapturedAt='';
+    $('cameraArea').classList.remove('show');$('cameraStatus').textContent='';$('lastPhoto').style.display='none';$('saveBtn').disabled=true;
+    $('photoSelected').textContent=selected?`เลือกแล้ว: ${selected.name} (${selected.id}) • กรุณาใส่รหัส 4 หลัก`:'ยังไม่ได้เลือกพนักงาน';
+    clearPinState(!!selected);
+  });
+
+  const pinInput=$('employeePin');
+  pinInput.addEventListener('input',()=>{
+    if(saving||!selected)return;
+    pinInput.value=pinInput.value.replace(/\D/g,'').slice(0,4);
+    pinVerified=false;setActionsEnabled(false);
+    $('pinStatus').className='pin-status';
+    if(pinInput.value.length<4){$('pinStatus').textContent=`กรอกรหัสให้ครบ 4 หลัก (${pinInput.value.length}/4)`;return;}
+    const employeeId=selected.id;const pin=pinInput.value;const seq=++pinCheckSeq;
+    pinInput.readOnly=true;$('pinStatus').textContent='กำลังตรวจสอบชื่อและรหัส...';
+    server('validateEmployeePin',[employeeId,pin],r=>{
+      if(seq!==pinCheckSeq||!selected||selected.id!==employeeId)return;
+      if(r&&r.ok){
+        pinVerified=true;pinInput.readOnly=true;pinInput.blur();setActionsEnabled(true);
+        $('pinStatus').className='pin-status ok';$('pinStatus').textContent=`✓ ยืนยันแล้ว: ${r.employeeName}`;
+        $('photoSelected').textContent=`${r.employeeName} (${r.employeeId}) • รหัสถูกต้อง • กรุณาเลือกรายการ`;
+      }else{
+        pinVerified=false;pinInput.readOnly=false;pinInput.value='';setActionsEnabled(false);
+        $('pinStatus').className='pin-status bad';$('pinStatus').textContent=(r&&r.message)||'ชื่อและรหัสไม่ตรงกัน';
+        setTimeout(()=>{try{pinInput.focus()}catch(e){}},80);
+      }
+    },e=>{
+      if(seq!==pinCheckSeq)return;
+      pinVerified=false;pinInput.readOnly=false;setActionsEnabled(false);
+      $('pinStatus').className='pin-status bad';$('pinStatus').textContent=errText(e);
+    });
+  });
+
+  actionBtns.forEach(b=>b.addEventListener('click',e=>{if(!selected||!pinVerified||saving||b.classList.contains('disabled')){e.preventDefault();return;}beginPhotoCapture(b.dataset.action);}));
+
+  function beginPhotoCapture(action){
+    if(!selected||!pinVerified||saving)return;
+    selectedAction=action;
+    $('photoSelected').textContent=`${selected.name} (${selected.id}) • ${bLabel(action)}`;
+    $('cameraArea').classList.add('show');
+    $('lastPhoto').style.display='none';
+    $('cameraStatus').className='status';
+    $('cameraStatus').textContent='กำลังเปิดกล้องหน้า...';
+    setTimeout(()=>$('photoPanel').scrollIntoView({behavior:'smooth',block:'start'}),80);
+  }
+
+  function openNativeCamera(){
+    if(!selected||!selectedAction||saving)return;
+    const input=$('cameraInput');
+    input.value='';
+    try{ input.click(); }
+    catch(e){
+      $('cameraStatus').className='status bad';
+      $('cameraStatus').textContent='เปิดกล้องหน้าไม่สำเร็จ กรุณากด “เปิดกล้องหน้า / ถ่ายใหม่”';
+    }
+  }
+
+  function compressPhoto(file, stampDate){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));
+      reader.onload=()=>{
+        const img=new Image();
+        img.onerror=()=>reject(new Error('เปิดรูปที่ถ่ายไม่สำเร็จ'));
+        img.onload=()=>{
+          const maxSide=1280;
+          let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+          if(!w||!h){reject(new Error('ขนาดรูปไม่ถูกต้อง'));return}
+          const scale=Math.min(1,maxSide/Math.max(w,h));
+          w=Math.max(1,Math.round(w*scale));h=Math.max(1,Math.round(h*scale));
+          const c=$('canvas');c.width=w;c.height=h;
+          const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);
+
+          // ประทับข้อมูลลงบนรูปก่อนส่งขึ้น Server
+          const now=stampDate||new Date();
+          const ts=now.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+          const lines=[
+            `Krua Flow Attendance`,
+            `${selected?.name||''} (${selected?.id||''})`,
+            `${bLabel(selectedAction||'')}`,
+            `${ts} น.`,
+            `${config?.deviceId||'STORE-01'}`
+          ];
+          const boxH=Math.max(150,Math.round(h*0.18));
+          ctx.save();
+          ctx.fillStyle='rgba(0,0,0,0.68)';
+          ctx.fillRect(0,h-boxH,w,boxH);
+          const base=Math.max(28,Math.round(w*0.045));
+          ctx.fillStyle='#fff';
+          ctx.textBaseline='top';
+          ctx.font=`700 ${base}px sans-serif`;
+          let y=h-boxH+16;
+          lines.forEach((line,i)=>{
+            if(i===0) ctx.font=`800 ${Math.round(base*1.05)}px sans-serif`;
+            else ctx.font=`700 ${base}px sans-serif`;
+            ctx.fillText(line,18,y,w-36);
+            y+=Math.round(base*1.22);
+          });
+          ctx.restore();
+
+          resolve(c.toDataURL('image/jpeg',0.78));
+        };
+        img.src=reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  $('cameraInput').addEventListener('change',async()=>{
+    const input=$('cameraInput');
+    const file=input.files&&input.files[0];
+    if(!file){
+      $('cameraStatus').className='status bad';
+      $('cameraStatus').textContent='ยังไม่ได้ถ่ายรูป กรุณากด “เปิดกล้องหน้า / ถ่ายใหม่”';
+      return;
+    }
+    if(!file.type.startsWith('image/')){
+      $('cameraStatus').className='status bad';
+      $('cameraStatus').textContent='ไฟล์ที่เลือกไม่ใช่รูปภาพ';
+      return;
+    }
+    $('cameraStatus').className='status';
+    $('cameraStatus').textContent='กำลังเตรียมภาพ...';
+    try{
+      const captureDate=new Date();
+      pendingPhotoData=await compressPhoto(file,captureDate);
+      photoCapturedAt=captureDate.toISOString();
+      $('lastPhoto').src=pendingPhotoData;$('lastPhoto').style.display='block';
+      $('saveBtn').disabled=false;
+      $('cameraStatus').className='status ok';
+      $('cameraStatus').textContent='ถ่ายรูปแล้ว กรุณาตรวจภาพ แล้วกด “บันทึกเวลา”';
+    }catch(e){
+      pendingPhotoData='';photoCapturedAt='';$('saveBtn').disabled=true;
+      $('cameraStatus').className='status bad';$('cameraStatus').textContent=errText(e);
+    }
+  });
+
+  $('saveBtn').addEventListener('click',()=>{
+    if(!selected||!pinVerified||!selectedAction||!pendingPhotoData||saving)return;
+    saving=true;
+    $('saveBtn').disabled=true;$('cancelBtn').disabled=true;
+    setActionsEnabled(false);$('employeeSelect').disabled=true;$('employeePin').disabled=true;
+    $('cameraStatus').className='status';$('cameraStatus').textContent='กำลังบันทึกเวลา...';
+    server('recordAttendance',[{employeeId:selected.id,employeePin:$('employeePin').value,action:selectedAction,photoData:pendingPhotoData,deviceId:config?.deviceId||'STORE-01',clientTimestamp:photoCapturedAt||new Date().toISOString()}],r=>{
+      $('cameraStatus').className='status ok';$('cameraStatus').textContent='บันทึกเรียบร้อย';
+      $('successDetail').textContent=`${r.employeeName} • ${r.action} • ${r.time} น.`;
+      $('successCard').classList.add('show');
+      setTimeout(resetFlow,2600);
+    },e=>{
+      saving=false;$('saveBtn').disabled=false;$('cancelBtn').disabled=false;$('employeeSelect').disabled=false;$('employeePin').disabled=false;setActionsEnabled(pinVerified);
+      $('cameraStatus').className='status bad';$('cameraStatus').textContent=errText(e);
+    });
+  });
+
+  $('cancelBtn').addEventListener('click',()=>{
+    if(saving)return;
+    resetFlow();
+  });
+
+  function resetFlow(){
+    saving=false;selected=null;selectedAction=null;pendingPhotoData='';photoCapturedAt='';pinVerified=false;pinCheckSeq++;
+    $('cameraArea').classList.remove('show');$('cameraStatus').textContent='';$('lastPhoto').style.display='none';$('cancelBtn').disabled=false;$('saveBtn').disabled=true;$('cameraInput').value='';$('employeeSelect').disabled=false;$('employeeSelect').value='';
+    $('employeePin').disabled=true;$('employeePin').readOnly=false;$('employeePin').value='';$('pinStatus').className='pin-status';$('pinStatus').textContent='เลือกชื่อพนักงานก่อน';
+    $('successCard').classList.remove('show');$('photoSelected').textContent='ยังไม่ได้เลือกพนักงาน';
+    setActionsEnabled(false);window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  $('adminOpen').addEventListener('click',()=>{$('adminModal').classList.add('show')});
+  $('adminClose').addEventListener('click',()=>{$('adminModal').classList.remove('show')});
+  $('adminLoginBtn').addEventListener('click',()=>{
+    const pin=$('adminPin').value;$('adminLoginStatus').textContent='กำลังตรวจสอบ...';
+    server('adminLogin',[pin],r=>{if(!r.ok){$('adminLoginStatus').className='status bad';$('adminLoginStatus').textContent='PIN ไม่ถูกต้อง';return}adminToken=r.token;$('adminLoginBox').style.display='none';$('adminPanel').style.display='block';loadAdmin()},e=>{$('adminLoginStatus').className='status bad';$('adminLoginStatus').textContent=errText(e)});
+  });
+  function loadAdmin(){
+    server('adminGetDashboard',[adminToken],d=>{
+      $('sheetLink').href=d.sheetUrl;
+      const eb=$('adminEmployees');eb.innerHTML='';
+      d.employees.forEach(e=>{
+        const card=document.createElement('div');
+        card.className='admin-employee-card';
+        card.innerHTML=`
+          <div class="admin-employee-head">
+            <div><div class="admin-employee-name">${escapeHtml(e.name)}</div><div class="admin-employee-id">${escapeHtml(e.id)}</div></div>
+            <div class="admin-active ${e.active?'':'admin-inactive'}">${e.active?'ใช้งาน':'ปิดใช้งาน'}</div>
+          </div>
+          <div class="field" style="margin-bottom:8px"><label>รหัสลงเวลา 4 หลัก</label></div>
+          <div class="admin-pin-row">
+            <input class="empPin4" data-id="${escapeHtml(e.id)}" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="${e.pinSet?'ตั้งรหัสใหม่':'ใส่ 4 หลัก'}">
+            <button class="btn primary empSetPin" data-id="${escapeHtml(e.id)}">${e.pinSet?'เปลี่ยนรหัส':'ตั้งรหัส'}</button>
+          </div>
+          <div class="admin-toggle-row"><button class="btn secondary empToggle" data-id="${escapeHtml(e.id)}" data-active="${e.active?'1':'0'}">${e.active?'ปิดใช้งานพนักงาน':'เปิดใช้งานพนักงาน'}</button></div>`;
+        eb.appendChild(card);
+      });
+      eb.querySelectorAll('.empPin4').forEach(i=>i.addEventListener('input',()=>{i.value=i.value.replace(/\D/g,'').slice(0,4)}));
+      eb.querySelectorAll('.empSetPin').forEach(b=>b.addEventListener('click',()=>{
+        const inp=eb.querySelector(`.empPin4[data-id="${CSS.escape(b.dataset.id)}"]`);
+        const pin=inp?inp.value:'';
+        server('adminSetEmployeePin',[adminToken,b.dataset.id,pin],()=>{if(inp)inp.value='';loadAdmin()},e=>alert(errText(e)));
+      }));
+      eb.querySelectorAll('.empToggle').forEach(b=>b.addEventListener('click',()=>server('adminSetEmployeeActive',[adminToken,b.dataset.id,b.dataset.active!=='1'],()=>{load();loadAdmin()},e=>alert(errText(e)))));
+      const ab=$('adminAttendance');ab.innerHTML='';
+      d.attendance.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${escapeHtml(r.timestamp)}</td><td>${escapeHtml(r.employeeName)}<div class="admin-code">${escapeHtml(r.employeeId)}</div></td><td>${escapeHtml(r.action)}</td><td>${r.photoUrl?`<a target="_blank" rel="noopener" href="${escapeHtml(r.photoUrl)}">เปิดรูป</a>`:'-'}</td><td>${escapeHtml(r.status)}</td>`;ab.appendChild(tr)});
+    },e=>alert(errText(e)));
+  }
+  $('adminRefresh').addEventListener('click',loadAdmin);
+  $('addEmpBtn').addEventListener('click',()=>server('adminAddEmployee',[adminToken,{id:$('newEmpId').value,name:$('newEmpName').value,pin:$('newEmpPin').value,sort:$('newEmpSort').value}],()=>{$('newEmpId').value='';$('newEmpName').value='';$('newEmpPin').value='';load();loadAdmin()},e=>alert(errText(e))));
+  $('newEmpPin').addEventListener('input',()=>{$('newEmpPin').value=$('newEmpPin').value.replace(/\D/g,'').slice(0,4)});
+  $('changePinBtn').addEventListener('click',()=>server('adminChangePin',[adminToken,$('newAdminPin').value],()=>{alert('เปลี่ยน PIN แล้ว');$('newAdminPin').value=''},e=>alert(errText(e))));
+  $('adminLogout').addEventListener('click',()=>{server('adminLogout',[adminToken],()=>{});adminToken='';$('adminPanel').style.display='none';$('adminLoginBox').style.display='block';$('adminPin').value='';$('adminModal').classList.remove('show')});
+
+  setActionsEnabled(false);
+  load();
+})();
+</script>
+</body>
+</html>
