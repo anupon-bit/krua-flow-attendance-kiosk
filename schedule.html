@@ -205,8 +205,10 @@ function syncScopeSelectors(){
     deps=(state.departments||[]).filter(x=>x.active!==false).map(x=>x.code).filter(Boolean);
   }else{
     const scopes=(state.scopes||[]).filter(s=>s.active!==false&&s.canManageSchedule!==false);
-    branches=[...new Set(scopes.map(s=>s.branchCode).filter(x=>x&&x!=='*'))];
-    deps=[...new Set(scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch).map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
+    const allBranches=(state.branches||[]).filter(x=>x.active!==false).map(x=>x.code).filter(Boolean),allDeps=(state.departments||[]).filter(x=>x.active!==false).map(x=>x.code).filter(Boolean);
+    branches=scopes.some(s=>s.branchCode==='*')?allBranches:[...new Set(scopes.map(s=>s.branchCode).filter(x=>x&&x!=='*'))];
+    const branchScopes=scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch);
+    deps=branchScopes.some(s=>s.departmentCode==='*')?allDeps:[...new Set(branchScopes.map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
   }
   $('branch').innerHTML=branches.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
   const q=query();
@@ -215,7 +217,8 @@ function syncScopeSelectors(){
   $('branch').value=state.branch;
   if(!ADMIN_MODE){
     const scopes=(state.scopes||[]).filter(s=>s.active!==false&&s.canManageSchedule!==false);
-    deps=[...new Set(scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch).map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
+    const branchScopes=scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch),allDeps=(state.departments||[]).filter(x=>x.active!==false).map(x=>x.code).filter(Boolean);
+    deps=branchScopes.some(s=>s.departmentCode==='*')?allDeps:[...new Set(branchScopes.map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
   }
   $('department').innerHTML=deps.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
   if(!state.queryApplied&&q.department&&deps.includes(q.department))state.department=q.department;
@@ -274,7 +277,7 @@ async function boot(){
       $('managerBtn').style.display='none';
     }else{
       const s=await call({op:'managerSummary',portalToken:state.token},{timeoutMs:60000});
-      state.summary=s;state.scopes=s.scopes||[];
+      state.summary=s;state.scopes=s.scopes||[];state.branches=s.branches||[];state.departments=s.departments||[];
     }
     syncScopeSelectors();
     const now=new Date();$('month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');

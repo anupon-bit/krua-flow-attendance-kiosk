@@ -76,6 +76,7 @@ window.addEventListener('pageshow',()=>{if(__kfSettingsParams.get('embed')==='1'
         <div class="field"><label>บทบาทในระบบ</label><select class="select" id="rRole"><option value="EMPLOYEE">พนักงาน</option><option value="SUPERVISOR">หัวหน้างาน</option><option value="MANAGER">ผู้จัดการ</option><option value="ADMIN">แอดมิน</option></select></div>
       </div>
       <div class="muted" style="margin-top:8px">เลือกบทบาทแล้วตั้งค่าต่อด้านล่าง จากนั้นกด “บันทึกการตั้งค่า” เพียงครั้งเดียว</div>
+      <div class="notice" style="margin-top:8px">แอดมินในส่วนนี้คือบทบาทของพนักงานสำหรับจัดการทีมตาม Scope เท่านั้น ไม่ใช่ Owner/Admin ส่วนกลาง และไม่สามารถใช้ Admin PIN ได้</div>
     </div>
 
     <div class="permStep managerOnly" id="managerScopeEditor">
@@ -113,10 +114,10 @@ window.addEventListener('pageshow',()=>{if(__kfSettingsParams.get('embed')==='1'
 <section class="view" id="v-audit"><div class="card"><div class="row"><div><div class="sectionTitle">Audit Log</div><div class="muted">ประวัติการแก้ไข/อนุมัติ/Override ที่สำคัญ</div></div><div class="spacer"></div><button class="btn secondary" id="loadAudit">รีเฟรช</button></div><div class="tableWrap"><table class="tbl"><thead><tr><th>เวลา</th><th>ผู้ทำ</th><th>Action</th><th>ข้อมูล</th><th>เหตุผล</th></tr></thead><tbody id="auditRows"></tbody></table></div></div></section>
 <section class="view" id="v-backup"><div class="card"><div class="sectionTitle">Backup & Recovery</div><div class="notice">ระบบ V7.3 ตั้ง Trigger สำรองฐานข้อมูลทุกวัน และเก็บตามจำนวนวันที่กำหนดใน Settings</div><div class="row" style="margin-top:12px"><button class="btn primary" id="installTriggers">ติดตั้ง/อัปเดต Automation Triggers</button><button class="btn primary" id="backupNow">สำรองข้อมูลตอนนี้</button><span class="muted" id="backupStatus">ยังไม่ได้สั่งสำรอง</span></div></div></section></div>
 <script>
-(()=>{const $=id=>document.getElementById(id),SS='kruaFlowAdminTokenV4',LS='kruaFlowAdminTokenPersistentV1',EXP='kruaFlowAdminTokenPersistentExpV1',state={api:'',token:'',masters:null,employees:[],scopes:[],quotas:[],managerLoaded:false,quotaLoaded:false,editingScopeId:'',editingQuotaId:'',selectedPermissionEmployee:'',scopeLoadedFor:{},permissionDirty:false,settingsBranch:localStorage.getItem('kfSettingsBranchV1')||'*'},pending={};function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}function busy(v,t){$('busy').classList.toggle('show',!!v);if(t)$('busyText').textContent=t}function apiUrl(){const v=(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'';if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(v))throw new Error('Backend URL ไม่ถูกต้อง');return v.split('?')[0]}window.addEventListener('message',e=>{const sink=$('apiSink');if(!sink||e.source!==sink.contentWindow)return;const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!pending[m.requestId])return;finishCall(m.requestId,!!(m.result&&m.result.ok),m.result&&m.result.ok?(m.result.data||{}):new Error(m.result&&m.result.error||'ทำรายการไม่สำเร็จ'))});
+(()=>{const $=id=>document.getElementById(id),SS='kruaFlowAdminTokenV4',LS='kruaFlowAdminTokenPersistentV1',EXP='kruaFlowAdminTokenPersistentExpV1',state={api:'',token:'',masters:null,employees:[],scopes:[],quotas:[],managerLoaded:false,quotaLoaded:false,editingScopeId:'',editingQuotaId:'',selectedPermissionEmployee:'',scopeLoadedFor:{},scopeRequestVersion:{},scopeRequests:{},permissionDirty:false,permissionBaseline:'',permissionDraftEmployee:'',permissionDraftRole:'EMPLOYEE',settingsBranch:localStorage.getItem('kfSettingsBranchV1')||'*'},pending={};function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}function busy(v,t){$('busy').classList.toggle('show',!!v);if(t)$('busyText').textContent=t}function apiUrl(){const v=(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'';if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(v))throw new Error('Backend URL ไม่ถูกต้อง');return v.split('?')[0]}window.addEventListener('message',e=>{const sink=$('apiSink');if(!sink||e.source!==sink.contentWindow)return;const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!pending[m.requestId])return;finishCall(m.requestId,!!(m.result&&m.result.ok),m.result&&m.result.ok?(m.result.data||{}):new Error(m.result&&m.result.error||'ทำรายการไม่สำเร็จ'))});
 function finishCall(id,ok,value){const p=pending[id];if(!p)return;clearTimeout(p.fallback);clearTimeout(p.timeout);delete pending[id];ok?p.res(value):p.rej(value)}
 function pollCall(id,n){if(!pending[id])return;if(n>18){finishCall(id,false,new Error('Backend ไม่ตอบสนองหลังรอ 45 วินาที'));return}const cb='__kfas_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n,s=document.createElement('script');let done=false;function clean(){done=true;try{delete window[cb]}catch(e){window[cb]=undefined}s.remove()}window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>pollCall(id,n+1),900);return}r.ok?finishCall(id,true,r.data||{}):finishCall(id,false,new Error(r.error||'ทำรายการไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>pollCall(id,n+1),1000)};s.src=state.api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.body.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>pollCall(id,n+1),900)}},3500)}
-function call(p,opts){opts=opts||{};if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,fallback:null,timeout:null};try{f.submit()}catch(e){delete pending[id];f.remove();rej(e);return}setTimeout(()=>f.remove(),3000);pending[id].fallback=setTimeout(()=>{if(pending[id])pollCall(id,0)},700);pending[id].timeout=setTimeout(()=>finishCall(id,false,new Error(opts.timeoutMessage||'Backend ตอบช้าเกินไป กรุณาลองใหม่')),opts.timeoutMs||45000)})}function getToken(){const s=sessionStorage.getItem(SS)||'';if(s)return s;const t=localStorage.getItem(LS)||'',e=Number(localStorage.getItem(EXP)||0);return t&&e>Date.now()?t:''}function bool(v){return String(v)==='1'}function hhmm(v){const s=String(v||'').trim();let m=s.match(/^(\d{1,2}):(\d{2})$/);if(m)return String(m[1]).padStart(2,'0')+':'+m[2];m=s.match(/\b(\d{2}):(\d{2}):\d{2}\b/);if(m)return m[1]+':'+m[2];return s}function cachedEmployees(){try{const x=JSON.parse(sessionStorage.getItem('kruaFlowAdminSummaryV54')||'null');return x&&Array.isArray(x.employees)?x.employees:[]}catch(e){return[]}}
+function call(p,opts){opts=opts||{};if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,fallback:null,timeout:null};try{f.submit()}catch(e){delete pending[id];f.remove();rej(e);return}setTimeout(()=>f.remove(),3000);pending[id].fallback=setTimeout(()=>{if(pending[id])pollCall(id,0)},700);pending[id].timeout=setTimeout(()=>finishCall(id,false,new Error(opts.timeoutMessage||'Backend ตอบช้าเกินไป กรุณาลองใหม่')),opts.timeoutMs||45000)})}function getToken(){const s=sessionStorage.getItem(SS)||'';if(s)return s;const t=localStorage.getItem(LS)||'',e=Number(localStorage.getItem(EXP)||0);return t&&e>Date.now()?t:''}function bool(v){return String(v)==='1'}function hhmm(v){const s=String(v||'').trim();let m=s.match(/^(\d{1,2}):(\d{2})$/);if(m)return String(m[1]).padStart(2,'0')+':'+m[2];m=s.match(/\b(\d{2}):(\d{2}):\d{2}\b/);if(m)return m[1]+':'+m[2];return s}
 async function boot(){state.api=apiUrl();state.token=getToken();if(!state.token){location.href='./admin.html?next=settings';return}await loadMasters(true)}
 function setLoadStatus(msg,bad){const e=$('loadStatus');if(!e)return;e.textContent=msg;e.style.color=bad?'#a52f2f':''}
 async function loadMasters(showBusy){try{if(showBusy)busy(1,'กำลังโหลด Master Data...');setLoadStatus('กำลังโหลดสาขา แผนก กะ และอุปกรณ์...',false);const m=await call({op:'adminGetOrgMasters',adminToken:state.token},{timeoutMs:45000});state.masters=m;renderAll();setLoadStatus('Master Data พร้อม • โหลดส่วนอื่นเมื่อเปิดแท็บ เพื่อลดเวลารอ',false)}catch(e){setLoadStatus('โหลด Master Data ไม่สำเร็จ: '+e.message,true);if(/Admin|หมดอายุ|สิทธิ์/.test(e.message))setTimeout(()=>location.href='./admin.html?next=settings',700)}finally{if(showBusy)busy(0)}}
@@ -126,7 +127,6 @@ async function loadManagerData(force){
   if(!state.token)return;
   try{
     busy(1,'กำลังโหลดรายชื่อผู้ใช้งาน...');
-    if(!state.employees.length){const ce=cachedEmployees();if(ce.length)state.employees=ce}
     if(!state.employees.length||force){
       const u=await call({op:'adminGetPermissionUsers',adminToken:state.token},{timeoutMs:30000,timeoutMessage:'โหลดรายชื่อผู้ใช้งานช้าเกินไป'});
       state.employees=u.rows||[];
@@ -134,6 +134,7 @@ async function loadManagerData(force){
     state.managerLoaded=true;
     renderAll();
     const selected=state.selectedPermissionEmployee||($('rEmployee')&&$('rEmployee').value)||'';
+    if(selected){state.editingScopeId='';state.permissionDraftEmployee=selected;state.permissionDraftRole=employeeRole(selected);resetScopeEditor(false);renderAll();capturePermissionBaseline()}
     if(selected&&isScopedRole(employeeRole(selected)))await loadSelectedManagerScopes(selected,true);
     setLoadStatus('ข้อมูลสิทธิ์ผู้ใช้งานพร้อม',false)
   }catch(e){
@@ -146,23 +147,25 @@ async function loadSelectedManagerScopes(employeeId,force){
   const id=String(employeeId||'').trim();
   if(!id)return;
   state.scopeLoadedFor=state.scopeLoadedFor||{};
-  if(state.scopeLoadedFor[id]&&!force){renderAll();return}
-  if($('scopeList'))$('scopeList').innerHTML='<div class="muted">กำลังโหลดสิทธิ์...</div>';
+  if(state.scopeLoadedFor[id]&&!force){renderAll();if(!state.permissionDirty)prepareScopeEditor(id);return}
+  if(state.scopeRequests[id]&&!force){try{await state.scopeRequests[id];if(state.selectedPermissionEmployee===id){renderAll();if(!state.permissionDirty)prepareScopeEditor(id)}}catch(e){}return}
+  const seq=(state.scopeRequestVersion[id]||0)+1;state.scopeRequestVersion[id]=seq;
+  if(state.selectedPermissionEmployee===id&&$('scopeList'))$('scopeList').innerHTML='<div class="muted">กำลังโหลดสิทธิ์...</div>';
+  const request=call({op:'adminGetManagerScopes',adminToken:state.token,employeeId:id},{timeoutMs:20000,timeoutMessage:'โหลดสิทธิ์ของพนักงานช้าเกินไป'});
+  state.scopeRequests[id]=request;
   try{
-    const scope=await call({op:'adminGetManagerScopes',adminToken:state.token,employeeId:id},{timeoutMs:20000,timeoutMessage:'โหลดสิทธิ์ของพนักงานช้าเกินไป'});
+    const scope=await request;
+    if(seq!==state.scopeRequestVersion[id])return;
     state.scopes=state.scopes.filter(x=>x.employeeId!==id).concat(scope.rows||[]);
     state.scopeLoadedFor[id]=true;
-    renderAll();
-    const own=(scope.rows||[]).filter(x=>x.active!==false);
-    if(own.length===1&&!state.editingScopeId)editScope(own[0].scopeId);
-    if(own.length===0&&isScopedRole(employeeRole(id)))setPermissionDirty(true,'ยังไม่มีพื้นที่/สิทธิ์ กรุณาตั้งค่าแล้วบันทึก');
-    else setPermissionDirty(false)
+    if(state.selectedPermissionEmployee!==id)return;
+    renderAll();if(!state.permissionDirty)prepareScopeEditor(id)
   }catch(e){
-    if($('scopeList'))$('scopeList').innerHTML='<div class="muted" style="color:#a52f2f">โหลดสิทธิ์ไม่สำเร็จ: '+e.message+'</div>'
-  }
+    if(state.selectedPermissionEmployee===id&&seq===state.scopeRequestVersion[id]&&$('scopeList'))$('scopeList').innerHTML='<div class="muted" style="color:#a52f2f">โหลดสิทธิ์ไม่สำเร็จ: '+e.message+'</div>'
+  }finally{if(state.scopeRequests[id]===request)delete state.scopeRequests[id]}
 }
 async function loadQuotaData(force){if(state.quotaLoaded&&!force)return;try{busy(1,'กำลังโหลดกฎโควต้าวันหยุด...');const q=await call({op:'adminGetLeaveQuotaRules',adminToken:state.token},{timeoutMs:45000});state.quotas=q.rows||[];state.quotaLoaded=true;renderAll()}catch(e){setLoadStatus('โหลดโควต้าไม่สำเร็จ: '+e.message,true)}finally{busy(0)}}
-function opt(list,all){return(all?'<option value="*">ทั้งหมด (*)</option>':'')+list.map(x=>'<option value="'+x.code+'">'+x.name+' ('+x.code+')</option>').join('')}
+function opt(list,allLabel){return(allLabel?'<option value="*">'+allLabel+'</option>':'')+list.map(x=>'<option value="'+x.code+'">'+x.name+' ('+x.code+')</option>').join('')}
 function renderAll(){
  const m=state.masters||{branches:[],departments:[],shifts:[],devices:[]},branches=m.branches||[],deps=m.departments||[],shifts=m.shifts||[];
  const activeBranches=branches.filter(x=>x.active!==false);
@@ -180,8 +183,9 @@ function renderAll(){
  const selectedId=($('rEmployee')&&$('rEmployee').value)||state.selectedPermissionEmployee||'';
  const empOptions=emps.length?emps.map(x=>'<option value="'+x.id+'">'+(x.nickname||x.name)+' • '+x.id+'</option>').join(''):'<option value="">ยังไม่มีพนักงาน</option>';
  if($('rEmployee')){$('rEmployee').innerHTML=empOptions;const keep=selectedId&&emps.some(x=>x.id===selectedId)?selectedId:(emps[0]?emps[0].id:'');$('rEmployee').value=keep;state.selectedPermissionEmployee=keep;}
- if($('roleList'))$('roleList').innerHTML=emps.slice().sort((a,b)=>{const ar=employeeRole(a.id),br=employeeRole(b.id),rr=roleRank(ar)-roleRank(br);if(rr)return rr;return String(a.nickname||a.name||'').localeCompare(String(b.nickname||b.name||''),'th')}).map(x=>{const role=employeeRole(x.id),scopeCount=state.scopes.filter(s=>s.employeeId===x.id&&s.active!==false).length;return '<div class="item"><div class="row"><div><b>'+(x.nickname||x.name)+'</b><div class="muted">'+x.id+' • '+(x.branch||'-')+' / '+(x.department||'-')+'</div></div><span class="pill '+(isScopedRole(role)?'roleBadgeManager':'roleBadgeEmployee')+'">'+roleLabel(role)+'</span>'+(isScopedRole(role)?'<span class="muted">ขอบเขต '+scopeCount+' รายการ</span>':'')+'<div class="spacer"></div><button class="btn secondary editRole" data-id="'+x.id+'">แก้สิทธิ์</button></div></div>'}).join('')||'<div class="muted">ยังไม่มีพนักงาน</div>';
- ['mBranch','qBranch','xBranch'].forEach(id=>$(id).innerHTML=opt(branches,id!=='xBranch'));['mDept','qDept'].forEach(id=>$(id).innerHTML=opt(deps,true));$('qShift').innerHTML=opt(shifts,true);$('qBranch').value=state.settingsBranch||'*';updateSettingsScopeUi(branches);renderSelectedPermissionUser();
+ if($('roleList'))$('roleList').innerHTML=emps.slice().sort((a,b)=>{const ar=employeeRole(a.id),br=employeeRole(b.id),rr=roleRank(ar)-roleRank(br);if(rr)return rr;return String(a.nickname||a.name||'').localeCompare(String(b.nickname||b.name||''),'th')}).map(x=>{const role=employeeRole(x.id);return '<div class="item"><div class="row"><div><b>'+(x.nickname||x.name)+'</b><div class="muted">'+x.id+' • '+(x.branch||'-')+' / '+(x.department||'-')+'</div></div><span class="pill '+(isScopedRole(role)?'roleBadgeManager':'roleBadgeEmployee')+'">'+roleLabel(role)+'</span><div class="spacer"></div><button class="btn secondary editRole" data-id="'+x.id+'">แก้สิทธิ์</button></div></div>'}).join('')||'<div class="muted">ยังไม่มีพนักงาน</div>';
+ const scopeForm={branch:$('mBranch')&&$('mBranch').value,dept:$('mDept')&&$('mDept').value};
+ $('mBranch').innerHTML=opt(branches,'ทุกสาขา');$('qBranch').innerHTML=opt(branches,'ทุกสาขา');$('xBranch').innerHTML=opt(branches,'');$('mDept').innerHTML=opt(deps,'ทุกแผนก');$('qDept').innerHTML=opt(deps,'ทุกแผนก');$('qShift').innerHTML=opt(shifts,'ทุกกะ');if(scopeForm.branch&&[...$('mBranch').options].some(o=>o.value===scopeForm.branch))$('mBranch').value=scopeForm.branch;if(scopeForm.dept&&[...$('mDept').options].some(o=>o.value===scopeForm.dept))$('mDept').value=scopeForm.dept;$('qBranch').value=state.settingsBranch||'*';updateSettingsScopeUi(branches);renderSelectedPermissionUser();
  const permissionEmployeeId=state.selectedPermissionEmployee||($('rEmployee')&&$('rEmployee').value)||'',selectedScopes=state.scopes.filter(x=>x.employeeId===permissionEmployeeId&&x.active!==false);
  const branchLabel=code=>code==='*'?'ทุกสาขา':(((branches||[]).find(b=>b.code===code)||{}).name||code);
  const deptLabel=code=>code==='*'?'ทุกแผนก':(((deps||[]).find(d=>d.code===code)||{}).name||code);
@@ -208,54 +212,65 @@ function setPermissionDirty(dirty,message){
   if($('savePermissionSetup'))$('savePermissionSetup').classList.toggle('isHidden',!state.permissionDirty);
   if($('permissionSaveHint'))$('permissionSaveHint').textContent=message||(state.permissionDirty?'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก':'ข้อมูลเป็นปัจจุบัน');
 }
+function permissionFormValue(){return{employeeId:state.selectedPermissionEmployee||'',role:$('rRole')?$('rRole').value:'EMPLOYEE',scopeId:state.editingScopeId||'',branchCode:$('mBranch')?$('mBranch').value:'*',departmentCode:$('mDept')?$('mDept').value:'*',canApproveLeave:$('mLeave')?$('mLeave').value:'1',canManageSchedule:$('mSchedule')?$('mSchedule').value:'1',canViewAttendance:$('mAttendance')?$('mAttendance').value:'1'}}
+function capturePermissionBaseline(message){state.permissionBaseline=JSON.stringify(permissionFormValue());setPermissionDirty(false,message)}
+function refreshPermissionDirty(message){setPermissionDirty(JSON.stringify(permissionFormValue())!==state.permissionBaseline,message)}
 function bindPermissionDirtyFields(){
-  ['mBranch','mDept','mLeave','mSchedule','mAttendance'].forEach(id=>{const el=$(id);if(el&&!el.dataset.dirtyBound){el.dataset.dirtyBound='1';el.addEventListener('change',()=>setPermissionDirty(true))}})
+  ['mBranch','mDept','mLeave','mSchedule','mAttendance'].forEach(id=>{const el=$(id);if(el&&!el.dataset.dirtyBound){el.dataset.dirtyBound='1';el.addEventListener('change',()=>refreshPermissionDirty())}})
 }
 function renderSelectedPermissionUser(){
   if(!$('rEmployee'))return;
   const id=$('rEmployee').value||state.selectedPermissionEmployee||'',e=state.employees.find(x=>x.id===id),role=e?employeeRole(id):'EMPLOYEE';
   state.selectedPermissionEmployee=id;
-  if($('rRole'))$('rRole').value=role;
+  if(state.permissionDraftEmployee!==id){state.permissionDraftEmployee=id;state.permissionDraftRole=role}
+  if($('rRole'))$('rRole').value=state.permissionDraftRole||role;
   if($('selUserId'))$('selUserId').textContent=e?e.id:'-';
   if($('selUserBranch'))$('selUserBranch').textContent=e?(e.branch||'-'):'-';
   if($('selUserDept'))$('selUserDept').textContent=e?(e.department||'-'):'-';
   if($('selUserRole'))$('selUserRole').textContent=roleLabel(role);
   if($('currentPermissionEmployeeName'))$('currentPermissionEmployeeName').textContent=e?(e.nickname||e.name||e.id):'-';
-  const showManager=isScopedRole(role)||($('rRole')&&isScopedRole($('rRole').value));
+  const showManager=$('rRole')&&isScopedRole($('rRole').value);
   if($('managerScopeEditor'))$('managerScopeEditor').classList.toggle('isHidden',!showManager);
   if($('selectedScopeCard'))$('selectedScopeCard').classList.toggle('isHidden',!showManager);
   if(!state.permissionDirty&&$('permissionSaveHint'))$('permissionSaveHint').textContent='ข้อมูลเป็นปัจจุบัน';
   bindPermissionDirtyFields();
 }
 function permissionRoleChanged(){
-  const isManager=isScopedRole($('rRole').value);
-  setPermissionDirty(true,'เปลี่ยนบทบาทแล้ว กดบันทึกการตั้งค่าเพื่อยืนยัน');
+  state.permissionDraftRole=$('rRole').value;
+  const isManager=isScopedRole(state.permissionDraftRole);
+  refreshPermissionDirty();
+  if(state.permissionDirty&&$('permissionSaveHint'))$('permissionSaveHint').textContent='เปลี่ยนบทบาทแล้ว กดบันทึกการตั้งค่าเพื่อยืนยัน';
   if($('managerScopeEditor'))$('managerScopeEditor').classList.toggle('isHidden',!isManager);
   if($('selectedScopeCard'))$('selectedScopeCard').classList.toggle('isHidden',!isManager);
 }
-function selectRoleEmployee(id){if(!$('rEmployee'))return;$('rEmployee').value=id;state.selectedPermissionEmployee=id;state.permissionDirty=false;renderSelectedPermissionUser();renderAll();setPermissionDirty(false);if(isScopedRole(employeeRole(id)))loadSelectedManagerScopes(id,false);try{window.scrollTo({top:0,left:0,behavior:'smooth'})}catch(e){}}
+function prepareScopeEditor(id){const own=state.scopes.filter(x=>x.employeeId===id&&x.active!==false);if(own.length===1)editScope(own[0].scopeId);else capturePermissionBaseline(own.length?'เลือก “แก้ไข” ที่ขอบเขตที่ต้องการ':'ยังไม่มีพื้นที่รับผิดชอบ • เปลี่ยนพื้นที่หรือสิทธิ์แล้วจึงบันทึก')}
+function selectRoleEmployee(id){if(!$('rEmployee'))return;state.selectedPermissionEmployee=id;state.editingScopeId='';state.permissionDraftEmployee=id;state.permissionDraftRole=employeeRole(id);$('rEmployee').value=id;resetScopeEditor(false);renderAll();capturePermissionBaseline();if(isScopedRole(employeeRole(id)))loadSelectedManagerScopes(id,false);try{window.scrollTo({top:0,left:0,behavior:'smooth'})}catch(e){}}
 async function savePermissionSetup(){
   const id=$('rEmployee').value,role=$('rRole').value;
   if(!id){alert('กรุณาเลือกพนักงาน');return}
+  if(isScopedRole(role)&&isScopedRole(employeeRole(id))&&!state.scopeLoadedFor[id]){alert('กรุณารอให้โหลดสิทธิ์ปัจจุบันของพนักงานคนนี้เสร็จก่อนบันทึก');return}
   const e=state.employees.find(x=>x.id===id),name=e?(e.nickname||e.name):id;
   try{
     busy(1,'กำลังบันทึกการตั้งค่า...');
-    if(isScopedRole(role)){
+    const before=state.permissionBaseline?JSON.parse(state.permissionBaseline):{},current=permissionFormValue(),roleChanged=before.role!==role,scopeChanged=['scopeId','branchCode','departmentCode','canApproveLeave','canManageSchedule','canViewAttendance'].some(k=>before[k]!==current[k]),needsInitialScope=isScopedRole(role)&&!isScopedRole(before.role)&&!state.scopes.some(x=>x.employeeId===id&&x.active!==false);
+    if(roleChanged&&!(isScopedRole(role)&&(scopeChanged||needsInitialScope))){
+      await call({op:'adminSetEmployeeAccessRole',adminToken:state.token,employeeId:id,accessRole:role,note:'ปรับจากหน้าสิทธิ์ผู้ใช้งาน'},{timeoutMs:30000,timeoutMessage:'บันทึกบทบาทช้าเกินไป'});
+      const hit=state.employees.find(x=>x.id===id);if(hit)hit.accessRole=role;
+    }
+    if(isScopedRole(role)&&(scopeChanged||needsInitialScope)){
       const scopePayload={scopeId:state.editingScopeId||'',employeeId:id,accessRole:role,branchCode:$('mBranch').value,departmentCode:$('mDept').value,canApproveLeave:bool($('mLeave').value),canManageSchedule:bool($('mSchedule').value),canViewAttendance:bool($('mAttendance').value),active:true};
       await call({op:'adminSaveManagerScope',adminToken:state.token,scope:scopePayload},{timeoutMs:30000,timeoutMessage:'บันทึกสิทธิ์ผู้ใช้งานช้าเกินไป'});
       const hit=state.employees.find(x=>x.id===id);if(hit)hit.accessRole=role;
       state.scopeLoadedFor[id]=false;
       await loadSelectedManagerScopes(id,true);
-    }else{
-      await call({op:'adminSetEmployeeAccessRole',adminToken:state.token,employeeId:id,accessRole:'EMPLOYEE',note:'ปรับจากหน้าสิทธิ์ผู้ใช้งาน'},{timeoutMs:30000,timeoutMessage:'บันทึกบทบาทช้าเกินไป'});
-      const hit=state.employees.find(x=>x.id===id);if(hit)hit.accessRole='EMPLOYEE';
+    }else if(!isScopedRole(role)){
       state.editingScopeId='';
       renderAll();
       renderSelectedPermissionUser();
     }
     try{const cache=JSON.parse(sessionStorage.getItem('kruaFlowAdminSummaryV54')||'null');if(cache&&Array.isArray(cache.employees)){const ce=cache.employees.find(x=>x.id===id);if(ce)ce.accessRole=role;sessionStorage.setItem('kruaFlowAdminSummaryV54',JSON.stringify(cache))}}catch(err){}
     state.selectedPermissionEmployee=id;
-    setPermissionDirty(false);
+    state.permissionDraftRole=role;capturePermissionBaseline();
     alert('บันทึกการตั้งค่าของ '+name+' เรียบร้อย')
   }catch(err){alert(err.message)}finally{busy(0)}
 }
@@ -271,8 +286,8 @@ function changeSettingsBranch(){
   if($('qBranch'))$('qBranch').value=state.settingsBranch;
   state.editingQuotaId='';resetQuota();renderAll();
 }
-function resetScope(){state.editingScopeId='';if($('mBranch'))$('mBranch').value='*';if($('mDept'))$('mDept').value='*';$('mLeave').value='1';$('mSchedule').value='1';$('mAttendance').value='1';setPermissionDirty(true,'เพิ่มขอบเขตใหม่แล้ว กดบันทึกการตั้งค่า')}
-function editScope(id){const x=state.scopes.find(a=>a.scopeId===id);if(!x)return;state.editingScopeId=id;state.selectedPermissionEmployee=x.employeeId;if($('rEmployee'))$('rEmployee').value=x.employeeId;$('mBranch').value=x.branchCode;$('mDept').value=x.departmentCode;$('mLeave').value=x.canApproveLeave?'1':'0';$('mSchedule').value=x.canManageSchedule?'1':'0';$('mAttendance').value=x.canViewAttendance?'1':'0';setPermissionDirty(false,'กำลังดู '+(x.branchCode==='*'?'ทุกสาขา':x.branchCode)+' / '+(x.departmentCode==='*'?'ทุกแผนก':x.departmentCode)+' • เปลี่ยนข้อมูลเมื่อพร้อมแก้ไข');window.scrollTo({top:0,behavior:'smooth'})}
+function resetScopeEditor(markDirty){state.editingScopeId='';const e=state.employees.find(x=>x.id===state.selectedPermissionEmployee),branch=e&&e.branch,dept=e&&e.department;if($('mBranch'))$('mBranch').value=branch&&[...$('mBranch').options].some(o=>o.value===branch)?branch:'*';if($('mDept'))$('mDept').value=dept&&[...$('mDept').options].some(o=>o.value===dept)?dept:'*';$('mLeave').value='0';$('mSchedule').value='0';$('mAttendance').value='0';if(markDirty)refreshPermissionDirty()}
+function editScope(id){const x=state.scopes.find(a=>a.scopeId===id);if(!x)return;state.editingScopeId=id;state.selectedPermissionEmployee=x.employeeId;if($('rEmployee'))$('rEmployee').value=x.employeeId;$('mBranch').value=x.branchCode;$('mDept').value=x.departmentCode;$('mLeave').value=x.canApproveLeave?'1':'0';$('mSchedule').value=x.canManageSchedule?'1':'0';$('mAttendance').value=x.canViewAttendance?'1':'0';capturePermissionBaseline('กำลังดู '+(x.branchCode==='*'?'ทุกสาขา':x.branchCode)+' / '+(x.departmentCode==='*'?'ทุกแผนก':x.departmentCode)+' • เปลี่ยนข้อมูลเมื่อพร้อมแก้ไข');window.scrollTo({top:0,behavior:'smooth'})}
 function resetQuota(){state.editingQuotaId='';$('qMax').value='1';$('qMin').value='0';$('qLead').value='0';$('qBlack').value='0';$('qStart').value='';$('qEnd').value='';$('qPriority').value='0';$('saveQuota').textContent='บันทึกกฎ'}
 function editQuota(id){const x=state.quotas.find(a=>a.ruleId===id);if(!x)return;state.settingsBranch=String(x.branchCode||'*');localStorage.setItem('kfSettingsBranchV1',state.settingsBranch);if($('settingsBranch'))$('settingsBranch').value=state.settingsBranch;state.editingQuotaId=id;$('qBranch').value=state.settingsBranch;$('qDept').value=x.departmentCode;$('qShift').value=x.shiftCode;$('qMax').value=x.maxOff;$('qMin').value=x.minStaffing;$('qLead').value=x.minLeadDays;$('qBlack').value=x.blackout?'1':'0';$('qStart').value=x.effectiveStart||'';$('qEnd').value=x.effectiveEnd||'';$('qPriority').value=x.priority||0;$('saveQuota').textContent='บันทึกการแก้ไขกฎ';window.scrollTo({top:0,behavior:'smooth'})}
 function resetDevice(){$('xDevice').value='';$('xDevice').disabled=false;$('xLabel').value='';$('xActive').value='1';$('saveDevice').textContent='บันทึกอุปกรณ์'}
@@ -280,7 +295,7 @@ function editDevice(id){const x=(state.masters.devices||[]).find(a=>a.deviceId==
 async function saveBranch(){try{busy(1,'กำลังบันทึกสาขา...');await call({op:'adminSaveBranch',adminToken:state.token,branch:{code:$('bCode').value,name:$('bName').value,shortName:$('bShort').value,sort:Number($('bSort').value),phone:$('bPhone').value,timezone:$('bTz').value,address:$('bAddress').value,active:bool($('bActive').value)}});await reloadMasters()}catch(e){alert(e.message)}finally{busy(0)}}async function saveDept(){try{busy(1,'กำลังบันทึกแผนก...');await call({op:'adminSaveDepartment',adminToken:state.token,department:{code:$('dCode').value,name:$('dName').value,shortName:$('dShort').value,sort:Number($('dSort').value),color:$('dColor').value,active:bool($('dActive').value)}});await reloadMasters()}catch(e){alert(e.message)}finally{busy(0)}}async function saveShift(){if(!$('sCode').value.trim()||!$('sName').value.trim()||!$('sStart').value||!$('sEnd').value){alert('กรุณากรอกรหัส ชื่อ และเวลาเริ่ม/จบกะ');return}try{busy(1,'กำลังบันทึกกะ...');await call({op:'adminSaveShift',adminToken:state.token,shift:{code:$('sCode').value,name:$('sName').value,startTime:$('sStart').value,endTime:$('sEnd').value,crossMidnight:bool($('sCross').value),standardHours:Number($('sHours').value),nightAllowance:Number($('sAllowance').value),minStaffing:Number($('sMin').value),lateGraceMinutes:Number($('sGrace').value),lateDeduction:Number($('sLateDed').value),active:bool($('sActive').value)}});await reloadMasters();resetShift()}catch(e){alert(e.message)}finally{busy(0)}}
 async function deleteScope(id){if(!confirm('ลบ Scope นี้?'))return;try{busy(1,'กำลังลบ...');await call({op:'adminDeleteManagerScope',adminToken:state.token,scopeId:id});state.scopeLoadedFor[state.selectedPermissionEmployee]=false;await loadSelectedManagerScopes(state.selectedPermissionEmployee,true)}catch(e){alert(e.message)}finally{busy(0)}}
 async function saveQuota(){try{busy(1,'กำลังบันทึกกฎ...');await call({op:'adminSaveLeaveQuotaRule',adminToken:state.token,rule:{ruleId:state.editingQuotaId||'',branchCode:state.settingsBranch||'*',departmentCode:$('qDept').value,shiftCode:$('qShift').value,maxOff:Number($('qMax').value),minStaffing:Number($('qMin').value),minLeadDays:Number($('qLead').value),blackout:bool($('qBlack').value),effectiveStart:$('qStart').value,effectiveEnd:$('qEnd').value,priority:Number($('qPriority').value),active:true}});state.quotaLoaded=false;await loadQuotaData(true);resetQuota()}catch(e){alert(e.message)}finally{busy(0)}}async function saveDevice(){if(!$('xDevice').value.trim()){alert('กรุณาระบุ Device ID');return}try{busy(1,'กำลังบันทึกอุปกรณ์...');await call({op:'adminSaveDevice',adminToken:state.token,device:{deviceId:$('xDevice').value,branchCode:$('xBranch').value,label:$('xLabel').value,active:bool($('xActive').value)}});await reloadMasters();resetDevice()}catch(e){alert(e.message)}finally{busy(0)}}
-$('retryMasters').onclick=()=>loadMasters(true);if($('settingsBranch'))$('settingsBranch').onchange=changeSettingsBranch;if($('savePermissionSetup'))$('savePermissionSetup').onclick=savePermissionSetup;if($('rEmployee'))$('rEmployee').onchange=()=>{state.selectedPermissionEmployee=$('rEmployee').value;state.permissionDirty=false;renderSelectedPermissionUser();renderAll();setPermissionDirty(false);if(isScopedRole(employeeRole(state.selectedPermissionEmployee)))loadSelectedManagerScopes(state.selectedPermissionEmployee,false)};if($('rRole'))$('rRole').onchange=permissionRoleChanged;$('resetShift').onclick=resetShift;$('resetQuota').onclick=resetQuota;$('resetDevice').onclick=resetDevice;$('saveBranch').onclick=saveBranch;$('saveDept').onclick=saveDept;$('saveShift').onclick=saveShift;$('saveQuota').onclick=saveQuota;$('saveDevice').onclick=saveDevice;$('loadAudit').onclick=loadAudit;$('installTriggers').onclick=installTriggers;$('backupNow').onclick=backupNow;$('dashBtn').onclick=()=>location.href='./dashboard.html';$('readyBtn').onclick=()=>location.href='./readiness.html';$('adminBtn').onclick=()=>location.href='./admin.html';
+$('retryMasters').onclick=()=>loadMasters(true);if($('settingsBranch'))$('settingsBranch').onchange=changeSettingsBranch;if($('savePermissionSetup'))$('savePermissionSetup').onclick=savePermissionSetup;if($('rEmployee'))$('rEmployee').onchange=()=>selectRoleEmployee($('rEmployee').value);if($('rRole'))$('rRole').onchange=permissionRoleChanged;$('resetShift').onclick=resetShift;$('resetQuota').onclick=resetQuota;$('resetDevice').onclick=resetDevice;$('saveBranch').onclick=saveBranch;$('saveDept').onclick=saveDept;$('saveShift').onclick=saveShift;$('saveQuota').onclick=saveQuota;$('saveDevice').onclick=saveDevice;$('loadAudit').onclick=loadAudit;$('installTriggers').onclick=installTriggers;$('backupNow').onclick=backupNow;$('dashBtn').onclick=()=>location.href='./dashboard.html';$('readyBtn').onclick=()=>location.href='./readiness.html';$('adminBtn').onclick=()=>location.href='./admin.html';
 function activateSettingsView(view){
   if(view==='permissions')view='managers';
   const btn=[...document.querySelectorAll('.tabs button')].find(x=>x.dataset.view===view)||document.querySelector('.tabs button[data-view="branches"]');
