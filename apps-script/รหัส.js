@@ -314,7 +314,7 @@ function apiAdminGetFileChunk_(payload) {
   const fileId=String(payload.fileId||'').trim();
   requireAdmin_(String(payload.adminToken||''));
   if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) throw new Error('ไม่พบไฟล์');
-  const offset=Math.max(0,Number(payload.offset)||0),length=Math.min(196608,Math.max(1,Number(payload.length)||196608));
+  const offset=Math.max(0,Number(payload.offset)||0),length=Math.min(49152,Math.max(1,Number(payload.length)||49152));
   try {
     const response=UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media',{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken(),Range:'bytes='+offset+'-'+(offset+length-1)},muteHttpExceptions:true});
     const code=response.getResponseCode();
@@ -1758,7 +1758,7 @@ function adminFileMeta_(token, fileId, imageOnly) {
     const file=DriveApp.getFileById(id),mime=String(file.getMimeType()||'application/octet-stream'),size=Number(file.getSize())||0;
     if(imageOnly&&mime.indexOf('image/')!==0)throw new Error('โหลดไฟล์ไม่สำเร็จ');
     if(!imageOnly&&mime!=='application/pdf'&&mime.indexOf('image/')!==0)throw new Error('โหลดไฟล์ไม่สำเร็จ');
-    return {ok:true,fileId:id,fileName:file.getName(),mimeType:mime,size:size,chunkSize:196608,serverEpochMs:Date.now()};
+    return {ok:true,fileId:id,fileName:file.getName(),mimeType:mime,size:size,chunkSize:49152,serverEpochMs:Date.now()};
   } catch(e) {
     const message=e&&e.message?String(e.message):'';
     if(/not found|does not exist|invalid argument/i.test(message))throw new Error('ไม่พบไฟล์');
