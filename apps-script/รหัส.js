@@ -111,7 +111,12 @@ function apiStatusResponse_(e) {
 }
 
 function apiPutResult_(requestId, value) {
-  CacheService.getScriptCache().put(apiResultKey_(requestId), JSON.stringify(value), 300);
+  const json = JSON.stringify(value);
+  // Apps Script CacheService จำกัดขนาด value ต่อ key; รูป/เอกสาร base64 อาจใหญ่เกินขีดจำกัด
+  // กรณี payload ใหญ่ ให้ส่งกลับผ่าน postMessage โดยตรงและไม่เขียนลง cache
+  if (json.length > 90000) return false;
+  CacheService.getScriptCache().put(apiResultKey_(requestId), json, 300);
+  return true;
 }
 
 function apiResultKey_(requestId) {
