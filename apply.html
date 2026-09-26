@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>สมัครงาน KruaFlow</title>
+  <script src="./config.js"></script><script src="./js/api-client.js"></script>
+  <link rel="stylesheet" href="./css/workforce.css">
+  <style>.form{max-width:760px;margin:auto}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-weight:900;margin:0 0 6px}.field .input,.field .select,.field textarea{width:100%;min-width:0}.field textarea{min-height:100px;border:1px solid #cbd7e4;border-radius:11px;padding:12px}.wide{grid-column:1/-1}.consent{display:flex;gap:9px;align-items:flex-start;font-weight:750}.success{background:#eaf8ef;border-color:#b9dfc6;color:#176b3c}@media(max-width:600px){.fields{grid-template-columns:1fr}.wide{grid-column:auto}}</style>
+</head>
+<body><main class="page form">
+  <header class="head"><div><h1>สมัครงานกับ KruaFlow</h1><div class="sub">กรอกครั้งเดียว ข้อมูลนี้จะใช้ต่อในขั้นสัมภาษณ์และ Onboarding</div></div><div class="spacer"></div><span class="env" id="env">PRODUCTION</span></header>
+  <div id="state" class="loading">กำลังโหลดข้อมูล...</div>
+  <form id="form" class="card" hidden><div class="fields">
+    <div class="field"><label>ชื่อ *</label><input class="input" name="firstName" required></div>
+    <div class="field"><label>นามสกุล *</label><input class="input" name="lastName" required></div>
+    <div class="field"><label>ชื่อเล่น</label><input class="input" name="nickname"></div>
+    <div class="field"><label>วันเกิด</label><input class="input" type="date" name="birthDate"></div>
+    <div class="field"><label>โทรศัพท์ *</label><input class="input" type="tel" name="phone" required></div>
+    <div class="field"><label>LINE</label><input class="input" name="line"></div>
+    <div class="field wide"><label>Email</label><input class="input" type="email" name="email"></div>
+    <div class="field"><label>ตำแหน่งที่สมัคร *</label><select class="select" name="positionCode" id="position" required></select></div>
+    <div class="field"><label>สาขาที่สนใจ *</label><select class="select" name="branchCode" id="branch" required></select></div>
+    <div class="field"><label>เงินเดือน/ค่าแรงที่คาดหวัง</label><input class="input" type="number" min="0" name="expectedWage"></div>
+    <div class="field"><label>วันที่พร้อมเริ่มงาน</label><input class="input" type="date" name="availableStartDate"></div>
+    <div class="field"><label>ทราบข่าวจาก</label><select class="select" name="source"><option>Facebook</option><option>TikTok</option><option>LINE OA</option><option>Website</option><option>Walk-in</option><option>Employee Referral</option><option>Other</option></select></div>
+    <div class="field wide"><label>ประสบการณ์</label><textarea name="experience"></textarea></div>
+    <div class="field wide"><label>ที่อยู่</label><textarea name="address"></textarea></div>
+    <div class="field wide" id="documents" hidden><label>Resume / รูป / เอกสาร (JPG, PNG, WEBP, PDF)</label><input class="input" id="files" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><div class="formula" id="fileHint"></div></div>
+    <label class="consent wide"><input type="checkbox" name="consent" required> ยินยอมให้ KruaFlow เก็บและใช้ข้อมูลนี้เพื่อกระบวนการสรรหา การจ้างงาน และการติดต่อที่เกี่ยวข้อง</label>
+    <button class="btn primary wide" id="submit" type="submit">ส่งใบสมัคร</button>
+  </div></form>
+</main><script>
+(async function(){
+  const staging=new URLSearchParams(location.search).get('staging')==='1',env=document.getElementById('env'),state=document.getElementById('state'),form=document.getElementById('form'),api=new KruaFlowApi.Client();let boot=null;
+  env.textContent=staging?'STAGING':'PRODUCTION';env.classList.toggle('staging',staging);
+  try{
+    boot=await api.call({op:'workforcePublicBootstrap'});
+    if(!boot.ready||!boot.recruitmentEnabled){state.className='notice';state.textContent='ระบบรับสมัครงานยังไม่เปิดใช้งาน';return}
+    document.getElementById('branch').innerHTML='<option value="">เลือกสาขา</option>'+boot.branches.map(x=>'<option value="'+x.code+'">'+x.name+'</option>').join('');
+    document.getElementById('position').innerHTML='<option value="">เลือกตำแหน่ง</option>'+boot.positions.map(x=>'<option value="'+x.code+'">'+x.name+'</option>').join('');
+    if(boot.gcsDocumentsEnabled){document.getElementById('documents').hidden=false;document.getElementById('fileHint').textContent='สูงสุด '+Math.round(boot.documentMaxBytes/1024/1024)+' MB ต่อไฟล์ • อัปโหลดตรงไปพื้นที่จัดเก็บส่วนตัว'}
+    state.hidden=true;form.hidden=false;
+  }catch(e){state.className='error';state.textContent=e.message||e}
+  async function uploadFiles(result){
+    const files=[...(document.getElementById('files').files||[])];if(!files.length)return;
+    if(!result.documentUploadToken)throw new Error('ระบบเอกสารยังไม่พร้อม กรุณาส่งใบสมัครโดยไม่แนบไฟล์');
+    for(let i=0;i<files.length;i++){
+      const file=files[i];document.getElementById('submit').textContent='กำลังอัปโหลด '+(i+1)+'/'+files.length;
+      const session=await api.call({op:'documentCreateUploadSession',applicantUploadToken:result.documentUploadToken,document:{ownerType:'APPLICANT',ownerId:result.applicantId,personId:result.personId,applicantId:result.applicantId,documentType:i===0?'RESUME':'APPLICANT_OTHER',label:i===0?'Resume':'เอกสารผู้สมัคร',fileName:file.name,mimeType:file.type,size:file.size}});
+      const response=await fetch(session.uploadUrl,{method:'PUT',headers:session.requiredHeaders||{},body:file});if(!response.ok)throw new Error('อัปโหลด '+file.name+' ไม่สำเร็จ');
+      await api.call({op:'documentFinalizeUpload',applicantUploadToken:result.documentUploadToken,documentId:session.documentId,objectKey:session.objectKey});
+    }
+  }
+  form.onsubmit=async e=>{
+    e.preventDefault();const btn=document.getElementById('submit'),fd=new FormData(form),data=Object.fromEntries(fd.entries());delete data.files;data.consent=fd.get('consent')==='on';data.expectedWage=Number(data.expectedWage)||0;btn.disabled=true;btn.textContent='กำลังส่ง...';
+    try{const r=await api.call({op:'applicantSubmit',applicant:data});await uploadFiles(r);form.hidden=true;state.hidden=false;state.className='notice success';state.innerHTML='<b>ส่งใบสมัครเรียบร้อย</b><div class="formula">เลขที่ '+r.applicantId+' • กรุณาเก็บเลขนี้ไว้</div>'}catch(x){alert(x.message||x);btn.disabled=false;btn.textContent='ส่งใบสมัคร'}
+  };
+})();
+</script></body></html>

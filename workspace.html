@@ -36,24 +36,36 @@ button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns
     <div class="brand"><div class="brandMark">KF</div><div class="brandText"><div class="brandName">KruaFlow</div><div class="brandSub">ศูนย์ควบคุมผู้ดูแล</div></div><button class="collapseBtn" id="collapseBtn" title="ย่อเมนู">‹</button></div>
     <nav class="nav">
       <div class="group"><div class="groupTitle">ภาพรวม</div>
-        <button class="navBtn active" data-view="overview" data-url="./dashboard.html?embed=1" data-title="ภาพรวมระบบ"><span class="ico">⌂</span><span class="navLabel">ภาพรวมระบบ</span></button>
-        <button class="navBtn" data-view="review" data-url="./admin.html?embed=1&view=review" data-title="งานรอตรวจ"><span class="ico">◉</span><span class="navLabel">งานรอตรวจ</span></button>
+        <button class="navBtn active" data-view="overview" data-url="./workforce.html?embed=1&view=dashboard" data-title="ภาพรวมระบบ"><span class="ico">⌂</span><span class="navLabel">ภาพรวมระบบ</span></button>
+        <button class="navBtn" data-view="review" data-url="./workforce.html?embed=1&view=work-queue" data-title="งานรอตรวจ"><span class="ico">◉</span><span class="navLabel">งานรอตรวจ</span></button>
+        <button class="navBtn" data-view="notifications" data-url="./workforce.html?embed=1&view=notifications" data-title="แจ้งเตือน"><span class="ico">●</span><span class="navLabel">แจ้งเตือน</span></button>
+      </div>
+      <div class="group"><div class="groupTitle">สรรหา</div>
+        <button class="navBtn" data-view="applicants" data-url="./workforce.html?embed=1&view=applicants" data-title="ผู้สมัครงาน"><span class="ico">◎</span><span class="navLabel">ผู้สมัครงาน</span></button>
+        <button class="navBtn" data-view="interviews" data-url="./workforce.html?embed=1&view=interviews" data-title="นัดสัมภาษณ์"><span class="ico">◷</span><span class="navLabel">นัดสัมภาษณ์</span></button>
+        <button class="navBtn" data-view="staffing" data-url="./workforce.html?embed=1&view=staffing" data-title="แผนรับพนักงาน"><span class="ico">▦</span><span class="navLabel">แผนรับพนักงาน</span></button>
       </div>
       <div class="group"><div class="groupTitle">พนักงาน</div>
         <button class="navBtn" data-view="employees" data-url="./admin.html?embed=1&view=employees" data-title="ภาพรวมพนักงาน"><span class="ico">👥</span><span class="navLabel">ภาพรวมพนักงาน</span></button>
-        <button class="navBtn" data-view="register" data-url="./register.html" data-title="รับพนักงานใหม่"><span class="ico">＋</span><span class="navLabel">รับพนักงานใหม่</span></button>
+        <button class="navBtn" data-view="onboarding" data-url="./workforce.html?embed=1&view=onboarding" data-title="Onboarding"><span class="ico">＋</span><span class="navLabel">Onboarding</span></button>
         <button class="navBtn" data-view="employee-documents" data-url="./admin.html?embed=1&view=employees" data-title="เอกสารพนักงาน"><span class="ico">▤</span><span class="navLabel">เอกสารพนักงาน</span><span class="navNote">เลือกพนักงาน</span></button>
       </div>
       <div class="group"><div class="groupTitle">การทำงาน</div>
         <button class="navBtn" data-view="schedule" data-url="./schedule.html?admin=1&embed=1" data-title="ตารางงาน"><span class="ico">▦</span><span class="navLabel">ตารางงาน</span></button>
         <button class="navBtn" data-view="attendance" data-url="./admin.html?embed=1&view=attendance" data-title="เวลาเข้าออก"><span class="ico">◷</span><span class="navLabel">เวลาเข้าออก</span></button>
         <button class="navBtn" data-view="leave" data-url="./admin.html?embed=1&view=leave" data-title="การลา / วันหยุด"><span class="ico">✓</span><span class="navLabel">การลา / วันหยุด</span></button>
-        <button class="navBtn" type="button" disabled><span class="ico">▣</span><span class="navLabel">บันทึกงานประจำวัน</span><span class="navNote">กำลังพัฒนา</span></button>
+        <button class="navBtn" data-view="activity" data-url="./workforce.html?embed=1&view=activity" data-title="Daily Activity"><span class="ico">▣</span><span class="navLabel">Daily Activity</span></button>
+        <button class="navBtn" data-view="shift-check" data-url="./workforce.html?embed=1&view=shift-check" data-title="Daily Shift Check"><span class="ico">✓</span><span class="navLabel">Daily Shift Check</span></button>
       </div>
       <div class="group"><div class="groupTitle">ค่าแรง</div>
         <button class="navBtn" data-view="payroll" data-url="./dashboard.html?embed=1&view=payroll" data-title="ตรวจค่าแรง"><span class="ico">฿</span><span class="navLabel">ตรวจค่าแรง</span></button>
         <button class="navBtn" data-view="payroll-period" data-url="./dashboard.html?embed=1&view=payroll" data-title="รอบค่าแรง"><span class="ico">▤</span><span class="navLabel">รอบค่าแรง</span></button>
         <button class="navBtn" data-view="bank" data-url="./dashboard.html?embed=1&view=bank" data-title="เตรียมจ่าย"><span class="ico">▣</span><span class="navLabel">เตรียมจ่าย</span></button>
+      </div>
+      <div class="group"><div class="groupTitle">รายงาน</div>
+        <button class="navBtn" data-view="reports" data-url="./workforce.html?embed=1&view=reports" data-title="รายงาน Workforce"><span class="ico">▤</span><span class="navLabel">Workforce / Recruitment</span></button>
+        <button class="navBtn" data-view="performance" data-url="./workforce.html?embed=1&view=performance" data-title="Performance"><span class="ico">◇</span><span class="navLabel">Performance</span></button>
+        <button class="navBtn" data-view="retention" data-url="./workforce.html?embed=1&view=retention" data-title="Retention"><span class="ico">↻</span><span class="navLabel">Retention</span></button>
       </div>
       <div class="group"><div class="groupTitle">ระบบ</div>
         <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1" data-title="ตั้งค่าระบบ"><span class="ico">⚙</span><span class="navLabel">ตั้งค่าระบบ</span></button>
@@ -65,6 +77,7 @@ button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns
         <button class="navBtn" data-external="./index.html"><span class="ico">↗</span><span class="navLabel">เปิดหน้าลงเวลา</span></button>
         <button class="navBtn" data-external="./portal.html"><span class="ico">↗</span><span class="navLabel">พื้นที่พนักงาน</span></button>
         <button class="navBtn" data-external="./manager.html"><span class="ico">↗</span><span class="navLabel">พื้นที่ผู้จัดการ</span></button>
+        <button class="navBtn" data-external="./apply.html"><span class="ico">↗</span><span class="navLabel">ใบสมัครงาน</span></button>
       </div>
     </nav>
   </aside>
@@ -100,14 +113,15 @@ function resetEmbeddedScroll(){
     setTimeout(()=>{try{frame.contentWindow.scrollTo(0,0);if(frame.contentDocument?.documentElement)frame.contentDocument.documentElement.scrollTop=0;if(frame.contentDocument?.body)frame.contentDocument.body.scrollTop=0}catch(e){}},180);
   }catch(e){}
 }
-function openView(btn,persist=true){if(!btn)return;buttons.forEach(x=>x.classList.toggle('active',x===btn));frame.src=btn.dataset.url||'';title.textContent=btn.dataset.title||btn.textContent.trim();if(persist)localStorage.setItem(KEY_VIEW,btn.dataset.view||'overview');shell.classList.remove('menuOpen')}
+function environmentUrl(raw){if(new URLSearchParams(location.search).get('staging')!=='1')return raw||'';const u=new URL(raw||'',location.href);u.searchParams.set('staging','1');return u.href}
+function openView(btn,persist=true){if(!btn)return;buttons.forEach(x=>x.classList.toggle('active',x===btn));frame.src=environmentUrl(btn.dataset.url||'');title.textContent=btn.dataset.title||btn.textContent.trim();if(persist)localStorage.setItem(KEY_VIEW,btn.dataset.view||'overview');shell.classList.remove('menuOpen')}
 function startWorkspace(){auth.classList.add('hidden');const q=new URLSearchParams(location.search).get('view'),saved=q||localStorage.getItem(KEY_VIEW)||'overview',start=buttons.find(x=>x.dataset.view===saved)||buttons[0];openView(start,false)}
 async function login(){err.classList.remove('show');const pin=document.getElementById('adminPin').value.replace(/\D/g,'').slice(0,6);if(pin.length!==6){err.textContent='กรุณากรอก PIN Admin 6 หลัก';err.classList.add('show');return}document.getElementById('busy').classList.add('show');try{const r=await call({op:'adminLoginFast',adminPin:pin});const t=r.token||r.adminToken||r.sessionToken||'';if(!t)throw new Error('ไม่ได้รับ Admin Token');saveToken(t);document.getElementById('adminPin').value='';startWorkspace()}catch(e){err.textContent=e.message||String(e);err.classList.add('show')}finally{document.getElementById('busy').classList.remove('show')}}
 function loadGroupState(){let saved={};try{saved=JSON.parse(localStorage.getItem(KEY_GROUPS)||'{}')}catch(e){}document.querySelectorAll('.group').forEach((g,i)=>{const title=g.querySelector('.groupTitle');if(!title)return;const key=title.textContent.trim()||('group'+i);g.dataset.groupKey=key;if(saved[key])g.classList.add('collapsed');title.setAttribute('role','button');title.setAttribute('tabindex','0');title.setAttribute('aria-expanded',g.classList.contains('collapsed')?'false':'true');const toggle=()=>{g.classList.toggle('collapsed');title.setAttribute('aria-expanded',g.classList.contains('collapsed')?'false':'true');let state={};try{state=JSON.parse(localStorage.getItem(KEY_GROUPS)||'{}')}catch(e){}state[key]=g.classList.contains('collapsed');localStorage.setItem(KEY_GROUPS,JSON.stringify(state))};title.onclick=toggle;title.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}}})}
 buttons.forEach(btn=>btn.onclick=()=>openView(btn));document.querySelectorAll('[data-external]').forEach(btn=>btn.onclick=()=>window.open(btn.dataset.external,'_blank','noopener'));loadGroupState();frame.addEventListener('load',()=>{setTimeout(sendAdminSession,30);setTimeout(resetEmbeddedScroll,45)});window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==frame.contentWindow)return;const m=e.data||{};if(m.type==='KruaFlowAdminSessionRequest')sendAdminSession()});
 document.getElementById('loginBtn').onclick=login;document.getElementById('adminPin').onkeydown=e=>{if(e.key==='Enter')login()};document.getElementById('collapseBtn').onclick=()=>{shell.classList.toggle('collapsed');localStorage.setItem(KEY_COLLAPSE,shell.classList.contains('collapsed')?'1':'0')};document.getElementById('mobileMenu').onclick=()=>shell.classList.toggle('menuOpen');document.getElementById('reloadBtn').onclick=()=>{try{frame.contentWindow.location.reload()}catch(e){frame.src=frame.src}};document.getElementById('openBtn').onclick=()=>window.open(frame.src,'_blank','noopener');document.getElementById('logoutBtn').onclick=()=>{clearToken();frame.src='about:blank';auth.classList.remove('hidden')};
 if(localStorage.getItem(KEY_COLLAPSE)==='1')shell.classList.add('collapsed');
-try{const v=(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'';api=v.split('?')[0]}catch(e){}
+try{const cfg=window.KRUA_FLOW_CONFIG||{},staging=new URLSearchParams(location.search).get('staging')==='1',v=staging?(cfg.STAGING_API_URL||''):cfg.API_URL;api=String(v||'').split('?')[0]}catch(e){}
 if(token())startWorkspace();
 })();
 </script>

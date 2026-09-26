@@ -103,6 +103,11 @@ function apiHandlePost_(payload) {
   if (op === 'adminChangePin') return apiAdminChangePin_(payload);
   if (op === 'adminLogout') return apiAdminLogout_(payload);
 
+  // Workforce V2 is additive and feature-gated. Legacy routes above remain authoritative
+  // until each replacement module passes STAGING UAT.
+  const workforceV2 = apiWorkforceV2HandlePost_(payload);
+  if (workforceV2 !== null) return workforceV2;
+
   const v7 = apiV7HandlePost_(payload);
   if (v7 !== null) return v7;
 
