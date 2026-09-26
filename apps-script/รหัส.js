@@ -35,11 +35,12 @@ function doPost(e) {
     if (!requestId) throw new Error('ไม่พบ requestId');
     const data = apiHandlePost_(payload);
     result = { ready:true, ok:true, data:data };
-    // File chunks use bounded postMessage responses and must never be duplicated in CacheService.
-    if (op !== 'adminGetFileChunk') apiPutResult_(requestId, result); // polling fallback compatibility
+    // Chunk size is bounded to 48 KB raw, so the JSON/base64 response stays below the cache limit.
+    // Cache every response to keep the existing JSONP polling fallback available when iframe postMessage is blocked.
+    apiPutResult_(requestId, result);
   } catch (err) {
     result = { ready:true, ok:false, error:err && err.message ? err.message : String(err) };
-    if (requestId && op !== 'adminGetFileChunk') apiPutResult_(requestId, result);
+    if (requestId) apiPutResult_(requestId, result);
   }
   return apiPostMessageResponse_(requestId, result, clientOrigin, op === 'adminGetFileChunk');
 }
