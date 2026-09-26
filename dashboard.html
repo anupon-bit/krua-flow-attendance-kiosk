@@ -12,6 +12,13 @@
 .tbl .selCol{width:42px;text-align:center}.tbl input[type=checkbox]{width:18px;height:18px;cursor:pointer}
 .pill.kf-blue{background:#e8f1ff;color:#2d65b3}.pill.kf-purple{background:#efe9ff;color:#6847b5}
 .rowSub{font-size:11px;color:#718096;margin-top:3px}.tbl tr.payRow{cursor:pointer}.tbl tr.payRow:hover{background:#f7fbff}.rowAction{border:0;border-radius:8px;padding:7px 10px;font-size:11px;font-weight:950;cursor:pointer;white-space:nowrap}.rowAction.review{background:#fff1d8;color:#a96500}.rowAction.final{background:#e7f7ee;color:#137646}.rowAction.paid{background:#e8f1ff;color:#2b65b7}.rowAction.retry{background:#fff0f0;color:#a43a3a}.rowAction.info{background:#eef3f9;color:#415a73}.rowAction:disabled{opacity:.5;cursor:not-allowed}.reasonBad{color:#b73838;font-weight:900}
+
+body.kfEmbedded .app{grid-template-columns:1fr}
+body.kfEmbedded .side{display:none}
+body.kfEmbedded .main{padding:12px}
+body.kfEmbedded .top .title{display:none}
+body.kfEmbedded .top{grid-template-columns:auto auto minmax(260px,1fr) auto}
+@media(max-width:850px){body.kfEmbedded .top{grid-template-columns:1fr}}
 </style></head><body>
 <iframe name="apiSink" id="apiSink" style="display:none"></iframe><div class="loading" id="loading"><div class="loadBox"><div id="loadText">กำลังโหลด Dashboard...</div><div class="prog"><div id="prog"></div></div></div></div>
 <div class="app"><aside class="side"><div class="logo">Krua Flow</div><div class="logoSub">Dashboard</div><nav class="nav">
@@ -50,6 +57,8 @@
 <button class="download" id="download">⇩ ดาวน์โหลดไฟล์จ่ายธนาคาร</button><div class="secBtns" id="export"><button id="preview">▣ ดูตัวอย่างไฟล์</button><button id="excel">▦ ส่งออก Excel</button></div><div class="small" style="margin-top:9px">Bank Transfer File ใช้โครงกลางก่อน จนกว่าจะกำหนดรูปแบบธนาคารที่ใช้จริง</div></section>
 <section class="card review"><div class="cardTitle">รายการต้องตรวจสอบ</div><div class="reviewItem"><span>🔴 ไม่มีเวลาเข้า</span><span id="rNoIn">0 คน</span></div><div class="reviewItem"><span>🟠 ไม่มีเวลาออก</span><span id="rNoOut">0 คน</span></div><div class="reviewItem"><span>🏦 ข้อมูลบัญชีธนาคารไม่ครบ</span><span id="rBank">0 คน</span></div><div class="reviewItem"><span>🟪 เงินเพิ่ม/เงินหักผิดปกติ</span><span id="rAdj">0 คน</span></div></section></aside></div></main></div>
 <script>
+if(new URLSearchParams(location.search).get('embed')==='1')document.body.classList.add('kfEmbedded');
+
 (function(){const $=id=>document.getElementById(id),SS='kruaFlowAdminTokenV4',LS_ADMIN='kruaFlowAdminTokenPersistentV1',LS_ADMIN_EXP='kruaFlowAdminTokenPersistentExpV1',state={api:'',token:'',employees:[],payroll:[],summary:null,start:'',end:'',payDate:'',mode:'WEEKLY',snapshots:{},selected:new Set(),snapshotBackend:true};
 function money(v){return (Number(v)||0).toLocaleString('th-TH',{maximumFractionDigits:0})+' บาท'}function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
 function getAdminSession(){var t=sessionStorage.getItem(SS)||'';if(t)return t;try{var exp=Number(localStorage.getItem(LS_ADMIN_EXP)||0),p=localStorage.getItem(LS_ADMIN)||'';if(p&&exp>Date.now()){sessionStorage.setItem(SS,p);return p}}catch(e){}clearAdminSession();return''}
