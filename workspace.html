@@ -50,13 +50,13 @@ button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns
         <button class="navBtn" type="button" disabled><span class="ico">▣</span><span class="navLabel">บันทึกงานประจำวัน</span><span class="navNote">กำลังพัฒนา</span></button>
       </div>
       <div class="group"><div class="groupTitle">ค่าแรง</div>
-        <button class="navBtn" data-view="payroll" data-url="./dashboard.html?embed=1#payroll" data-title="ตรวจค่าแรง"><span class="ico">฿</span><span class="navLabel">ตรวจค่าแรง</span></button>
-        <button class="navBtn" data-view="payroll-period" data-url="./dashboard.html?embed=1#payroll" data-title="รอบค่าแรง"><span class="ico">▤</span><span class="navLabel">รอบค่าแรง</span></button>
-        <button class="navBtn" data-view="bank" data-url="./dashboard.html?embed=1#bank" data-title="เตรียมจ่าย"><span class="ico">▣</span><span class="navLabel">เตรียมจ่าย</span></button>
+        <button class="navBtn" data-view="payroll" data-url="./dashboard.html?embed=1&view=payroll" data-title="ตรวจค่าแรง"><span class="ico">฿</span><span class="navLabel">ตรวจค่าแรง</span></button>
+        <button class="navBtn" data-view="payroll-period" data-url="./dashboard.html?embed=1&view=payroll" data-title="รอบค่าแรง"><span class="ico">▤</span><span class="navLabel">รอบค่าแรง</span></button>
+        <button class="navBtn" data-view="bank" data-url="./dashboard.html?embed=1&view=bank" data-title="เตรียมจ่าย"><span class="ico">▣</span><span class="navLabel">เตรียมจ่าย</span></button>
       </div>
       <div class="group"><div class="groupTitle">ระบบ</div>
         <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1" data-title="ตั้งค่าระบบ"><span class="ico">⚙</span><span class="navLabel">ตั้งค่าระบบ</span></button>
-        <button class="navBtn" data-view="devices" data-url="./admin-settings.html?embed=1#devices" data-title="จัดการอุปกรณ์"><span class="ico">▣</span><span class="navLabel">จัดการอุปกรณ์</span></button>
+        <button class="navBtn" data-view="devices" data-url="./admin-settings.html?embed=1&view=devices" data-title="จัดการอุปกรณ์"><span class="ico">▣</span><span class="navLabel">จัดการอุปกรณ์</span></button>
         <button class="navBtn" data-view="readiness" data-url="./readiness.html?embed=1" data-title="เครื่องมือระบบ"><span class="ico">⚒</span><span class="navLabel">เครื่องมือระบบ</span></button>
       </div>
       <div class="group"><div class="groupTitle">ทางลัด</div>
@@ -75,7 +75,7 @@ button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns
 (()=>{
 const shell=document.getElementById('shell'),frame=document.getElementById('contentFrame'),title=document.getElementById('pageTitle'),auth=document.getElementById('auth'),err=document.getElementById('authErr');
 const buttons=[...document.querySelectorAll('.navBtn[data-url]')],SS='kruaFlowAdminTokenV4',LS='kruaFlowAdminTokenPersistentV1',EXP='kruaFlowAdminTokenPersistentExpV1',KEY_VIEW='kfOwnerWorkspaceViewV1',KEY_COLLAPSE='kfOwnerWorkspaceCollapsedV1';
-let api='',pending={},resetFrameScroll=true;
+let api='',pending={};try{history.scrollRestoration='manual'}catch(e){}
 function token(){const s=sessionStorage.getItem(SS)||'';if(s)return s;const p=localStorage.getItem(LS)||'',e=Number(localStorage.getItem(EXP)||0);if(p&&e>Date.now()){sessionStorage.setItem(SS,p);return p}return''}
 function saveToken(t){const e=Date.now()+8*60*60*1000;sessionStorage.setItem(SS,t);localStorage.setItem(LS,t);localStorage.setItem(EXP,String(e))}
 function clearToken(){sessionStorage.removeItem(SS);localStorage.removeItem(LS);localStorage.removeItem(EXP)}
@@ -85,8 +85,20 @@ window.addEventListener('message',e=>{const sink=document.getElementById('apiSin
 function poll(id,n){if(!pending[id])return;if(n>16){finish(id,false,new Error('Backend ไม่ตอบสนอง'));return}const cb='__kfw_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n,s=document.createElement('script');let done=false;function clean(){if(done)return;done=true;try{delete window[cb]}catch(e){}s.remove()}window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>poll(id,n+1),700);return}r.ok?finish(id,true,r.data||{}):finish(id,false,new Error(r.error||'เข้าสู่ระบบไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>poll(id,n+1),900)};s.src=api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.head.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>poll(id,n+1),900)}},3000)}
 function call(p){if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,to:setTimeout(()=>finish(id,false,new Error('Backend ตอบช้าเกินไป')),25000)};f.submit();setTimeout(()=>f.remove(),2500);setTimeout(()=>poll(id,0),450)})}
 function sendAdminSession(){const t=token();if(!t)return;try{frame.contentWindow.postMessage({type:'KruaFlowAdminSession',token:t},location.origin)}catch(e){}}
-function resetEmbeddedScroll(){if(!resetFrameScroll)return;try{frame.contentWindow.scrollTo(0,0);setTimeout(()=>{try{frame.contentWindow.scrollTo(0,0)}catch(e){}},120)}catch(e){}}
-function openView(btn,persist=true){if(!btn)return;buttons.forEach(x=>x.classList.toggle('active',x===btn));const url=btn.dataset.url||'';resetFrameScroll=!url.includes('#');frame.src=url;title.textContent=btn.dataset.title||btn.textContent.trim();if(persist)localStorage.setItem(KEY_VIEW,btn.dataset.view||'overview');shell.classList.remove('menuOpen')}
+function resetEmbeddedScroll(){
+  try{
+    const win=frame.contentWindow,doc=frame.contentDocument;
+    if(win)win.scrollTo(0,0);
+    if(doc){
+      if(doc.documentElement)doc.documentElement.scrollTop=0;
+      if(doc.body)doc.body.scrollTop=0;
+      const scrollers=doc.querySelectorAll('[style*="overflow"],.scroll,.tableWrap,.detailShell,.modalCard');
+      scrollers.forEach(el=>{try{el.scrollTop=0}catch(e){}});
+    }
+    setTimeout(()=>{try{frame.contentWindow.scrollTo(0,0);if(frame.contentDocument?.documentElement)frame.contentDocument.documentElement.scrollTop=0;if(frame.contentDocument?.body)frame.contentDocument.body.scrollTop=0}catch(e){}},180);
+  }catch(e){}
+}
+function openView(btn,persist=true){if(!btn)return;buttons.forEach(x=>x.classList.toggle('active',x===btn));frame.src=btn.dataset.url||'';title.textContent=btn.dataset.title||btn.textContent.trim();if(persist)localStorage.setItem(KEY_VIEW,btn.dataset.view||'overview');shell.classList.remove('menuOpen')}
 function startWorkspace(){auth.classList.add('hidden');const q=new URLSearchParams(location.search).get('view'),saved=q||localStorage.getItem(KEY_VIEW)||'overview',start=buttons.find(x=>x.dataset.view===saved)||buttons[0];openView(start,false)}
 async function login(){err.classList.remove('show');const pin=document.getElementById('adminPin').value.replace(/\D/g,'').slice(0,6);if(pin.length!==6){err.textContent='กรุณากรอก PIN Admin 6 หลัก';err.classList.add('show');return}document.getElementById('busy').classList.add('show');try{const r=await call({op:'adminLoginFast',adminPin:pin});const t=r.token||r.adminToken||r.sessionToken||'';if(!t)throw new Error('ไม่ได้รับ Admin Token');saveToken(t);document.getElementById('adminPin').value='';startWorkspace()}catch(e){err.textContent=e.message||String(e);err.classList.add('show')}finally{document.getElementById('busy').classList.remove('show')}}
 buttons.forEach(btn=>btn.onclick=()=>openView(btn));document.querySelectorAll('[data-external]').forEach(btn=>btn.onclick=()=>window.open(btn.dataset.external,'_blank','noopener'));frame.addEventListener('load',()=>{setTimeout(sendAdminSession,30);setTimeout(resetEmbeddedScroll,45)});window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==frame.contentWindow)return;const m=e.data||{};if(m.type==='KruaFlowAdminSessionRequest')sendAdminSession()});
