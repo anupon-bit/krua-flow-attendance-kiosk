@@ -132,7 +132,8 @@ function wf2AdminMigrate_(payload) {
     plannedValue:spec.value,
     action:Object.prototype.hasOwnProperty.call(settingRows,spec.key)?'PRESERVE':'CREATE'
   }));
-  const enabledFlags=settings.filter(item=>WF2_FLAGS_.indexOf(item.key)>=0&&/^(1|true|yes|on)$/i.test(item.currentValue));
+  const runtimeProps=PropertiesService.getScriptProperties();
+  const enabledFlags=WF2_FLAGS_.filter(key=>resolveEffectiveFeatureFlagFor_(ScriptApp.getScriptId(),key,runtimeProps.getProperty(key),settingRows[key]));
   const schemaSetting=settings.find(item=>item.key==='WORKFORCE_SCHEMA_VERSION');
   const legacyBefore=wf2MigrationLegacyCounts_(ss);
   const plan={
@@ -142,7 +143,7 @@ function wf2AdminMigrate_(payload) {
     legacyRowCounts:{before:legacyBefore,after:null,unchanged:null},
     rowsModified:{legacyExistingRows:0,legacyCellsUpdated:0,employeesLinked:0,registrationsLinked:0,personsCreated:0,settingsInserted:0,kpiSeedsInserted:0,positionSeedsInserted:0,auditRowsAppended:apply?1:0}
   };
-  if(apply&&enabledFlags.length)throw new Error('หยุด migration: feature flags ต้องเป็น FALSE ก่อน apply ('+enabledFlags.map(item=>item.key).join(', ')+')');
+  if(apply&&enabledFlags.length)throw new Error('หยุด migration: feature flags ต้องเป็น FALSE ก่อน apply ('+enabledFlags.join(', ')+')');
   if(apply&&schemaSetting&&schemaSetting.exists&&schemaSetting.currentValue&&schemaSetting.currentValue!==WF2_SCHEMA_VERSION_)throw new Error('หยุด migration: WORKFORCE_SCHEMA_VERSION ปัจจุบันไม่ตรงกับ '+WF2_SCHEMA_VERSION_);
   Object.keys(WF2_SHEETS_).forEach(name=>{
     const existing=ss.getSheetByName(name);
@@ -210,10 +211,11 @@ function wf2MigrationSeedPlan_(ss){
 
 function wf2AdminSetFeatureFlag_(payload) {
   requireAdmin_(String(payload.adminToken||''));
+  if(getRuntimeEnvironment()!=='STAGING')throw new Error('Feature flag changes are allowed only in the STAGING project');
   const key=String(payload.key||'');
   if(WF2_FLAGS_.indexOf(key)<0)throw new Error('Feature flag ไม่ถูกต้อง');
   const value=payload.enabled===true?'TRUE':'FALSE';
-  wf2SetSetting_(key,value,'Workforce V2 feature flag — enable in STAGING after UAT');
+  PropertiesService.getScriptProperties().setProperty(key,value);
   auditLogV7_('ADMIN','ADMIN','SET_FEATURE_FLAG','SETTING',key,'',{value:value},String(payload.reason||''),String(payload.requestId||''));
   return {ok:true,key:key,enabled:value==='TRUE'};
 }
@@ -290,19 +292,23 @@ function wf2SetSetting_(key,value,description) {
   if(sh.getLastRow()>=2){const values=sh.getRange(2,1,sh.getLastRow()-1,1).getValues();for(let i=0;i<values.length;i++)if(String(values[i][0])===String(key)){sh.getRange(i+2,2,1,2).setValues([[String(value),String(description||'')]]);return}}
   sh.appendRow([String(key),String(value),String(description||'')]);
 }
-function wf2Flag_(key){return /^(1|true|yes|on)$/i.test(String(wf2Setting_(key)||''))}
+function wf2Flag_(key){
+  const propertyValue=PropertiesService.getScriptProperties().getProperty(String(key));
+  return resolveEffectiveFeatureFlagFor_(ScriptApp.getScriptId(),key,propertyValue,wf2Setting_(key));
+}
 function wf2RequireFlag_(key){if(!wf2Flag_(key))throw new Error('ฟีเจอร์นี้ยังไม่เปิดใช้งานใน environment นี้: '+key)}
 
 function wf2PublicBootstrap_() {
   const ready=Boolean(SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName('Applicants'));
-  return {ready:ready,recruitmentEnabled:ready&&wf2Flag_('RECRUITMENT_ENABLED'),gcsDocumentsEnabled:ready&&wf2Flag_('GCS_DOCUMENTS_ENABLED'),documentMaxBytes:Number(wf2Setting_('DOCUMENT_MAX_BYTES'))||10485760,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),positions:ready?wf2ActivePositions_():[],serverEpochMs:Date.now()};
+  const flags={};WF2_FLAGS_.forEach(key=>flags[key]=wf2Flag_(key));
+  return {ready:ready,environment:getRuntimeEnvironment(),flags:flags,recruitmentEnabled:ready&&flags.RECRUITMENT_ENABLED,gcsDocumentsEnabled:ready&&flags.GCS_DOCUMENTS_ENABLED,documentMaxBytes:Number(wf2Setting_('DOCUMENT_MAX_BYTES'))||10485760,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),positions:ready?wf2ActivePositions_():[],serverEpochMs:Date.now()};
 }
 
 function wf2AdminBootstrap_(payload) {
   requireAdmin_(String(payload.adminToken||''));
   const ss=SpreadsheetApp.openById(SPREADSHEET_ID),ready=Boolean(ss.getSheetByName('Persons'));
   const flags={};WF2_FLAGS_.forEach(key=>flags[key]=wf2Flag_(key));
-  return {ready:ready,schemaVersion:String(wf2Setting_('WORKFORCE_SCHEMA_VERSION')||''),flags:flags,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),positions:ready?wf2ActivePositions_():[],kpiDictionary:wf2KpiDictionary_(),serverEpochMs:Date.now()};
+  return {ready:ready,environment:getRuntimeEnvironment(),schemaVersion:String(wf2Setting_('WORKFORCE_SCHEMA_VERSION')||''),flags:flags,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),positions:ready?wf2ActivePositions_():[],kpiDictionary:wf2KpiDictionary_(),serverEpochMs:Date.now()};
 }
 
 function wf2ActivePositions_(){return wf2Rows_('Positions').filter(r=>r['Active']!==false&&String(r['Position Code']||'')).map(r=>({code:String(r['Position Code']),name:String(r['Position Name']),departmentCode:String(r['Department Code']||'')}))}
