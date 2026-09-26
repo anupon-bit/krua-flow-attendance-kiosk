@@ -219,14 +219,13 @@ function isolateAdminView(view){
 }
 function applyRequestedAdminView(){
   var view=requestedAdminView();isolateAdminView(view);
+  try{window.scrollTo({top:0,left:0,behavior:'auto'})}catch(e){window.scrollTo(0,0)}
   if(view==='attendance'){
-    var c=$('attendanceAdminCard');
-    setTimeout(function(){loadAttendance();if(c)c.scrollIntoView({block:'start'})},30);
+    setTimeout(function(){loadAttendance()},30);
   }else if(view==='leave'){
-    var l=$('leaveAdminCard');
-    setTimeout(function(){loadLeaveRequests();if(l)l.scrollIntoView({block:'start'})},30);
+    setTimeout(function(){loadLeaveRequests()},30);
   }else{
-    var e=$('employeeOverviewCard');setTimeout(function(){if(e)e.scrollIntoView({block:'start'})},30);
+    setTimeout(function(){try{window.scrollTo(0,0)}catch(e){}},30);
   }
 }
 function startAdminFromSession(){
