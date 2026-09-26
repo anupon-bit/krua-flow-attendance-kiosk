@@ -5,7 +5,14 @@
     PENDING:'warning',PENDING_MANAGER:'warning',UNREAD:'warning',HOLD:'warning',WAIT:'warning',RESERVED:'warning',
     REVIEW:'info',DRAFT:'info',READ:'neutral',INFO:'info'
   };
+  const STATUS_LABEL_TH={
+    APPROVED:'อนุมัติแล้ว',SUCCESS:'สำเร็จ',RESOLVED:'ดำเนินการแล้ว',ACTIVE:'ใช้งาน',READY:'พร้อม',FINAL:'ยืนยันยอดแล้ว',PAID:'จ่ายแล้ว',ACCEPT:'ยืนยันแล้ว',PUBLISHED:'ประกาศแล้ว',VERIFIED:'ตรวจสอบแล้ว',VERIFIED_PHOTO:'ตรวจรูปแล้ว',
+    REJECTED:'ไม่อนุมัติ',FAILED:'ไม่สำเร็จ',ERROR:'เกิดข้อผิดพลาด',INACTIVE:'ปิดใช้งาน',BLOCKED:'ถูกระงับ',VOID:'ยกเลิก',ACTION_REQUIRED:'ต้องดำเนินการ',CANCELLED:'ยกเลิกแล้ว',
+    PENDING:'รอตรวจ',PENDING_MANAGER:'รอผู้จัดการตรวจ',UNREAD:'ยังไม่อ่าน',HOLD:'พักการดำเนินการ',WAIT:'รอดำเนินการ',RESERVED:'จองสิทธิ์แล้ว',
+    REVIEW:'รอตรวจ',DRAFT:'ฉบับร่าง',READ:'อ่านแล้ว',INFO:'ข้อมูล'
+  };
   function statusClass(v){const s=String(v||'').toUpperCase();return 'kf-'+(STATUS_MAP[s]|| (s.indexOf('PENDING')===0?'warning':'neutral'))}
+  function statusLabel(v){const s=String(v||'').toUpperCase();return STATUS_LABEL_TH[s]||String(v||'')}
   function injectStatusStyles(){
     if(document.getElementById('kfStatusStyles'))return;
     const st=document.createElement('style');st.id='kfStatusStyles';st.textContent=`
@@ -30,7 +37,7 @@
       #notifBadge:not(:empty){display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;margin-left:4px;font-size:11px;background:#c62828;color:#fff}
     `;document.head.appendChild(st);
   }
-  window.KF_STATUS={classFor:statusClass,typeFor:v=>(statusClass(v).replace('kf-','')),apply:(el,v)=>{if(!el)return;['kf-success','kf-danger','kf-warning','kf-info','kf-neutral'].forEach(x=>el.classList.remove(x));el.classList.add(statusClass(v))}};
+  window.KF_STATUS={classFor:statusClass,typeFor:v=>(statusClass(v).replace('kf-','')),labelFor:statusLabel,apply:(el,v)=>{if(!el)return;['kf-success','kf-danger','kf-warning','kf-info','kf-neutral'].forEach(x=>el.classList.remove(x));el.classList.add(statusClass(v))},applyText:(el,v)=>{if(!el)return;el.textContent=statusLabel(v)}};
   function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)}
   let deferred=null;
   function ensureBanner(){
