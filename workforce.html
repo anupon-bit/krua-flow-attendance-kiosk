@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
   <title>KruaFlow ระบบบุคลากร</title>
-  <script src="./config.js?v=c1780cc"></script>
-  <script src="./mock-data.js?v=c1780cc"></script>
-  <script src="./js/api-client.js?v=c1780cc"></script>
-  <script src="./js/admin-session.js?v=c1780cc"></script>
-  <script src="./js/i18n.js?v=c1780cc"></script>
-  <link rel="stylesheet" href="./css/workforce.css?v=c1780cc">
+  <script src="./config.js?v=prod-v2-core-2"></script>
+  <script src="./mock-data.js?v=prod-v2-core-2"></script>
+  <script src="./js/api-client.js?v=prod-v2-core-2"></script>
+  <script src="./js/admin-session.js?v=prod-v2-core-2"></script>
+  <script src="./js/i18n.js?v=prod-v2-core-2"></script>
+  <link rel="stylesheet" href="./css/workforce.css?v=prod-v2-core-2">
 </head>
 <body>
   <main class="page">
@@ -42,7 +42,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'c1780cc';
+  const FRONTEND_VERSION = 'prod-v2-core-2';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>Krua Flow ลงทะเบียนพนักงาน</title>
-<script src="./config.js"></script><script src="./mock-data.js"></script><script src="./ux.js"></script>
+<script src="./config.js?v=prod-v2-core-2"></script><script src="./mock-data.js?v=prod-v2-core-2"></script><script src="./ux.js?v=prod-v2-core-2"></script>
 <style>
 :root{--bg:#f4f6fa;--card:#fff;--text:#17191f;--muted:#6d7480;--line:#d9dee8;--blue:#2865ee;--green:#087a3d;--red:#9b2b23}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI","Noto Sans Thai",sans-serif}
@@ -133,7 +133,8 @@
 <script>
 (()=>{
 const $=id=>document.getElementById(id);
-const state={api:(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'',photoData:'',documents:[],orgReady:false};
+const pageParams=new URLSearchParams(location.search),isStaging=pageParams.get('staging')==='1';
+const state={api:(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG[isStaging?'STAGING_API_URL':'API_URL'])||'',photoData:'',documents:[],orgReady:false};
 function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
 function showErr(m){$('error').textContent=m||'';$('error').classList.toggle('show',!!m)}
 function busy(v){$('busy').classList.toggle('show',!!v)}

@@ -47,7 +47,7 @@
       'view.schedule': 'ตารางงาน',
       'view.attendance': 'เวลาเข้า–ออก',
       'view.leave': 'การลา / วันหยุด',
-      'view.activity': 'บันทึกงานประจำวัน',
+      'view.activity': 'บันทึกการทำงานประจำวัน',
       'view.shiftCheck': 'ตรวจความพร้อมประจำกะ',
       'view.payrollReview': 'ตรวจค่าแรง',
       'view.payrollPeriod': 'รอบค่าแรง',
