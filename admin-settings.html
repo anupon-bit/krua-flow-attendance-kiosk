@@ -99,7 +99,7 @@ window.addEventListener('pageshow',()=>{if(__kfSettingsParams.get('embed')==='1'
 </div>
 
 <div class="card managerOnly" id="selectedScopeCard">
-  <div class="permListHeader"><div><div class="sectionTitle" style="margin-bottom:2px">สิทธิ์ปัจจุบัน</div><div class="muted">แสดงสิทธิ์ของพนักงานที่เลือกทันที</div></div></div>
+  <div class="permListHeader"><div><div class="sectionTitle" style="margin-bottom:2px">สิทธิ์ปัจจุบัน — <span id="currentPermissionEmployeeName">-</span></div><div class="muted">แสดงสิทธิ์ของพนักงานที่เลือกทันที</div></div></div>
   <div class="list" id="scopeList"></div>
 </div>
 
@@ -217,6 +217,7 @@ function renderSelectedPermissionUser(){
   if($('selUserBranch'))$('selUserBranch').textContent=e?(e.branch||'-'):'-';
   if($('selUserDept'))$('selUserDept').textContent=e?(e.department||'-'):'-';
   if($('selUserRole'))$('selUserRole').textContent=role==='MANAGER'?'ผู้จัดการ':'พนักงาน';
+  if($('currentPermissionEmployeeName'))$('currentPermissionEmployeeName').textContent=e?(e.nickname||e.name||e.id):'-';
   const showManager=role==='MANAGER'||($('rRole')&&$('rRole').value==='MANAGER');
   if($('managerScopeEditor'))$('managerScopeEditor').classList.toggle('isHidden',!showManager);
   if($('selectedScopeCard'))$('selectedScopeCard').classList.toggle('isHidden',!showManager);
