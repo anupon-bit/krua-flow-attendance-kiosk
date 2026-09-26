@@ -55,6 +55,7 @@ function apiWorkforceV2HandlePost_(payload) {
   if(op==='workforcePublicBootstrap') return wf2PublicBootstrap_();
   if(op==='applicantSubmit') return wf2SubmitApplicant_(payload);
   if(op==='adminWorkforceMigrate') return wf2AdminMigrate_(payload);
+  if(op==='adminWorkforceBackfillPreview') return wf2AdminBackfillPreview_(payload);
   if(op==='adminSetWorkforceFeatureFlag') return wf2AdminSetFeatureFlag_(payload);
   if(op==='workforceBootstrap') return wf2AdminBootstrap_(payload);
   if(op==='adminWorkforceDashboard') return wf2AdminDashboard_(payload);
@@ -134,10 +135,10 @@ function wf2AdminMigrate_(payload) {
   const legacyBefore=wf2MigrationLegacyCounts_(ss);
   const plan={
     schemaVersion:WF2_SCHEMA_VERSION_,mode:apply?'APPLY':'DRY_RUN',sheets:[],columns:[],settings:settings,
-    seeds:wf2MigrationSeedPlan_(ss),backfillRequested:backfillRequested,backfill:null,
+    seeds:wf2MigrationSeedPlan_(ss),backfillRequested:backfillRequested,backfillPreview:backfillRequested?wf2LegacyBackfillPreview_():null,backfill:null,
     safeguards:{deleteOperations:0,reorderOperations:0,legacyRowOverwriteOperations:0,backfillAllowed:backfillRequested},
     legacyRowCounts:{before:legacyBefore,after:null,unchanged:null},
-    rowsModified:{legacyExistingRows:0,settingsInserted:0,kpiSeedsInserted:0,positionSeedsInserted:0,auditRowsAppended:apply?1:0}
+    rowsModified:{legacyExistingRows:0,legacyCellsUpdated:0,employeesLinked:0,registrationsLinked:0,personsCreated:0,settingsInserted:0,kpiSeedsInserted:0,positionSeedsInserted:0,auditRowsAppended:apply?1:0}
   };
   if(apply&&enabledFlags.length)throw new Error('หยุด migration: feature flags ต้องเป็น FALSE ก่อน apply ('+enabledFlags.map(item=>item.key).join(', ')+')');
   if(apply&&schemaSetting&&schemaSetting.exists&&schemaSetting.currentValue&&schemaSetting.currentValue!==WF2_SCHEMA_VERSION_)throw new Error('หยุด migration: WORKFORCE_SCHEMA_VERSION ปัจจุบันไม่ตรงกับ '+WF2_SCHEMA_VERSION_);
@@ -162,13 +163,25 @@ function wf2AdminMigrate_(payload) {
     plan.rowsModified.settingsInserted=settings.filter(item=>item.action==='CREATE').length;
     plan.rowsModified.kpiSeedsInserted=wf2SeedKpis_();
     plan.rowsModified.positionSeedsInserted=wf2SeedPositions_();
-    if(backfillRequested) plan.backfill=wf2BackfillLegacyPeople_();
+    if(backfillRequested){
+      plan.backfill=wf2BackfillLegacyPeople_();
+      plan.rowsModified.employeesLinked=plan.backfill.employeesLinked;
+      plan.rowsModified.registrationsLinked=plan.backfill.registrationsLinked;
+      plan.rowsModified.personsCreated=plan.backfill.personsCreated;
+      plan.rowsModified.legacyCellsUpdated=plan.backfill.employeesLinked+plan.backfill.registrationsLinked;
+      plan.rowsModified.legacyExistingRows=plan.rowsModified.legacyCellsUpdated;
+    }
     auditLogV7_('ADMIN','ADMIN','MIGRATE_WORKFORCE_SCHEMA','SYSTEM','WORKFORCE_V2','',{version:WF2_SCHEMA_VERSION_,backfill:plan.backfill||null},'',String(payload.requestId||''));
     const legacyAfter=wf2MigrationLegacyCounts_(ss);
     plan.legacyRowCounts.after=legacyAfter;
     plan.legacyRowCounts.unchanged=Object.keys(legacyBefore).every(name=>legacyBefore[name]===legacyAfter[name]);
   }
   return {ok:true,plan:plan,serverEpochMs:Date.now()};
+}
+
+function wf2AdminBackfillPreview_(payload){
+  requireAdmin_(String(payload.adminToken||''));
+  return{ok:true,preview:wf2LegacyBackfillPreview_(),serverEpochMs:Date.now()};
 }
 
 function wf2MigrationSettings_(ss){
@@ -462,6 +475,43 @@ function wf2FileServiceRequest_(path,body) {
   return data;
 }
 
+function wf2LegacyBackfillPreview_(){
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID),emp=ss.getSheetByName(EMPLOYEE_SHEET),reg=ss.getSheetByName(REGISTRATION_SHEET),personSheet=ss.getSheetByName('Persons');
+  function objects(sh){if(!sh||sh.getLastRow()<2)return[];const headers=wf2Headers_(sh);return sh.getRange(2,1,sh.getLastRow()-1,headers.length).getValues().map(row=>{const out={};headers.forEach((header,index)=>out[header]=row[index]);return out})}
+  const employees=objects(emp).filter(row=>String(row['Employee ID']||'')),registrations=objects(reg).filter(row=>String(row['Registration ID']||'')),persons=objects(personSheet).filter(row=>String(row['Person ID']||''));
+  return wf2BuildBackfillPreview_({employees:employees,registrations:registrations,persons:persons});
+}
+
+function wf2BuildBackfillPreview_(input){
+  const employees=(input&&input.employees)||[],registrations=(input&&input.registrations)||[],persons=(input&&input.persons)||[],personIds=new Set(persons.map(row=>String(row['Person ID']||'')).filter(Boolean));
+  const personPlans=new Map(),employeePlans=new Map(),identityRefs={},personOwners={},warnings=[],plannedCells=[];
+  function phone(value){return wf2NormalizePhone_(value)}
+  function addIdentity(ref,value,entity){const key=phone(value);if(!key)return;(identityRefs[key]||(identityRefs[key]=[])).push({ref:ref,entity:entity})}
+  persons.forEach(row=>addIdentity('PERSON:'+String(row['Person ID']),row['Phone Normalized']||row['Phone'],{type:'PERSON',id:String(row['Person ID'])}));
+  const employeeRows=employees.map(row=>{
+    const employeeId=String(row['Employee ID']||''),current=String(row['Person ID']||''),action=current&&personIds.has(current)?'REUSE':'CREATE',ref=current?'PERSON:'+current:'NEW_EMPLOYEE:'+employeeId;
+    if(!personPlans.has(ref))personPlans.set(ref,{action:action,source:'EMPLOYEE',entityId:employeeId});
+    (personOwners[ref]||(personOwners[ref]=[])).push(employeeId);
+    addIdentity(ref,row['Phone'],{type:'EMPLOYEE',id:employeeId});
+    const cells=current?[]:[{sheet:'Employees',rowKey:employeeId,column:'Person ID'}];plannedCells.push.apply(plannedCells,cells);
+    const plan={employeeId:employeeId,currentPersonId:current,plannedPersonAction:action,plannedPersonReference:ref,plannedRegistrationReuse:[],duplicateIdentityWarnings:[],plannedCellsToUpdate:cells};employeePlans.set(employeeId,plan);return plan;
+  });
+  const registrationRows=registrations.map(row=>{
+    const registrationId=String(row['Registration ID']||''),employeeId=String(row['Employee ID']||''),current=String(row['Person ID']||''),employeePlan=employeePlans.get(employeeId);let action='NONE',ref='',reuse=false;
+    if(current){ref='PERSON:'+current;action=personIds.has(current)?'REUSE':'CREATE'}
+    else if(employeePlan){ref=employeePlan.plannedPersonReference;action='REUSE';reuse=true;employeePlan.plannedRegistrationReuse.push(registrationId)}
+    else{ref='NEW_REGISTRATION:'+registrationId;action='CREATE'}
+    if(action==='CREATE'&&!personPlans.has(ref)){personPlans.set(ref,{action:'CREATE',source:'REGISTRATION',entityId:registrationId});addIdentity(ref,row['Phone'],{type:'REGISTRATION',id:registrationId})}
+    const cells=current?[]:[{sheet:'Employee_Registrations',rowKey:registrationId,column:'Person ID'}];plannedCells.push.apply(plannedCells,cells);
+    return{registrationId:registrationId,employeeId:employeeId,currentPersonId:current,plannedPersonAction:action,plannedPersonReference:ref,plannedEmployeePersonReuse:reuse,plannedCellsToUpdate:cells};
+  });
+  Object.keys(identityRefs).forEach(key=>{const refs=[...new Set(identityRefs[key].map(item=>item.ref))];if(refs.length>1)warnings.push({type:'DUPLICATE_PHONE',normalizedValue:key,entities:identityRefs[key].map(item=>item.entity)})});
+  Object.keys(personOwners).forEach(ref=>{if(personOwners[ref].length>1)warnings.push({type:'MULTIPLE_EMPLOYEES_SHARE_PERSON',personReference:ref,employeeIds:personOwners[ref]})});
+  employeeRows.forEach(row=>{row.duplicateIdentityWarnings=warnings.filter(warning=>(warning.entities||[]).some(entity=>entity.type==='EMPLOYEE'&&entity.id===row.employeeId))});
+  const personsExpectedToCreate=[...personPlans.values()].filter(item=>item.action==='CREATE').length,employeesExpectedToLink=employeeRows.filter(row=>row.plannedCellsToUpdate.length).length,registrationsExpectedToLink=registrationRows.filter(row=>row.plannedCellsToUpdate.length).length;
+  return{employees:employeeRows,registrations:registrationRows,duplicateIdentityWarnings:warnings,plannedCellsToUpdate:plannedCells,expected:{personsCreated:personsExpectedToCreate,employeesLinked:employeesExpectedToLink,registrationsLinked:registrationsExpectedToLink,legacyCellsUpdated:employeesExpectedToLink+registrationsExpectedToLink,uniqueEmployeePersonTargets:new Set(employeeRows.map(row=>row.plannedPersonReference)).size,applicantsCreated:0,attendanceModifications:0,leaveModifications:0,payrollModifications:0}};
+}
+
 function wf2BackfillLegacyPeople_() {
   const ss=SpreadsheetApp.openById(SPREADSHEET_ID),emp=ss.getSheetByName(EMPLOYEE_SHEET),reg=ss.getSheetByName(REGISTRATION_SHEET);
   const existing=wf2Rows_('Persons'),personIds=new Set(existing.map(p=>String(p['Person ID']))),byEmployee={};
@@ -503,4 +553,4 @@ function wf2KpiDictionary_(){return[
 function wf2SeedKpis_(){const existing=wf2Rows_('KPI_Definitions');if(existing.length)return 0;const seeds=wf2KpiDictionary_();seeds.forEach(k=>wf2Append_('KPI_Definitions',{'KPI Key':k.key,'Name':k.name,'Description':k.formula,'Source':k.source,'Formula Type':'RATIO','Formula':k.formula,'Numerator':k.formula.split(' / ')[0],'Denominator':k.formula.split(' / ')[1]||'','Unit':k.unit,'Period':'CONFIGURABLE','Direction':'HIGHER_IS_BETTER','Weight':0,'Owner':'HR','Data Quality Status':'NOT_EVALUATED','Active':true,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 function wf2SeedPositions_(){if(wf2Rows_('Positions').length)return 0;const seeds=[['MANAGER','ผู้จัดการ',''],['SUPERVISOR','หัวหน้างาน',''],['STAFF','พนักงาน','']];seeds.forEach((p,i)=>wf2Append_('Positions',{'Position Code':p[0],'Position Name':p[1],'Department Code':p[2],'Active':true,'Sort Order':i+1,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 
-if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_}}
+if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_,buildBackfillPreview:wf2BuildBackfillPreview_}}

@@ -5,6 +5,7 @@ All admin operations require the existing `ADMIN_` session. Portal and manager o
 ## Foundation and identity
 
 - `adminWorkforceMigrate` — dry-run/apply additive schema and optional legacy Person backfill.
+- `adminWorkforceBackfillPreview` — authenticated read-only mapping preview; returns planned Person actions, registration reuse, duplicate warnings, exact link-cell counts, and explicit zero modifications for Applicants/Attendance/Leave/Payroll.
 - `workforceBootstrap`, `workforcePublicBootstrap` — environment flags and masters.
 - `adminSetWorkforceFeatureFlag` — audited flag change.
 - `adminWorkforceDiagnostics` — duplicate/orphan/master-reference checks.

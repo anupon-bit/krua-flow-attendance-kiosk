@@ -34,4 +34,23 @@ const scoped=reports.scopedExits([
 ],new Set(['E1']),'2026-01-01','2026-01-31',value=>String(value));
 assert.equal(scoped.length,1);
 assert.equal(scoped[0]['Employee ID'],'E1');
+const preview=core.buildBackfillPreview({
+  employees:[
+    {'Employee ID':'TEST001','Person ID':'','Phone':''},
+    {'Employee ID':'TEST002','Person ID':'','Phone':''},
+    {'Employee ID':'E001','Person ID':'','Phone':'0000000001'},
+    {'Employee ID':'E002','Person ID':'','Phone':'0000000002'}
+  ],
+  registrations:[
+    {'Registration ID':'R1','Employee ID':'E001','Person ID':'','Phone':'0000000001'},
+    {'Registration ID':'R2','Employee ID':'E002','Person ID':'','Phone':'0000000002'}
+  ],
+  persons:[]
+});
+assert.deepEqual(preview.expected,{personsCreated:4,employeesLinked:4,registrationsLinked:2,legacyCellsUpdated:6,uniqueEmployeePersonTargets:4,applicantsCreated:0,attendanceModifications:0,leaveModifications:0,payrollModifications:0});
+assert.equal(preview.duplicateIdentityWarnings.length,0);
+assert.deepEqual(preview.employees.find(row=>row.employeeId==='E001').plannedRegistrationReuse,['R1']);
+assert.equal(preview.registrations.find(row=>row.registrationId==='R2').plannedEmployeePersonReuse,true);
+const duplicatePreview=core.buildBackfillPreview({employees:[{'Employee ID':'E1','Phone':'0999'},{'Employee ID':'E2','Phone':'0999'}],registrations:[],persons:[]});
+assert.equal(duplicatePreview.duplicateIdentityWarnings[0].type,'DUPLICATE_PHONE');
 console.log('workforce-v2 tests: pass');

@@ -13,6 +13,8 @@ for(const legacy of ['adminLogin','adminDashboard','adminGetEmployee','recordAtt
 for(const required of ['Persons','Applicants','Applicant_Interviews','Offers','Documents','Activity_Reports','Activity_Items','KPI_Definitions','Employee_Exits','Work_Queue','Payroll_Periods'])assert.match(router,new RegExp(required.replace('_','[_ ]')),'schema missing: '+required);
 for(const preflight of ['settings','seeds','legacyRowCounts','deleteOperations','legacyRowOverwriteOperations'])assert.match(router,new RegExp(preflight),'migration preflight missing: '+preflight);
 assert.match(router,/if\(apply&&enabledFlags\.length\)throw new Error/,'migration must stop before apply when a feature flag is enabled');
+assert.match(router,/adminWorkforceBackfillPreview/,'authenticated backfill preview route missing');
+for(const field of ['legacyCellsUpdated','employeesLinked','registrationsLinked','personsCreated','applicantsCreated','attendanceModifications','leaveModifications','payrollModifications'])assert.match(router,new RegExp(field),'backfill reporting missing: '+field);
 assert.doesNotMatch(modules,/-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/);
 assert.doesNotMatch(modules,/FILE_SERVICE_AUTH_TOKEN\s*=\s*['"][^'"]+['"]/);
 console.log('api contract tests: pass ('+operations.length+' Workforce V2 routes)');
