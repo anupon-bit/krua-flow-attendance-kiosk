@@ -1,129 +1,242 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow">
-<title>KruaFlow ศูนย์ควบคุม</title>
-<script src="./config.js"></script>
-<script src="./mock-data.js"></script>
-<style>
-:root{--bg:#f4f7fb;--card:#fff;--text:#16304b;--muted:#73839a;--line:#e1e8f0;--blue:#2474df;--warn:#b86a00;--red:#a63232}
-*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Noto Sans Thai","Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
-button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:250px 1fr;overflow:hidden}.shell.collapsed{grid-template-columns:78px 1fr}
-.sidebar{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;min-height:0;height:100vh;overflow:hidden;transition:.2s}.brand{display:flex;align-items:center;gap:10px;padding:18px 16px 12px;flex:0 0 auto}.brandMark{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#1769c5,#3e93ef);color:#fff;display:grid;place-items:center;font-weight:1000}.brandText{min-width:0}.brandName{font-size:22px;font-weight:1000;color:#0e5687}.brandSub{font-size:12px;color:var(--muted);font-weight:800}.collapseBtn{margin-left:auto;width:36px;height:36px;border:0;border-radius:10px;background:#eef3f8;color:#35516d;font-weight:1000;cursor:pointer}
-.nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:4px 10px 22px;scrollbar-gutter:stable}.nav::-webkit-scrollbar{width:8px}.nav::-webkit-scrollbar-thumb{background:#d7e0ea;border-radius:999px}.nav::-webkit-scrollbar-track{background:transparent}.group{margin-top:12px}.groupTitle{font-size:11px;font-weight:950;color:#97a3b2;padding:7px 11px;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none;border-radius:8px}.groupTitle:hover{background:#f5f8fb}.groupTitle::after{content:'⌄';font-size:14px;color:#8da0b3;transition:transform .18s}.group.collapsed .groupTitle::after{transform:rotate(-90deg)}.group.collapsed>.navBtn{display:none}.navBtn{width:100%;border:0;background:transparent;border-radius:11px;padding:11px 12px;display:flex;align-items:center;gap:11px;text-align:left;color:#294864;font-weight:900;cursor:pointer;margin:2px 0;text-decoration:none}.navBtn:hover{background:#f0f5fa}.navBtn.active{background:#e7f2ff;color:#145f9b}.ico{width:25px;text-align:center;font-size:18px;flex:0 0 25px}.navLabel{white-space:nowrap}.navNote{margin-left:auto;font-size:10px;padding:3px 6px;border-radius:999px;background:#fff1d8;color:var(--warn)}
-.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navNote{display:none}.shell.collapsed .brand{justify-content:center;padding-left:8px;padding-right:8px;flex-wrap:wrap}.shell.collapsed .collapseBtn{margin:0}.shell.collapsed .navBtn{justify-content:center;padding:12px 8px}
-.main{min-width:0;display:grid;grid-template-rows:64px 1fr}.topbar{background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 16px}.pageTitle{font-size:18px;font-weight:1000}.spacer{flex:1}.topBtn{border:1px solid var(--line);background:#fff;border-radius:10px;min-height:40px;padding:0 12px;font-weight:900;cursor:pointer;color:#35516d}.dangerBtn{color:var(--red)}.frameWrap{min-height:0;background:var(--bg)}iframe{width:100%;height:100%;border:0;background:var(--bg)}.mobileMenu{display:none}
-.auth{position:fixed;inset:0;z-index:100;background:rgba(244,247,251,.96);display:grid;place-items:center;padding:20px}.auth.hidden{display:none}.authCard{width:min(480px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:0 24px 70px #173e6820}.authTitle{font-size:26px;font-weight:1000;margin-bottom:5px}.authSub{color:var(--muted);font-weight:800;margin-bottom:18px}.field label{display:block;font-weight:950;margin-bottom:7px}.input{width:100%;min-height:54px;border:1px solid #ccd7e3;border-radius:13px;padding:0 14px;font-size:20px;text-align:center;letter-spacing:.2em}.loginBtn{width:100%;min-height:54px;border:0;border-radius:13px;background:var(--blue);color:#fff;font-weight:1000;margin-top:12px;cursor:pointer}.authErr{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#fff0f0;color:#a63232;font-weight:850}.authErr.show{display:block}.busy{display:none;position:fixed;inset:0;z-index:120;background:#0004;place-items:center}.busy.show{display:grid}.busyBox{background:#fff;border-radius:14px;padding:18px 24px;font-weight:950}
-@media(max-width:820px){.shell,.shell.collapsed{grid-template-columns:1fr}.sidebar{position:fixed;inset:0 auto 0 0;width:min(290px,86vw);z-index:20;transform:translateX(-102%);box-shadow:0 12px 40px #0002}.shell.menuOpen .sidebar{transform:translateX(0)}.sidebar{height:100dvh}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navNote{display:block}.shell.collapsed .navBtn{justify-content:flex-start;padding:11px 12px}.mobileMenu{display:inline-flex}.collapseBtn{display:none}.main{grid-column:1}.topbar{padding:0 10px}.pageTitle{font-size:16px}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>KruaFlow Workforce</title>
+  <script src="./config.js"></script>
+  <script src="./mock-data.js"></script>
+  <script src="./js/api-client.js"></script>
+  <script src="./js/i18n.js"></script>
+  <style>
+    :root{--bg:#f4f7f5;--paper:#fff;--ink:#172a3a;--muted:#667784;--line:#dbe5df;--brand:#0e7655;--brandDark:#07563d;--brandSoft:#e7f4ed;--danger:#a83232;--warning:#a15c00;font-family:"Noto Sans Thai","Leelawadee UI",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+    *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:268px 1fr;overflow:hidden}.shell.collapsed{grid-template-columns:78px 1fr}.sidebar{height:100vh;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--paper);transition:.2s}.brand{display:flex;align-items:center;gap:10px;padding:17px 14px 12px}.brandMark{width:42px;height:42px;display:grid;place-items:center;flex:0 0 auto;border-radius:13px;background:linear-gradient(135deg,var(--brandDark),#1a9c73);color:#fff;font-weight:1000}.brandText{min-width:0}.brandName{font-size:20px;font-weight:1000;color:var(--brandDark)}.brandSub{font-size:11px;color:var(--muted);font-weight:800}.collapseBtn{width:36px;height:36px;margin-left:auto;border:0;border-radius:10px;background:#edf3ef;color:#35584b;font-weight:1000;cursor:pointer}.nav{flex:1 1 auto;min-height:0;overflow:auto;padding:4px 10px 22px;scrollbar-gutter:stable}.group{margin-top:11px}.groupTitle{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 11px;border-radius:8px;color:#87958e;font-size:11px;font-weight:950;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none}.groupTitle:hover{background:#f5f8f6}.groupTitle::after{content:'⌄';font-size:14px;transition:transform .18s}.group.collapsed .groupTitle::after{transform:rotate(-90deg)}.group.collapsed>.navBtn{display:none}.navBtn{width:100%;display:flex;align-items:center;gap:10px;margin:2px 0;padding:10px 11px;border:0;border-radius:11px;background:transparent;color:#29483d;text-align:left;font-weight:850;cursor:pointer}.navBtn:hover{background:#f0f6f2}.navBtn.active{background:var(--brandSoft);color:var(--brandDark)}.ico{width:25px;flex:0 0 25px;text-align:center;font-size:17px}.navLabel{white-space:nowrap}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel{display:none}.shell.collapsed .brand{justify-content:center;padding-inline:8px;flex-wrap:wrap}.shell.collapsed .collapseBtn{margin:0}.shell.collapsed .navBtn{justify-content:center;padding-inline:8px}.main{min-width:0;display:grid;grid-template-rows:66px 1fr}.topbar{display:flex;align-items:center;gap:9px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--paper)}.pageTitle{font-size:18px;font-weight:1000}.spacer{flex:1}.topBtn{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#35584b;font-weight:850;cursor:pointer}.topBtn:hover{border-color:var(--brand)}.dangerBtn{color:var(--danger)}.frameWrap{min-height:0;background:var(--bg)}iframe{width:100%;height:100%;border:0;background:var(--bg)}.mobileMenu{display:none}.languageSwitch{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:12px;background:#fff}.languageSwitch button{min-width:39px;padding:6px 8px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-weight:800;cursor:pointer}.languageSwitch button.active{background:var(--ink);color:#fff}.auth{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(244,247,245,.97)}.auth.hidden{display:none}.authCard{width:min(480px,100%);padding:26px;border:1px solid var(--line);border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(23,42,58,.13)}.authTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.authTitle{font-size:25px;font-weight:1000}.authSub{margin:5px 0 20px;color:var(--muted);font-weight:700;line-height:1.5}.field label{display:block;margin-bottom:7px;font-weight:900}.input{width:100%;min-height:52px;padding:0 14px;border:1px solid #cbd7d0;border-radius:12px;font-size:20px;text-align:center;letter-spacing:.2em}.loginBtn{width:100%;min-height:52px;margin-top:12px;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:1000;cursor:pointer}.loginBtn:disabled{opacity:.55;cursor:wait}.authErr{display:none;margin-top:10px;padding:11px;border-radius:10px;background:#ffeded;color:var(--danger);font-weight:800}.authErr.show{display:block}.busyText{min-height:22px;margin-top:10px;color:var(--muted);font-size:13px;font-weight:750}.uatTag{display:inline-flex;align-items:center;min-height:28px;padding:4px 9px;border:1px solid #9bc9b8;border-radius:999px;background:var(--brandSoft);color:var(--brandDark);font-size:11px;font-weight:900}
+    @media(max-width:920px){.shell,.shell.collapsed{grid-template-columns:1fr}.sidebar{position:fixed;inset:0 auto 0 0;z-index:30;width:min(300px,88vw);height:100dvh;transform:translateX(-102%);box-shadow:0 12px 40px rgba(0,0,0,.16)}.shell.menuOpen .sidebar{transform:translateX(0)}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel{display:block}.shell.collapsed .navBtn{justify-content:flex-start;padding:10px 11px}.collapseBtn{display:none}.mobileMenu{display:inline-flex}.main{grid-column:1}.topbar{padding:0 10px}.pageTitle{font-size:15px}.topBtn span{display:none}}
+  </style>
 </head>
 <body>
-<iframe name="apiSink" id="apiSink" style="display:none"></iframe>
-<div class="busy" id="busy"><div class="busyBox" id="busyText">กำลังเข้าสู่ระบบ...</div></div>
-<div class="auth" id="auth">
-  <div class="authCard">
-    <div class="authTitle">KruaFlow ศูนย์ควบคุม</div>
-    <div class="authSub">Owner / Admin เข้าสู่ระบบครั้งเดียวเพื่อใช้เมนูผู้ดูแลทั้งหมด</div>
-    <div class="field"><label>PIN Admin 6 หลัก</label><input class="input" id="adminPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
-    <button class="loginBtn" id="loginBtn">เข้าสู่ระบบ</button>
-    <div class="authErr" id="authErr"></div>
+  <div class="auth" id="auth">
+    <div class="authCard">
+      <div class="authTop">
+        <div><div class="authTitle" data-i18n="auth.title">เข้าสู่ระบบผู้ดูแล</div><div class="uatTag" data-i18n="app.uat">สภาพแวดล้อม UAT</div></div>
+        <div class="languageSwitch" aria-label="Language"><button type="button" data-language="th">ไทย</button><button type="button" data-language="en">EN</button></div>
+      </div>
+      <div class="authSub" data-i18n="auth.subtitle">ใช้ PIN ผู้ดูแลเดิมเพื่อเปิด Workspace</div>
+      <div class="field"><label for="adminPin" data-i18n="auth.pin">PIN ผู้ดูแล</label><input class="input" id="adminPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="current-password"></div>
+      <button class="loginBtn" id="loginBtn" type="button" data-i18n="auth.submit">เข้าสู่ระบบ</button>
+      <div class="busyText" id="busyText" role="status"></div>
+      <div class="authErr" id="authErr" role="alert"></div>
+    </div>
   </div>
-</div>
-<div class="shell" id="shell">
-  <aside class="sidebar">
-    <div class="brand"><div class="brandMark">KF</div><div class="brandText"><div class="brandName">KruaFlow</div><div class="brandSub">ศูนย์ควบคุมผู้ดูแล</div></div><button class="collapseBtn" id="collapseBtn" title="ย่อเมนู">‹</button></div>
-    <nav class="nav">
-      <div class="group"><div class="groupTitle">ภาพรวม</div>
-        <button class="navBtn active" data-view="overview" data-url="./workforce.html?embed=1&view=dashboard" data-title="ภาพรวมระบบ"><span class="ico">⌂</span><span class="navLabel">ภาพรวมระบบ</span></button>
-        <button class="navBtn" data-view="review" data-url="./workforce.html?embed=1&view=work-queue" data-title="งานรอตรวจ"><span class="ico">◉</span><span class="navLabel">งานรอตรวจ</span></button>
-        <button class="navBtn" data-view="notifications" data-url="./workforce.html?embed=1&view=notifications" data-title="แจ้งเตือน"><span class="ico">●</span><span class="navLabel">แจ้งเตือน</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">สรรหา</div>
-        <button class="navBtn" data-view="applicants" data-url="./workforce.html?embed=1&view=applicants" data-title="ผู้สมัครงาน"><span class="ico">◎</span><span class="navLabel">ผู้สมัครงาน</span></button>
-        <button class="navBtn" data-view="interviews" data-url="./workforce.html?embed=1&view=interviews" data-title="นัดสัมภาษณ์"><span class="ico">◷</span><span class="navLabel">นัดสัมภาษณ์</span></button>
-        <button class="navBtn" data-view="staffing" data-url="./workforce.html?embed=1&view=staffing" data-title="แผนรับพนักงาน"><span class="ico">▦</span><span class="navLabel">แผนรับพนักงาน</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">พนักงาน</div>
-        <button class="navBtn" data-view="employees" data-url="./admin.html?embed=1&view=employees" data-title="ภาพรวมพนักงาน"><span class="ico">👥</span><span class="navLabel">ภาพรวมพนักงาน</span></button>
-        <button class="navBtn" data-view="onboarding" data-url="./workforce.html?embed=1&view=onboarding" data-title="Onboarding"><span class="ico">＋</span><span class="navLabel">Onboarding</span></button>
-        <button class="navBtn" data-view="employee-documents" data-url="./admin.html?embed=1&view=employees" data-title="เอกสารพนักงาน"><span class="ico">▤</span><span class="navLabel">เอกสารพนักงาน</span><span class="navNote">เลือกพนักงาน</span></button>
-        <button class="navBtn" data-view="offboarding" data-url="./workforce.html?embed=1&view=offboarding" data-title="Offboarding"><span class="ico">↪</span><span class="navLabel">Offboarding</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">การทำงาน</div>
-        <button class="navBtn" data-view="schedule" data-url="./schedule.html?admin=1&embed=1" data-title="ตารางงาน"><span class="ico">▦</span><span class="navLabel">ตารางงาน</span></button>
-        <button class="navBtn" data-view="attendance" data-url="./workforce.html?embed=1&view=attendance" data-title="เวลาเข้าออก"><span class="ico">◷</span><span class="navLabel">เวลาเข้าออก</span></button>
-        <button class="navBtn" data-view="leave" data-url="./admin.html?embed=1&view=leave" data-title="การลา / วันหยุด"><span class="ico">✓</span><span class="navLabel">การลา / วันหยุด</span></button>
-        <button class="navBtn" data-view="activity" data-url="./workforce.html?embed=1&view=activity" data-title="Daily Activity"><span class="ico">▣</span><span class="navLabel">Daily Activity</span></button>
-        <button class="navBtn" data-view="shift-check" data-url="./workforce.html?embed=1&view=shift-check" data-title="Daily Shift Check"><span class="ico">✓</span><span class="navLabel">Daily Shift Check</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">ค่าแรง</div>
-        <button class="navBtn" data-view="payroll" data-url="./dashboard.html?embed=1&view=payroll" data-title="ตรวจค่าแรง"><span class="ico">฿</span><span class="navLabel">ตรวจค่าแรง</span></button>
-        <button class="navBtn" data-view="payroll-period" data-url="./workforce.html?embed=1&view=payroll-period" data-title="รอบค่าแรง"><span class="ico">▤</span><span class="navLabel">รอบค่าแรง</span></button>
-        <button class="navBtn" data-view="bank" data-url="./dashboard.html?embed=1&view=bank" data-title="เตรียมจ่าย"><span class="ico">▣</span><span class="navLabel">เตรียมจ่าย</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">รายงาน</div>
-        <button class="navBtn" data-view="reports" data-url="./workforce.html?embed=1&view=reports" data-title="รายงาน Workforce"><span class="ico">▤</span><span class="navLabel">Workforce / Recruitment</span></button>
-        <button class="navBtn" data-view="performance" data-url="./workforce.html?embed=1&view=performance" data-title="Performance"><span class="ico">◇</span><span class="navLabel">Performance</span></button>
-        <button class="navBtn" data-view="retention" data-url="./workforce.html?embed=1&view=retention" data-title="Retention"><span class="ico">↻</span><span class="navLabel">Retention</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">ระบบ</div>
-        <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1" data-title="ตั้งค่าระบบ"><span class="ico">⚙</span><span class="navLabel">ตั้งค่าระบบ</span></button>
-        <button class="navBtn" data-view="permissions" data-url="./admin-settings.html?embed=1&view=permissions" data-title="สิทธิ์ผู้ใช้งาน"><span class="ico">♙</span><span class="navLabel">สิทธิ์ผู้ใช้งาน</span></button>
-        <button class="navBtn" data-view="devices" data-url="./admin-settings.html?embed=1&view=devices" data-title="จัดการอุปกรณ์"><span class="ico">▣</span><span class="navLabel">จัดการอุปกรณ์</span></button>
-        <button class="navBtn" data-view="readiness" data-url="./readiness.html?embed=1" data-title="เครื่องมือระบบ"><span class="ico">⚒</span><span class="navLabel">เครื่องมือระบบ</span></button>
-      </div>
-      <div class="group"><div class="groupTitle">ทางลัด</div>
-        <button class="navBtn" data-external="./index.html"><span class="ico">↗</span><span class="navLabel">เปิดหน้าลงเวลา</span></button>
-        <button class="navBtn" data-external="./portal.html"><span class="ico">↗</span><span class="navLabel">พื้นที่พนักงาน</span></button>
-        <button class="navBtn" data-external="./manager.html"><span class="ico">↗</span><span class="navLabel">พื้นที่ผู้จัดการ</span></button>
-        <button class="navBtn" data-external="./apply.html"><span class="ico">↗</span><span class="navLabel">ใบสมัครงาน</span></button>
-      </div>
-    </nav>
-  </aside>
-  <main class="main">
-    <header class="topbar"><button class="topBtn mobileMenu" id="mobileMenu">☰</button><div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><div class="spacer"></div><button class="topBtn" id="reloadBtn">รีเฟรชหน้านี้</button><button class="topBtn" id="openBtn">เปิดเต็มหน้า</button><button class="topBtn dangerBtn" id="logoutBtn">ออกจากระบบ</button></header>
-    <div class="frameWrap"><iframe id="contentFrame" title="KruaFlow Content" src="about:blank"></iframe></div>
-  </main>
-</div>
+
+  <div class="shell" id="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brandMark">KF</div><div class="brandText"><div class="brandName">KruaFlow</div><div class="brandSub" data-i18n="app.name">KruaFlow Workforce</div></div><button class="collapseBtn" id="collapseBtn" type="button" data-i18n-title="workspace.menu">‹</button></div>
+      <nav class="nav" aria-label="Workforce navigation">
+        <div class="group" data-group="overview"><div class="groupTitle" data-i18n="nav.overview">ภาพรวม</div>
+          <button class="navBtn active" data-view="overview" data-url="./workforce.html?embed=1&view=dashboard" data-title-key="view.overview"><span class="ico">⌂</span><span class="navLabel" data-i18n="view.overview">ภาพรวมระบบ</span></button>
+          <button class="navBtn" data-view="review" data-url="./workforce.html?embed=1&view=work-queue" data-title-key="view.review"><span class="ico">◉</span><span class="navLabel" data-i18n="view.review">งานรอตรวจ</span></button>
+          <button class="navBtn" data-view="notifications" data-url="./workforce.html?embed=1&view=notifications" data-title-key="view.notifications"><span class="ico">●</span><span class="navLabel" data-i18n="view.notifications">แจ้งเตือน</span></button>
+        </div>
+        <div class="group" data-group="recruitment"><div class="groupTitle" data-i18n="nav.recruitment">สรรหา</div>
+          <button class="navBtn" data-view="applicants" data-url="./workforce.html?embed=1&view=applicants" data-title-key="view.applicants"><span class="ico">◎</span><span class="navLabel" data-i18n="view.applicants">ผู้สมัครงาน</span></button>
+          <button class="navBtn" data-view="interviews" data-url="./workforce.html?embed=1&view=interviews" data-title-key="view.interviews"><span class="ico">◷</span><span class="navLabel" data-i18n="view.interviews">นัดสัมภาษณ์</span></button>
+          <button class="navBtn" data-view="staffing" data-url="./workforce.html?embed=1&view=staffing" data-title-key="view.staffing"><span class="ico">▦</span><span class="navLabel" data-i18n="view.staffing">แผนรับพนักงาน</span></button>
+        </div>
+        <div class="group" data-group="people"><div class="groupTitle" data-i18n="nav.people">พนักงาน</div>
+          <button class="navBtn" data-view="employees" data-url="./admin.html?embed=1&view=employees" data-title-key="view.employees"><span class="ico">👥</span><span class="navLabel" data-i18n="view.employees">ภาพรวมพนักงาน</span></button>
+          <button class="navBtn" data-view="onboarding" data-url="./workforce.html?embed=1&view=onboarding" data-title-key="view.onboarding"><span class="ico">＋</span><span class="navLabel" data-i18n="view.onboarding">Onboarding</span></button>
+          <button class="navBtn" data-view="employee-documents" data-url="./workforce.html?embed=1&view=employee-documents" data-title-key="view.employeeDocuments"><span class="ico">▤</span><span class="navLabel" data-i18n="view.employeeDocuments">เอกสารพนักงาน</span></button>
+          <button class="navBtn" data-view="offboarding" data-url="./workforce.html?embed=1&view=offboarding" data-title-key="view.offboarding"><span class="ico">↪</span><span class="navLabel" data-i18n="view.offboarding">Offboarding</span></button>
+        </div>
+        <div class="group" data-group="work"><div class="groupTitle" data-i18n="nav.work">การทำงาน</div>
+          <button class="navBtn" data-view="schedule" data-url="./schedule.html?admin=1&embed=1" data-title-key="view.schedule"><span class="ico">▦</span><span class="navLabel" data-i18n="view.schedule">ตารางงาน</span></button>
+          <button class="navBtn" data-view="attendance" data-url="./workforce.html?embed=1&view=attendance" data-title-key="view.attendance"><span class="ico">◷</span><span class="navLabel" data-i18n="view.attendance">เวลาเข้าออก</span></button>
+          <button class="navBtn" data-view="leave" data-url="./admin.html?embed=1&view=leave" data-title-key="view.leave"><span class="ico">✓</span><span class="navLabel" data-i18n="view.leave">การลา / วันหยุด</span></button>
+          <button class="navBtn" data-view="activity" data-url="./workforce.html?embed=1&view=activity" data-title-key="view.activity"><span class="ico">▣</span><span class="navLabel" data-i18n="view.activity">Daily Activity</span></button>
+          <button class="navBtn" data-view="shift-check" data-url="./workforce.html?embed=1&view=shift-check" data-title-key="view.shiftCheck"><span class="ico">✓</span><span class="navLabel" data-i18n="view.shiftCheck">Daily Shift Check</span></button>
+        </div>
+        <div class="group" data-group="payroll"><div class="groupTitle" data-i18n="nav.payroll">ค่าแรง</div>
+          <button class="navBtn" data-view="payroll" data-url="./dashboard.html?embed=1&view=payroll" data-title-key="view.payrollReview"><span class="ico">฿</span><span class="navLabel" data-i18n="view.payrollReview">ตรวจค่าแรง</span></button>
+          <button class="navBtn" data-view="payroll-period" data-url="./workforce.html?embed=1&view=payroll-period" data-title-key="view.payrollPeriod"><span class="ico">▤</span><span class="navLabel" data-i18n="view.payrollPeriod">รอบค่าแรง</span></button>
+          <button class="navBtn" data-view="bank" data-url="./dashboard.html?embed=1&view=bank" data-title-key="view.paymentPrep"><span class="ico">▣</span><span class="navLabel" data-i18n="view.paymentPrep">เตรียมจ่าย</span></button>
+          <button class="navBtn" data-view="payroll-history" data-url="./workforce.html?embed=1&view=payroll-history" data-title-key="view.paymentHistory"><span class="ico">↻</span><span class="navLabel" data-i18n="view.paymentHistory">ประวัติการจ่าย</span></button>
+        </div>
+        <div class="group" data-group="reports"><div class="groupTitle" data-i18n="nav.reports">รายงาน</div>
+          <button class="navBtn" data-view="report-workforce" data-url="./workforce.html?embed=1&view=report-workforce" data-title-key="view.reportWorkforce"><span class="ico">▤</span><span class="navLabel" data-i18n="view.reportWorkforce">กำลังคน</span></button>
+          <button class="navBtn" data-view="report-recruitment" data-url="./workforce.html?embed=1&view=report-recruitment" data-title-key="view.reportRecruitment"><span class="ico">◎</span><span class="navLabel" data-i18n="view.reportRecruitment">Recruitment</span></button>
+          <button class="navBtn" data-view="report-attendance" data-url="./workforce.html?embed=1&view=report-attendance" data-title-key="view.reportAttendance"><span class="ico">◷</span><span class="navLabel" data-i18n="view.reportAttendance">Attendance</span></button>
+          <button class="navBtn" data-view="report-activity" data-url="./workforce.html?embed=1&view=report-activity" data-title-key="view.reportActivity"><span class="ico">▣</span><span class="navLabel" data-i18n="view.reportActivity">Activity</span></button>
+          <button class="navBtn" data-view="report-performance" data-url="./workforce.html?embed=1&view=report-performance" data-title-key="view.reportPerformance"><span class="ico">◇</span><span class="navLabel" data-i18n="view.reportPerformance">Performance</span></button>
+          <button class="navBtn" data-view="report-payroll" data-url="./workforce.html?embed=1&view=report-payroll" data-title-key="view.reportPayroll"><span class="ico">฿</span><span class="navLabel" data-i18n="view.reportPayroll">ค่าแรง</span></button>
+          <button class="navBtn" data-view="report-retention" data-url="./workforce.html?embed=1&view=report-retention" data-title-key="view.reportRetention"><span class="ico">↻</span><span class="navLabel" data-i18n="view.reportRetention">Retention</span></button>
+        </div>
+        <div class="group" data-group="system"><div class="groupTitle" data-i18n="nav.system">ระบบ</div>
+          <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1" data-title-key="view.settings"><span class="ico">⚙</span><span class="navLabel" data-i18n="view.settings">ตั้งค่าระบบ</span></button>
+          <button class="navBtn" data-view="permissions" data-url="./admin-settings.html?embed=1&view=permissions" data-title-key="view.permissions"><span class="ico">♙</span><span class="navLabel" data-i18n="view.permissions">สิทธิ์ผู้ใช้งาน</span></button>
+          <button class="navBtn" data-view="devices" data-url="./admin-settings.html?embed=1&view=devices" data-title-key="view.devices"><span class="ico">▣</span><span class="navLabel" data-i18n="view.devices">จัดการอุปกรณ์</span></button>
+          <button class="navBtn" data-view="master-data" data-url="./workforce.html?embed=1&view=master-data" data-title-key="view.masterData"><span class="ico">◆</span><span class="navLabel" data-i18n="view.masterData">Master Data</span></button>
+          <button class="navBtn" data-view="tools" data-url="./readiness.html?embed=1" data-title-key="view.tools"><span class="ico">⚒</span><span class="navLabel" data-i18n="view.tools">เครื่องมือระบบ</span></button>
+        </div>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <button class="topBtn mobileMenu" id="mobileMenu" type="button" data-i18n-title="workspace.menu">☰</button>
+        <div><div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><div class="uatTag">STAGING · UAT</div></div>
+        <div class="spacer"></div>
+        <div class="languageSwitch" aria-label="Language"><button type="button" data-language="th">ไทย</button><button type="button" data-language="en">EN</button></div>
+        <button class="topBtn" id="openBtn" type="button"><span data-i18n="workspace.openFull">เปิดเต็มหน้า</span> ↗</button>
+        <button class="topBtn dangerBtn" id="logoutBtn" type="button"><span data-i18n="workspace.logout">ออกจากระบบ</span></button>
+      </header>
+      <div class="frameWrap"><iframe id="contentFrame" title="KruaFlow Content" src="about:blank"></iframe></div>
+    </main>
+  </div>
+
 <script>
-(()=>{
-const shell=document.getElementById('shell'),frame=document.getElementById('contentFrame'),title=document.getElementById('pageTitle'),auth=document.getElementById('auth'),err=document.getElementById('authErr');
-const buttons=[...document.querySelectorAll('.navBtn[data-url]')],SS='kruaFlowAdminTokenV4',LS='kruaFlowAdminTokenPersistentV1',EXP='kruaFlowAdminTokenPersistentExpV1',KEY_VIEW='kfOwnerWorkspaceViewV1',KEY_COLLAPSE='kfOwnerWorkspaceCollapsedV1',KEY_GROUPS='kfOwnerWorkspaceGroupsV1';
-let api='',pending={};try{history.scrollRestoration='manual'}catch(e){}
-function token(){const s=sessionStorage.getItem(SS)||'';if(s)return s;const p=localStorage.getItem(LS)||'',e=Number(localStorage.getItem(EXP)||0);if(p&&e>Date.now()){sessionStorage.setItem(SS,p);return p}return''}
-function saveToken(t){const e=Date.now()+8*60*60*1000;sessionStorage.setItem(SS,t);localStorage.setItem(LS,t);localStorage.setItem(EXP,String(e))}
-function clearToken(){sessionStorage.removeItem(SS);localStorage.removeItem(LS);localStorage.removeItem(EXP)}
-function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
-function finish(id,ok,v){const p=pending[id];if(!p)return;clearTimeout(p.to);delete pending[id];ok?p.res(v):p.rej(v)}
-window.addEventListener('message',e=>{const sink=document.getElementById('apiSink');if(!sink||e.source!==sink.contentWindow)return;const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!pending[m.requestId])return;const r=m.result||{};finish(m.requestId,!!r.ok,r.ok?(r.data||{}):new Error(r.error||'เข้าสู่ระบบไม่สำเร็จ'))});
-function poll(id,n){if(!pending[id])return;if(n>16){finish(id,false,new Error('Backend ไม่ตอบสนอง'));return}const cb='__kfw_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n,s=document.createElement('script');let done=false;function clean(){if(done)return;done=true;try{delete window[cb]}catch(e){}s.remove()}window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>poll(id,n+1),700);return}r.ok?finish(id,true,r.data||{}):finish(id,false,new Error(r.error||'เข้าสู่ระบบไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>poll(id,n+1),900)};s.src=api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.head.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>poll(id,n+1),900)}},3000)}
-function call(p){if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,to:setTimeout(()=>finish(id,false,new Error('Backend ตอบช้าเกินไป')),25000)};f.submit();setTimeout(()=>f.remove(),2500);setTimeout(()=>poll(id,0),450)})}
-function sendAdminSession(){const t=token();if(!t)return;try{frame.contentWindow.postMessage({type:'KruaFlowAdminSession',token:t},location.origin)}catch(e){}}
-function resetEmbeddedScroll(){
-  try{
-    const win=frame.contentWindow,doc=frame.contentDocument;
-    if(win)win.scrollTo(0,0);
-    if(doc){
-      if(doc.documentElement)doc.documentElement.scrollTop=0;
-      if(doc.body)doc.body.scrollTop=0;
-      const scrollers=doc.querySelectorAll('[style*="overflow"],.scroll,.tableWrap,.detailShell,.modalCard');
-      scrollers.forEach(el=>{try{el.scrollTop=0}catch(e){}});
+(function () {
+  'use strict';
+  const I18N = window.KruaFlowI18n;
+  const api = new KruaFlowApi.Client({ timeout: 30000 });
+  const shell = document.getElementById('shell');
+  const frame = document.getElementById('contentFrame');
+  const title = document.getElementById('pageTitle');
+  const auth = document.getElementById('auth');
+  const errorBox = document.getElementById('authErr');
+  const buttons = Array.from(document.querySelectorAll('.navBtn[data-url]'));
+  const SS = 'kruaFlowAdminTokenV4';
+  const LS = 'kruaFlowAdminTokenPersistentV1';
+  const EXP = 'kruaFlowAdminTokenPersistentExpV1';
+  const KEY_VIEW = 'kfOwnerWorkspaceViewV1';
+  const KEY_COLLAPSE = 'kfOwnerWorkspaceCollapsedV1';
+  const KEY_GROUPS = 'kfOwnerWorkspaceGroupsV2';
+  const isStaging = new URLSearchParams(location.search).get('staging') === '1';
+
+  function getToken() {
+    const session = sessionStorage.getItem(SS) || '';
+    if (session) return session;
+    const persisted = localStorage.getItem(LS) || '';
+    const expiry = Number(localStorage.getItem(EXP) || 0);
+    if (persisted && expiry > Date.now()) { sessionStorage.setItem(SS, persisted); return persisted; }
+    return '';
+  }
+
+  function saveToken(value) {
+    const expiry = Date.now() + 8 * 60 * 60 * 1000;
+    sessionStorage.setItem(SS, value);
+    localStorage.setItem(LS, value);
+    localStorage.setItem(EXP, String(expiry));
+  }
+
+  function clearToken() {
+    sessionStorage.removeItem(SS);
+    localStorage.removeItem(LS);
+    localStorage.removeItem(EXP);
+  }
+
+  function environmentUrl(raw) {
+    if (!isStaging) return raw || '';
+    const url = new URL(raw || '', location.href);
+    url.searchParams.set('staging', '1');
+    return url.href;
+  }
+
+  function sendAdminSession() {
+    const value = getToken();
+    if (!value) return;
+    try { frame.contentWindow.postMessage({ type: 'KruaFlowAdminSession', token: value }, location.origin); } catch (_) {}
+  }
+
+  function openView(button, persist) {
+    if (!button) return;
+    buttons.forEach(function (item) { item.classList.toggle('active', item === button); });
+    frame.src = environmentUrl(button.dataset.url || '');
+    title.textContent = I18N.t(button.dataset.titleKey || 'app.name');
+    if (persist !== false) localStorage.setItem(KEY_VIEW, button.dataset.view || 'overview');
+    shell.classList.remove('menuOpen');
+  }
+
+  function refreshLanguage() {
+    I18N.apply(document);
+    const active = document.querySelector('.navBtn.active');
+    if (active) title.textContent = I18N.t(active.dataset.titleKey || 'app.name');
+    document.title = I18N.t('app.name');
+  }
+
+  function startWorkspace() {
+    auth.classList.add('hidden');
+    const requested = new URLSearchParams(location.search).get('view');
+    const selected = requested || localStorage.getItem(KEY_VIEW) || 'overview';
+    openView(buttons.find(function (button) { return button.dataset.view === selected; }) || buttons[0], false);
+  }
+
+  async function login() {
+    errorBox.classList.remove('show');
+    const pin = document.getElementById('adminPin').value.replace(/\D/g, '').slice(0, 6);
+    if (pin.length !== 6) { errorBox.textContent = I18N.t('auth.missingPin'); errorBox.classList.add('show'); return; }
+    const button = document.getElementById('loginBtn');
+    button.disabled = true;
+    document.getElementById('busyText').textContent = I18N.t('common.loading');
+    try {
+      const result = await api.call({ op: 'adminLoginFast', adminPin: pin });
+      const value = result.token || result.adminToken || result.sessionToken || '';
+      if (!value) throw new Error(I18N.t('auth.failed'));
+      saveToken(value);
+      document.getElementById('adminPin').value = '';
+      startWorkspace();
+    } catch (error) {
+      errorBox.textContent = error.message || I18N.t('auth.failed');
+      errorBox.classList.add('show');
+    } finally {
+      button.disabled = false;
+      document.getElementById('busyText').textContent = '';
     }
-    setTimeout(()=>{try{frame.contentWindow.scrollTo(0,0);if(frame.contentDocument?.documentElement)frame.contentDocument.documentElement.scrollTop=0;if(frame.contentDocument?.body)frame.contentDocument.body.scrollTop=0}catch(e){}},180);
-  }catch(e){}
-}
-function environmentUrl(raw){if(new URLSearchParams(location.search).get('staging')!=='1')return raw||'';const u=new URL(raw||'',location.href);u.searchParams.set('staging','1');return u.href}
-function openView(btn,persist=true){if(!btn)return;buttons.forEach(x=>x.classList.toggle('active',x===btn));frame.src=environmentUrl(btn.dataset.url||'');title.textContent=btn.dataset.title||btn.textContent.trim();if(persist)localStorage.setItem(KEY_VIEW,btn.dataset.view||'overview');shell.classList.remove('menuOpen')}
-function startWorkspace(){auth.classList.add('hidden');const q=new URLSearchParams(location.search).get('view'),saved=q||localStorage.getItem(KEY_VIEW)||'overview',start=buttons.find(x=>x.dataset.view===saved)||buttons[0];openView(start,false)}
-async function login(){err.classList.remove('show');const pin=document.getElementById('adminPin').value.replace(/\D/g,'').slice(0,6);if(pin.length!==6){err.textContent='กรุณากรอก PIN Admin 6 หลัก';err.classList.add('show');return}document.getElementById('busy').classList.add('show');try{const r=await call({op:'adminLoginFast',adminPin:pin});const t=r.token||r.adminToken||r.sessionToken||'';if(!t)throw new Error('ไม่ได้รับ Admin Token');saveToken(t);document.getElementById('adminPin').value='';startWorkspace()}catch(e){err.textContent=e.message||String(e);err.classList.add('show')}finally{document.getElementById('busy').classList.remove('show')}}
-function loadGroupState(){let saved={};try{saved=JSON.parse(localStorage.getItem(KEY_GROUPS)||'{}')}catch(e){}document.querySelectorAll('.group').forEach((g,i)=>{const title=g.querySelector('.groupTitle');if(!title)return;const key=title.textContent.trim()||('group'+i);g.dataset.groupKey=key;if(saved[key])g.classList.add('collapsed');title.setAttribute('role','button');title.setAttribute('tabindex','0');title.setAttribute('aria-expanded',g.classList.contains('collapsed')?'false':'true');const toggle=()=>{g.classList.toggle('collapsed');title.setAttribute('aria-expanded',g.classList.contains('collapsed')?'false':'true');let state={};try{state=JSON.parse(localStorage.getItem(KEY_GROUPS)||'{}')}catch(e){}state[key]=g.classList.contains('collapsed');localStorage.setItem(KEY_GROUPS,JSON.stringify(state))};title.onclick=toggle;title.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}}})}
-buttons.forEach(btn=>btn.onclick=()=>openView(btn));document.querySelectorAll('[data-external]').forEach(btn=>btn.onclick=()=>window.open(environmentUrl(btn.dataset.external),'_blank','noopener'));loadGroupState();frame.addEventListener('load',()=>{setTimeout(sendAdminSession,30);setTimeout(resetEmbeddedScroll,45)});window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==frame.contentWindow)return;const m=e.data||{};if(m.type==='KruaFlowAdminSessionRequest')sendAdminSession()});
-document.getElementById('loginBtn').onclick=login;document.getElementById('adminPin').onkeydown=e=>{if(e.key==='Enter')login()};document.getElementById('collapseBtn').onclick=()=>{shell.classList.toggle('collapsed');localStorage.setItem(KEY_COLLAPSE,shell.classList.contains('collapsed')?'1':'0')};document.getElementById('mobileMenu').onclick=()=>shell.classList.toggle('menuOpen');document.getElementById('reloadBtn').onclick=()=>{try{frame.contentWindow.location.reload()}catch(e){frame.src=frame.src}};document.getElementById('openBtn').onclick=()=>window.open(frame.src,'_blank','noopener');document.getElementById('logoutBtn').onclick=()=>{clearToken();frame.src='about:blank';auth.classList.remove('hidden')};
-if(localStorage.getItem(KEY_COLLAPSE)==='1')shell.classList.add('collapsed');
-try{const cfg=window.KRUA_FLOW_CONFIG||{},staging=new URLSearchParams(location.search).get('staging')==='1',v=staging?(cfg.STAGING_API_URL||''):cfg.API_URL;api=String(v||'').split('?')[0]}catch(e){}
-if(token())startWorkspace();
+  }
+
+  function loadGroupState() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY_GROUPS) || '{}'); } catch (_) {}
+    document.querySelectorAll('.group').forEach(function (group) {
+      const key = group.dataset.group;
+      const groupTitle = group.querySelector('.groupTitle');
+      if (saved[key]) group.classList.add('collapsed');
+      groupTitle.setAttribute('role', 'button');
+      groupTitle.setAttribute('tabindex', '0');
+      function toggle() {
+        group.classList.toggle('collapsed');
+        groupTitle.setAttribute('aria-expanded', String(!group.classList.contains('collapsed')));
+        let state = {};
+        try { state = JSON.parse(localStorage.getItem(KEY_GROUPS) || '{}'); } catch (_) {}
+        state[key] = group.classList.contains('collapsed');
+        localStorage.setItem(KEY_GROUPS, JSON.stringify(state));
+      }
+      groupTitle.onclick = toggle;
+      groupTitle.onkeydown = function (event) { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); } };
+      groupTitle.setAttribute('aria-expanded', String(!group.classList.contains('collapsed')));
+    });
+  }
+
+  buttons.forEach(function (button) { button.onclick = function () { openView(button); }; });
+  frame.addEventListener('load', function () { setTimeout(sendAdminSession, 30); try { frame.contentWindow.scrollTo(0, 0); } catch (_) {} });
+  window.addEventListener('message', function (event) {
+    if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+    if ((event.data || {}).type === 'KruaFlowAdminSessionRequest') sendAdminSession();
+  });
+  window.addEventListener('KruaFlowLanguageChange', refreshLanguage);
+  document.getElementById('loginBtn').onclick = login;
+  document.getElementById('adminPin').onkeydown = function (event) { if (event.key === 'Enter') login(); };
+  document.getElementById('collapseBtn').onclick = function () { shell.classList.toggle('collapsed'); localStorage.setItem(KEY_COLLAPSE, shell.classList.contains('collapsed') ? '1' : '0'); };
+  document.getElementById('mobileMenu').onclick = function () { shell.classList.toggle('menuOpen'); };
+  document.getElementById('openBtn').onclick = function () { window.open(frame.src, '_blank', 'noopener'); };
+  document.getElementById('logoutBtn').onclick = function () { clearToken(); frame.src = 'about:blank'; auth.classList.remove('hidden'); };
+
+  loadGroupState();
+  I18N.bindLanguageSwitchers(document);
+  refreshLanguage();
+  if (localStorage.getItem(KEY_COLLAPSE) === '1') shell.classList.add('collapsed');
+  if (getToken()) startWorkspace();
 })();
 </script>
-</body></html>
+</body>
+</html>
