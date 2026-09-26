@@ -285,24 +285,25 @@ function busy(on,msg){$('busyText').textContent=msg||'กำลังประ�
 function apiUrl(v){v=String(v||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(v))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return v.split('?')[0]}
 var pendingCalls={};
 window.addEventListener('message',function(e){
-  var sink=$('sink'); if(!sink||e.source!==sink.contentWindow)return;
   var m=e.data; if(!m||m.type!=='KruaFlowApiResult'||!m.requestId)return;
   var p=pendingCalls[m.requestId]; if(!p)return;
-  clearTimeout(p.fallback); clearTimeout(p.timeout); delete pendingCalls[m.requestId];
+  var sink=$('sink');if(e.source!==(p.frame?p.frame.contentWindow:(sink&&sink.contentWindow)))return;
+  clearTimeout(p.fallback); clearTimeout(p.timeout);if(p.frame)p.frame.remove();delete pendingCalls[m.requestId];
   var r=m.result||{};
   if(r.ok)p.resolve(r.data||{});else p.reject(new Error(r.error||'ทำรายการไม่สำเร็จ'));
 });
 function call(p,opts){opts=opts||{};if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise(function(resolve,reject){
   var id=uid();p.requestId=id;
-  var f=document.createElement('form');f.method='POST';f.action=state.api;f.target='sink';f.style.display='none';
+  var frame=null,target='sink';if(opts.noPoll){frame=document.createElement('iframe');target='kff_'+id.replace(/[^A-Za-z0-9_]/g,'_');frame.name=target;frame.style.display='none';document.body.appendChild(frame)}
+  var f=document.createElement('form');f.method='POST';f.action=state.api;f.target=target;f.style.display='none';
   var i=document.createElement('input');i.type='hidden';i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);
-  var rec={resolve:resolve,reject:reject,fallback:null,timeout:null};pendingCalls[id]=rec;
-  try{f.submit()}catch(e){delete pendingCalls[id];f.remove();reject(e);return}
+  var rec={resolve:resolve,reject:reject,fallback:null,timeout:null,frame:frame};pendingCalls[id]=rec;
+  try{f.submit()}catch(e){delete pendingCalls[id];f.remove();if(frame)frame.remove();reject(e);return}
   setTimeout(function(){f.remove()},3000);
-  rec.fallback=setTimeout(function(){if(pendingCalls[id])poll(id,function(v){finishDirect(id,true,v)},function(e){finishDirect(id,false,e)},0)},opts.pollDelayMs==null?600:opts.pollDelayMs);
+  if(!opts.noPoll)rec.fallback=setTimeout(function(){if(pendingCalls[id])poll(id,function(v){finishDirect(id,true,v)},function(e){finishDirect(id,false,e)},0)},opts.pollDelayMs==null?600:opts.pollDelayMs);
   rec.timeout=setTimeout(function(){finishDirect(id,false,new Error(opts.timeoutMessage||'Backend ตอบช้าเกินไป กรุณาลองใหม่'))},opts.timeoutMs||20000);
 })}
-function finishDirect(id,ok,value){var p=pendingCalls[id];if(!p)return;clearTimeout(p.fallback);clearTimeout(p.timeout);delete pendingCalls[id];ok?p.resolve(value):p.reject(value)}
+function finishDirect(id,ok,value){var p=pendingCalls[id];if(!p)return;clearTimeout(p.fallback);clearTimeout(p.timeout);if(p.frame)p.frame.remove();delete pendingCalls[id];ok?p.resolve(value):p.reject(value)}
 function poll(id,resolve,reject,n){if(n>10){reject(new Error('Backend ไม่ตอบสนอง'));return}var cb='__kfa_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n,s=document.createElement('script'),done=false;function clean(){done=true;try{delete window[cb]}catch(e){window[cb]=undefined}s.remove()}window[cb]=function(r){clean();if(!r||!r.ready){setTimeout(function(){poll(id,resolve,reject,n+1)},700);return}if(r.ok)resolve(r.data||{});else reject(new Error(r.error||'ทำรายการไม่สำเร็จ'))};s.onerror=function(){clean();setTimeout(function(){poll(id,resolve,reject,n+1)},900)};s.src=state.api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.body.appendChild(s);setTimeout(function(){if(!done){clean();setTimeout(function(){poll(id,resolve,reject,n+1)},900)}},3500)}
 function applySummary(r){state.sheet=r.sheetUrl||state.sheet||'';state.employees=r.employees||[];state.registrations=r.registrations||[];state.nextEmployeeId=r.nextEmployeeId||'';renderRegistrations(state.registrations);renderSearchOptions(state.employees);renderEmployeeOverviewKpis(r);applyEmployeeFilter();try{sessionStorage.setItem(SS_SUM,JSON.stringify(r))}catch(e){};$('status').textContent='ข้อมูลสรุปพร้อม • รายละเอียดหนักโหลดเมื่อกดดู'}
 async function loadEmployeeList(){
@@ -320,10 +321,18 @@ async function loadAdminPhoto(img,fileId){
     img.dataset.loading='1';
     const holder=img.closest('.photoHolder'),loading=holder&&holder.querySelector('.photoLoading'),detailLoading=img.id==='detailPhoto'?$('detailPhotoLoading'):null;
     try{
-      const r=await call({op:'adminGetPhoto',adminToken:state.token,fileId:fileId});
-      if(r&&r.photoData){img.src=r.photoData;img.style.display='block';img.dataset.loaded='1';if(loading)loading.style.display='none';if(detailLoading)detailLoading.style.display='none'}
-    }catch(e){if(loading)loading.textContent='โหลดรูปไม่สำเร็จ';if(detailLoading)detailLoading.textContent='โหลดรูปไม่สำเร็จ'}finally{img.dataset.loading='0'}
+      const file=await fetchAdminFile('adminGetPhoto',fileId),url=URL.createObjectURL(file.blob);
+      img.onload=function(){URL.revokeObjectURL(url)};img.src=url;img.style.display='block';img.dataset.loaded='1';if(loading)loading.style.display='none';if(detailLoading)detailLoading.style.display='none'
+    }catch(e){var message=fileLoadMessage(e);if(loading)loading.textContent=message;if(detailLoading)detailLoading.textContent=message}finally{img.dataset.loading='0'}
   }
+async function fetchAdminFile(metaOp,fileId){
+  var meta=await call({op:metaOp,adminToken:state.token,fileId:fileId},{timeoutMs:15000,pollDelayMs:400}),size=Number(meta.size)||0,chunkSize=Number(meta.chunkSize)||196608,chunks=[],received=0;
+  var legacy=String(meta.dataUrl||meta.photoData||'');if(legacy){var match=legacy.match(/^data:([^;,]+)?;base64,(.*)$/);if(!match)throw new Error('โหลดไฟล์ไม่สำเร็จ');var oldRaw=atob(match[2]),oldBytes=new Uint8Array(oldRaw.length);for(var j=0;j<oldRaw.length;j++)oldBytes[j]=oldRaw.charCodeAt(j);return {blob:new Blob([oldBytes],{type:match[1]||meta.mimeType||'application/octet-stream'}),fileName:meta.fileName||'เอกสาร',mimeType:match[1]||meta.mimeType||''}}
+  if(!size)throw new Error('ไม่พบไฟล์');
+  while(received<size){var r=await call({op:'adminGetFileChunk',adminToken:state.token,fileId:fileId,offset:received,length:Math.min(chunkSize,size-received),clientOrigin:location.origin},{timeoutMs:20000,noPoll:true}),raw=atob(String(r.base64||'')),bytes=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);if(!bytes.length)throw new Error('โหลดไฟล์ไม่สำเร็จ');chunks.push(bytes);received+=bytes.length}
+  return {blob:new Blob(chunks,{type:meta.mimeType||'application/octet-stream'}),fileName:meta.fileName||'เอกสาร',mimeType:meta.mimeType||''}
+}
+function fileLoadMessage(e){var m=String(e&&e.message||e||'');return m.indexOf('ไม่พบไฟล์')>=0?'ไม่พบไฟล์':m.indexOf('ไม่มีสิทธิ์')>=0?'ไม่มีสิทธิ์เข้าถึงไฟล์':'โหลดไฟล์ไม่สำเร็จ'}
 function observeAdminPhoto(img){
   if(!img)return;
   if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){io.disconnect();loadAdminPhoto(img,img.dataset.fileid)}})},{rootMargin:'200px'});io.observe(img)}
@@ -385,7 +394,7 @@ async function uploadPendingRegistrationDocument(r,type,label,input,btn,card){
   try{btn.disabled=true;btn.textContent='กำลังอัปโหลด...';var dataUrl=await adminFileToDataUrl(file);await call({op:'adminUploadEmployeeDocument',adminToken:state.token,registrationId:r.registrationId,document:{type:type,label:label,fileName:file.name,mimeType:file.type||'',dataUrl:dataUrl}},{timeoutMs:45000,pollDelayMs:500});await loadRegistrationDocuments(r,card)}catch(e){alert(e.message||String(e))}finally{btn.disabled=false;btn.textContent=old}
 }
 async function openRegistrationDocument(fileId,btn){
-  if(!fileId)return;var old=btn.textContent;try{btn.disabled=true;btn.textContent='กำลังเปิด...';var r=await call({op:'adminGetDocument',adminToken:state.token,fileId:fileId},{timeoutMs:15000,pollDelayMs:400});if(!r.dataUrl)throw new Error('ไม่พบข้อมูลไฟล์');var w=window.open('','_blank');if(!w)throw new Error('Browser บล็อกหน้าต่างใหม่');w.document.write('<title>'+String(r.fileName||'เอกสาร').replace(/[<>]/g,'')+'</title><iframe src="'+r.dataUrl+'" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>');w.document.close()}catch(e){alert(e.message||String(e))}finally{btn.disabled=false;btn.textContent=old}
+  if(!fileId)return;var old=btn.textContent,w=window.open('','_blank');if(!w){alert('Browser บล็อกหน้าต่างใหม่');return}w.document.write('<meta charset="utf-8"><title>กำลังโหลดเอกสาร...</title><p style="font:16px sans-serif;padding:24px">กำลังโหลดเอกสาร...</p>');w.document.close();try{btn.disabled=true;btn.textContent='กำลังเปิด...';var file=await fetchAdminFile('adminGetDocument',fileId),url=URL.createObjectURL(file.blob);w.location.replace(url);setTimeout(function(){URL.revokeObjectURL(url)},300000)}catch(e){var message=fileLoadMessage(e);try{w.document.body.textContent=message}catch(x){}alert(message)}finally{btn.disabled=false;btn.textContent=old}
 }
 function renderSearchOptions(a){var d=$('employeeSearchList');d.innerHTML='';a.forEach(function(e){var o=document.createElement('option');o.value=e.id+' — '+e.name+(e.nickname?' ('+e.nickname+')':'');d.appendChild(o)})}
 function renderEmployeeOverviewKpis(r){var all=state.employees.length,active=state.employees.filter(function(e){return e.active!==false&&String(e.employmentStatus||'ACTIVE').toUpperCase()!=='INACTIVE'}).length;$('empKpiAll').textContent=all;$('empKpiActive').textContent=active;$('empKpiInactive').textContent=Math.max(0,all-active);$('empKpiPendingReg').textContent=Number(r&&r.pendingCount!=null?r.pendingCount:state.registrations.filter(function(x){return String(x.status||'').toUpperCase()==='PENDING'}).length)}
@@ -631,7 +640,7 @@ function renderAttendanceEvidence(rows){
       if(btn&&img)btn.onclick=function(){
         if(img.dataset.loaded==='1'){var hide=img.style.display!=='none';img.style.display=hide?'none':'block';btn.textContent=hide?'ดูรูป':'ซ่อนรูป';return}
         var loading=item.querySelector('.photoLoading');if(loading)loading.style.display='block';btn.disabled=true;
-        call({op:'adminGetPhoto',adminToken:state.token,fileId:fileId}).then(function(r){if(r&&r.photoData){img.src=r.photoData;img.style.display='block';img.dataset.loaded='1';btn.textContent='ซ่อนรูป';if(loading)loading.style.display='none'}}).catch(function(){if(loading){loading.style.display='block';loading.textContent='โหลดรูปไม่สำเร็จ'}}).finally(function(){btn.disabled=false})
+        fetchAdminFile('adminGetPhoto',fileId).then(function(file){var url=URL.createObjectURL(file.blob);img.onload=function(){URL.revokeObjectURL(url)};img.src=url;img.style.display='block';img.dataset.loaded='1';btn.textContent='ซ่อนรูป';if(loading)loading.style.display='none'}).catch(function(e){if(loading){loading.style.display='block';loading.textContent=fileLoadMessage(e)}}).finally(function(){btn.disabled=false})
       }
     });
     box.appendChild(d)

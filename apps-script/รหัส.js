@@ -22,27 +22,39 @@ function doGet(e) {
 
 function doPost(e) {
   let requestId = '';
+  let op = '';
+  let clientOrigin = '';
   let result = { ready:true, ok:false, error:'ไม่สามารถประมวลผลคำขอได้' };
   try {
     const raw = e && e.parameter ? String(e.parameter.payload || '') : '';
     if (!raw) throw new Error('ไม่พบ payload');
     const payload = JSON.parse(raw);
+    op = String(payload.op || '');
+    clientOrigin = apiAllowedClientOrigin_(payload.clientOrigin);
     requestId = String(payload.requestId || '').trim();
     if (!requestId) throw new Error('ไม่พบ requestId');
     const data = apiHandlePost_(payload);
     result = { ready:true, ok:true, data:data };
-    apiPutResult_(requestId, result); // fallback compatibility for kiosk pages still using polling
+    // File chunks use bounded postMessage responses and must never be duplicated in CacheService.
+    if (op !== 'adminGetFileChunk') apiPutResult_(requestId, result); // polling fallback compatibility
   } catch (err) {
     result = { ready:true, ok:false, error:err && err.message ? err.message : String(err) };
-    if (requestId) apiPutResult_(requestId, result);
+    if (requestId && op !== 'adminGetFileChunk') apiPutResult_(requestId, result);
   }
-  return apiPostMessageResponse_(requestId, result);
+  return apiPostMessageResponse_(requestId, result, clientOrigin, op === 'adminGetFileChunk');
 }
 
-function apiPostMessageResponse_(requestId, result) {
+function apiAllowedClientOrigin_(origin) {
+  const value=String(origin||'');
+  return ['http://localhost:8081','http://127.0.0.1:8081','https://anupon-bit.github.io'].indexOf(value)>=0?value:'';
+}
+
+function apiPostMessageResponse_(requestId, result, clientOrigin, allowEmbeddedChunk) {
   const message = { type:'KruaFlowApiResult', requestId:String(requestId || ''), result:result || {ready:true,ok:false,error:'ไม่พบผลลัพธ์'} };
   const json = JSON.stringify(message).replace(/</g, '\\u003c');
-  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ',"*")}catch(e){}<\/script>');
+  const target=allowEmbeddedChunk&&clientOrigin?JSON.stringify(clientOrigin):'"*"';
+  const output=HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ','+target+')}catch(e){}<\/script>');
+  return allowEmbeddedChunk&&clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
 }
 
 function apiHandlePost_(payload) {
@@ -64,6 +76,7 @@ function apiHandlePost_(payload) {
   if (op === 'adminGetRegistration') return apiAdminGetRegistration_(payload);
   if (op === 'adminGetRegistrationDocuments') return apiAdminGetRegistrationDocuments_(payload);
   if (op === 'adminGetDocument') return apiAdminGetDocument_(payload);
+  if (op === 'adminGetFileChunk') return apiAdminGetFileChunk_(payload);
   if (op === 'adminUploadEmployeeDocument') return apiAdminUploadEmployeeDocument_(payload);
   if (op === 'adminGetEmployee') return apiAdminGetEmployee_(payload);
   if (op === 'adminGetAttendance') return apiAdminGetAttendance_(payload);
@@ -294,12 +307,30 @@ function apiAdminDashboard_(payload) {
 }
 
 function apiAdminGetPhoto_(payload) {
-  requireAdmin_(String(payload.adminToken || ''));
-  const fileId = String(payload.fileId || '').trim();
-  if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) throw new Error('Photo File ID ไม่ถูกต้อง');
-  const photoData = fileToDataUrl_(fileId);
-  if (!photoData) throw new Error('ไม่สามารถอ่านรูปภาพได้');
-  return { ok:true, photoData:photoData, serverEpochMs:Date.now() };
+  return adminFileMeta_(String(payload.adminToken || ''), String(payload.fileId || ''), true);
+}
+
+function apiAdminGetFileChunk_(payload) {
+  const fileId=String(payload.fileId||'').trim();
+  requireAdmin_(String(payload.adminToken||''));
+  if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) throw new Error('ไม่พบไฟล์');
+  const offset=Math.max(0,Number(payload.offset)||0),length=Math.min(196608,Math.max(1,Number(payload.length)||196608));
+  try {
+    const response=UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media',{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken(),Range:'bytes='+offset+'-'+(offset+length-1)},muteHttpExceptions:true});
+    const code=response.getResponseCode();
+    if(code===404)throw new Error('ไม่พบไฟล์');
+    if(code===401||code===403)throw new Error('ไม่มีสิทธิ์เข้าถึงไฟล์');
+    if(code!==200&&code!==206)throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    let bytes=response.getContent();
+    if(code===200&&offset)bytes=bytes.slice(offset,offset+length);
+    else if(bytes.length>length)bytes=bytes.slice(0,length);
+    return {ok:true,offset:offset,bytes:bytes.length,base64:Utilities.base64Encode(bytes),serverEpochMs:Date.now()};
+  } catch(e) {
+    const message=e&&e.message?String(e.message):'';
+    if(/\b404\b|not found|does not exist/i.test(message)||message==='ไม่พบไฟล์')throw new Error('ไม่พบไฟล์');
+    if(/\b401\b|\b403\b|permission|access denied|forbidden/i.test(message)||message==='ไม่มีสิทธิ์เข้าถึงไฟล์')throw new Error('ไม่มีสิทธิ์เข้าถึงไฟล์');
+    throw new Error('โหลดไฟล์ไม่สำเร็จ');
+  }
 }
 
 function apiAdminAddEmployee_(payload) {
@@ -1716,10 +1747,25 @@ function adminGetRegistrationDocuments_(token, registrationId, employeeId) {
 }
 
 function adminGetDocument_(token, fileId) {
+  return adminFileMeta_(token,fileId,false);
+}
+
+function adminFileMeta_(token, fileId, imageOnly) {
   requireAdmin_(token);
-  const id=String(fileId||'').trim();if(!id)throw new Error('ไม่พบไฟล์เอกสาร');
-  const file=DriveApp.getFileById(id),blob=file.getBlob(),mime=blob.getContentType()||'application/octet-stream';
-  return {ok:true,fileName:file.getName(),mimeType:mime,dataUrl:'data:'+mime+';base64,'+Utilities.base64Encode(blob.getBytes())};
+  const id=String(fileId||'').trim();
+  if(!/^[A-Za-z0-9_-]{10,}$/.test(id))throw new Error('ไม่พบไฟล์');
+  try {
+    const file=DriveApp.getFileById(id),mime=String(file.getMimeType()||'application/octet-stream'),size=Number(file.getSize())||0;
+    if(imageOnly&&mime.indexOf('image/')!==0)throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    if(!imageOnly&&mime!=='application/pdf'&&mime.indexOf('image/')!==0)throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    return {ok:true,fileId:id,fileName:file.getName(),mimeType:mime,size:size,chunkSize:196608,serverEpochMs:Date.now()};
+  } catch(e) {
+    const message=e&&e.message?String(e.message):'';
+    if(/not found|does not exist|invalid argument/i.test(message))throw new Error('ไม่พบไฟล์');
+    if(/permission|access denied|forbidden/i.test(message))throw new Error('ไม่มีสิทธิ์เข้าถึงไฟล์');
+    if(message==='โหลดไฟล์ไม่สำเร็จ')throw e;
+    throw new Error('โหลดไฟล์ไม่สำเร็จ');
+  }
 }
 
 function attachDocumentsToEmployee_(ss, registrationId, employeeId) {
