@@ -4,23 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
-  <title>KruaFlow Workforce</title>
+  <title>KruaFlow ระบบบุคลากร</title>
   <script src="./config.js"></script>
   <script src="./mock-data.js"></script>
   <script src="./js/api-client.js"></script>
   <script src="./js/i18n.js"></script>
   <style>
-    :root{--bg:#f4f7f5;--paper:#fff;--ink:#172a3a;--muted:#667784;--line:#dbe5df;--brand:#0e7655;--brandDark:#07563d;--brandSoft:#e7f4ed;--danger:#a83232;--warning:#a15c00;font-family:"Noto Sans Thai","Leelawadee UI",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
-    *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:268px 1fr;overflow:hidden}.shell.collapsed{grid-template-columns:78px 1fr}.sidebar{height:100vh;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--paper);transition:.2s}.brand{display:flex;align-items:center;gap:10px;padding:17px 14px 12px}.brandMark{width:42px;height:42px;display:grid;place-items:center;flex:0 0 auto;border-radius:13px;background:linear-gradient(135deg,var(--brandDark),#1a9c73);color:#fff;font-weight:1000}.brandText{min-width:0}.brandName{font-size:20px;font-weight:1000;color:var(--brandDark)}.brandSub{font-size:11px;color:var(--muted);font-weight:800}.collapseBtn{width:36px;height:36px;margin-left:auto;border:0;border-radius:10px;background:#edf3ef;color:#35584b;font-weight:1000;cursor:pointer}.nav{flex:1 1 auto;min-height:0;overflow:auto;padding:4px 10px 22px;scrollbar-gutter:stable}.group{margin-top:11px}.groupTitle{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 11px;border-radius:8px;color:#87958e;font-size:11px;font-weight:950;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none}.groupTitle:hover{background:#f5f8f6}.groupTitle::after{content:'⌄';font-size:14px;transition:transform .18s}.group.collapsed .groupTitle::after{transform:rotate(-90deg)}.group.collapsed>.navBtn{display:none}.navBtn{width:100%;display:flex;align-items:center;gap:10px;margin:2px 0;padding:10px 11px;border:0;border-radius:11px;background:transparent;color:#29483d;text-align:left;font-weight:850;cursor:pointer}.navBtn:hover{background:#f0f6f2}.navBtn.active{background:var(--brandSoft);color:var(--brandDark)}.ico{width:25px;flex:0 0 25px;text-align:center;font-size:17px}.navLabel{white-space:nowrap}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel{display:none}.shell.collapsed .brand{justify-content:center;padding-inline:8px;flex-wrap:wrap}.shell.collapsed .collapseBtn{margin:0}.shell.collapsed .navBtn{justify-content:center;padding-inline:8px}.main{min-width:0;display:grid;grid-template-rows:66px 1fr}.topbar{display:flex;align-items:center;gap:9px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--paper)}.pageTitle{font-size:18px;font-weight:1000}.spacer{flex:1}.topBtn{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#35584b;font-weight:850;cursor:pointer}.topBtn:hover{border-color:var(--brand)}.dangerBtn{color:var(--danger)}.frameWrap{min-height:0;background:var(--bg)}iframe{width:100%;height:100%;border:0;background:var(--bg)}.mobileMenu{display:none}.languageSwitch{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:12px;background:#fff}.languageSwitch button{min-width:39px;padding:6px 8px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-weight:800;cursor:pointer}.languageSwitch button.active{background:var(--ink);color:#fff}.auth{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(244,247,245,.97)}.auth.hidden{display:none}.authCard{width:min(480px,100%);padding:26px;border:1px solid var(--line);border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(23,42,58,.13)}.authTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.authTitle{font-size:25px;font-weight:1000}.authSub{margin:5px 0 20px;color:var(--muted);font-weight:700;line-height:1.5}.field label{display:block;margin-bottom:7px;font-weight:900}.input{width:100%;min-height:52px;padding:0 14px;border:1px solid #cbd7d0;border-radius:12px;font-size:20px;text-align:center;letter-spacing:.2em}.loginBtn{width:100%;min-height:52px;margin-top:12px;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:1000;cursor:pointer}.loginBtn:disabled{opacity:.55;cursor:wait}.authErr{display:none;margin-top:10px;padding:11px;border-radius:10px;background:#ffeded;color:var(--danger);font-weight:800}.authErr.show{display:block}.busyText{min-height:22px;margin-top:10px;color:var(--muted);font-size:13px;font-weight:750}.uatTag{display:inline-flex;align-items:center;min-height:28px;padding:4px 9px;border:1px solid #9bc9b8;border-radius:999px;background:var(--brandSoft);color:var(--brandDark);font-size:11px;font-weight:900}
-    @media(max-width:920px){.shell,.shell.collapsed{grid-template-columns:1fr}.sidebar{position:fixed;inset:0 auto 0 0;z-index:30;width:min(300px,88vw);height:100dvh;transform:translateX(-102%);box-shadow:0 12px 40px rgba(0,0,0,.16)}.shell.menuOpen .sidebar{transform:translateX(0)}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel{display:block}.shell.collapsed .navBtn{justify-content:flex-start;padding:10px 11px}.collapseBtn{display:none}.mobileMenu{display:inline-flex}.main{grid-column:1}.topbar{padding:0 10px}.pageTitle{font-size:15px}.topBtn span{display:none}}
+    :root{--bg:#f6f7f8;--paper:#fff;--ink:#18231f;--muted:#69756f;--line:#e4e8e6;--brand:#176b4f;--brandDark:#10523d;--brandSoft:#edf6f1;--danger:#b23b3b;--warning:#94620a;--secondary:#7b8580;font-family:"Noto Sans Thai","Leelawadee UI",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+    *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:264px 1fr;overflow:hidden}.shell.collapsed{grid-template-columns:72px 1fr}.sidebar{height:100vh;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--paper);transition:grid-template-columns .2s}.brand{display:flex;align-items:center;gap:11px;padding:19px 16px 15px;border-bottom:1px solid #f0f2f1}.brandMark{width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:10px;background:var(--brand);color:#fff;font-size:13px;font-weight:900}.brandText{min-width:0}.brandName{font-size:17px;font-weight:850;color:var(--ink)}.brandSub{font-size:11px;color:var(--muted);font-weight:650}.collapseBtn{width:32px;height:32px;margin-left:auto;border:0;border-radius:8px;background:#f3f5f4;color:#4e5f57;font-weight:900;cursor:pointer}.nav{flex:1 1 auto;min-height:0;overflow:auto;padding:8px 10px 22px;scrollbar-gutter:stable}.group{margin-top:12px}.groupTitle{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:7px;color:#929b97;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;user-select:none}.groupTitle:hover{background:#f6f8f7}.groupTitle::after{content:'⌄';font-size:13px;transition:transform .18s}.group.collapsed .groupTitle::after{transform:rotate(-90deg)}.group.collapsed>.navBtn{display:none}.navBtn{width:100%;display:flex;align-items:center;gap:10px;margin:1px 0;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:#34453e;text-align:left;font-size:13px;font-weight:720;cursor:pointer}.navBtn:hover{background:#f3f6f4}.navBtn.active{background:var(--brandSoft);color:var(--brandDark)}.navBtn.secondary{color:#69756f}.navBtn.secondary .ico{opacity:.68}.ico{width:22px;flex:0 0 22px;text-align:center;font-size:15px}.navLabel{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.navBadge{margin-left:auto;padding:2px 6px;border-radius:999px;background:#f0f2f1;color:#7b8580;font-size:9px;font-weight:800;white-space:nowrap}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navBadge{display:none}.shell.collapsed .brand{justify-content:center;padding-inline:8px;flex-wrap:wrap}.shell.collapsed .collapseBtn{margin:0}.shell.collapsed .navBtn{justify-content:center;padding-inline:8px}.main{min-width:0;display:grid;grid-template-rows:68px 1fr}.topbar{display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.96)}.pageTitle{font-size:17px;font-weight:850}.spacer{flex:1}.topBtn{min-height:38px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#405149;font-size:12px;font-weight:750;cursor:pointer}.topBtn:hover{border-color:#aeb9b4}.dangerBtn{color:var(--danger)}.frameWrap{min-height:0;background:var(--bg)}iframe{width:100%;height:100%;border:0;background:var(--bg)}.mobileMenu{display:none}.languageSwitch{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:10px;background:#fff}.languageSwitch button{min-width:37px;padding:5px 8px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:12px;font-weight:750;cursor:pointer}.languageSwitch button.active{background:var(--ink);color:#fff}.auth{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(246,247,248,.97)}.auth.hidden{display:none}.authCard{width:min(460px,100%);padding:28px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(24,35,31,.09)}.authTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.authTitle{font-size:23px;font-weight:850}.authSub{margin:6px 0 20px;color:var(--muted);font-weight:650;line-height:1.5}.field label{display:block;margin-bottom:7px;font-weight:800}.input{width:100%;min-height:50px;padding:0 14px;border:1px solid #ccd4d0;border-radius:10px;font-size:20px;text-align:center;letter-spacing:.2em}.loginBtn{width:100%;min-height:50px;margin-top:12px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:850;cursor:pointer}.loginBtn:disabled{opacity:.55;cursor:wait}.authErr{display:none;margin-top:10px;padding:11px;border-radius:9px;background:#fff0f0;color:var(--danger);font-weight:750}.authErr.show{display:block}.busyText{min-height:22px;margin-top:10px;color:var(--muted);font-size:12px;font-weight:700}.uatTag{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border:1px solid #c9dcd2;border-radius:999px;background:var(--brandSoft);color:var(--brandDark);font-size:10px;font-weight:800}
+    @media(max-width:1024px){.shell{grid-template-columns:232px 1fr}.navBtn{font-size:12px}.navBadge{display:none}}
+    @media(max-width:820px){.shell,.shell.collapsed{grid-template-columns:1fr}.sidebar{position:fixed;inset:0 auto 0 0;z-index:30;width:min(292px,88vw);height:100dvh;transform:translateX(-102%);box-shadow:0 16px 42px rgba(0,0,0,.14)}.shell.menuOpen .sidebar{transform:translateX(0)}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navBadge{display:block}.shell.collapsed .navBtn{justify-content:flex-start;padding:9px 10px}.collapseBtn{display:none}.mobileMenu{display:inline-flex}.main{grid-column:1}.topbar{padding:0 10px}.pageTitle{font-size:14px}.topBtn span{display:none}}
   </style>
 </head>
 <body>
   <div class="auth" id="auth">
     <div class="authCard">
       <div class="authTop">
-        <div><div class="authTitle" data-i18n="auth.title">เข้าสู่ระบบผู้ดูแล</div><div class="uatTag" data-i18n="app.uat">สภาพแวดล้อม UAT</div></div>
-        <div class="languageSwitch" aria-label="Language"><button type="button" data-language="th">ไทย</button><button type="button" data-language="en">EN</button></div>
+        <div><div class="authTitle" data-i18n="auth.title">เข้าสู่ระบบผู้ดูแล</div><div class="uatTag" data-i18n="app.uat">ระบบทดสอบ</div></div>
+        <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา"><button type="button" data-language="th" data-i18n="language.th">ไทย</button><button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button></div>
       </div>
       <div class="authSub" data-i18n="auth.subtitle">ใช้ PIN ผู้ดูแลเดิมเพื่อเปิด Workspace</div>
       <div class="field"><label for="adminPin" data-i18n="auth.pin">PIN ผู้ดูแล</label><input class="input" id="adminPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="current-password"></div>
@@ -32,30 +33,22 @@
 
   <div class="shell" id="shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brandMark">KF</div><div class="brandText"><div class="brandName">KruaFlow</div><div class="brandSub" data-i18n="app.name">KruaFlow Workforce</div></div><button class="collapseBtn" id="collapseBtn" type="button" data-i18n-title="workspace.menu">‹</button></div>
-      <nav class="nav" aria-label="Workforce navigation">
+      <div class="brand"><div class="brandMark">KF</div><div class="brandText"><div class="brandName">KruaFlow</div><div class="brandSub" data-i18n="app.name">KruaFlow ระบบบุคลากร</div></div><button class="collapseBtn" id="collapseBtn" type="button" data-i18n-title="workspace.menu">‹</button></div>
+      <nav class="nav" data-i18n-aria-label="workspace.navigation" aria-label="เมนูระบบบุคลากร">
         <div class="group" data-group="overview"><div class="groupTitle" data-i18n="nav.overview">ภาพรวม</div>
           <button class="navBtn active" data-view="overview" data-url="./workforce.html?embed=1&view=dashboard" data-title-key="view.overview"><span class="ico">⌂</span><span class="navLabel" data-i18n="view.overview">ภาพรวมระบบ</span></button>
           <button class="navBtn" data-view="review" data-url="./workforce.html?embed=1&view=work-queue" data-title-key="view.review"><span class="ico">◉</span><span class="navLabel" data-i18n="view.review">งานรอตรวจ</span></button>
           <button class="navBtn" data-view="notifications" data-url="./workforce.html?embed=1&view=notifications" data-title-key="view.notifications"><span class="ico">●</span><span class="navLabel" data-i18n="view.notifications">แจ้งเตือน</span></button>
         </div>
-        <div class="group" data-group="recruitment"><div class="groupTitle" data-i18n="nav.recruitment">สรรหา</div>
-          <button class="navBtn" data-view="applicants" data-url="./workforce.html?embed=1&view=applicants" data-title-key="view.applicants"><span class="ico">◎</span><span class="navLabel" data-i18n="view.applicants">ผู้สมัครงาน</span></button>
-          <button class="navBtn" data-view="interviews" data-url="./workforce.html?embed=1&view=interviews" data-title-key="view.interviews"><span class="ico">◷</span><span class="navLabel" data-i18n="view.interviews">นัดสัมภาษณ์</span></button>
-          <button class="navBtn" data-view="staffing" data-url="./workforce.html?embed=1&view=staffing" data-title-key="view.staffing"><span class="ico">▦</span><span class="navLabel" data-i18n="view.staffing">แผนรับพนักงาน</span></button>
-        </div>
         <div class="group" data-group="people"><div class="groupTitle" data-i18n="nav.people">พนักงาน</div>
-          <button class="navBtn" data-view="employees" data-url="./admin.html?embed=1&view=employees" data-title-key="view.employees"><span class="ico">👥</span><span class="navLabel" data-i18n="view.employees">ภาพรวมพนักงาน</span></button>
-          <button class="navBtn" data-view="onboarding" data-url="./workforce.html?embed=1&view=onboarding" data-title-key="view.onboarding"><span class="ico">＋</span><span class="navLabel" data-i18n="view.onboarding">Onboarding</span></button>
-          <button class="navBtn" data-view="employee-documents" data-url="./workforce.html?embed=1&view=employee-documents" data-title-key="view.employeeDocuments"><span class="ico">▤</span><span class="navLabel" data-i18n="view.employeeDocuments">เอกสารพนักงาน</span></button>
-          <button class="navBtn" data-view="offboarding" data-url="./workforce.html?embed=1&view=offboarding" data-title-key="view.offboarding"><span class="ico">↪</span><span class="navLabel" data-i18n="view.offboarding">Offboarding</span></button>
+          <button class="navBtn" data-view="employees" data-url="./admin.html?embed=1&view=employees" data-title-key="view.employees"><span class="ico">◉</span><span class="navLabel" data-i18n="view.employees">รายชื่อพนักงาน</span></button>
+          <button class="navBtn" data-view="employee-registration" data-url="./admin.html?embed=1&view=review" data-title-key="view.employeeRegistration"><span class="ico">＋</span><span class="navLabel" data-i18n="view.employeeRegistration">เพิ่ม / ลงทะเบียนพนักงาน</span></button>
+          <button class="navBtn" data-view="employee-documents" data-url="./admin.html?embed=1&view=employees" data-title-key="view.employeeDocuments"><span class="ico">▤</span><span class="navLabel" data-i18n="view.employeeDocuments">เอกสารพนักงาน</span></button>
         </div>
-        <div class="group" data-group="work"><div class="groupTitle" data-i18n="nav.work">การทำงาน</div>
+        <div class="group" data-group="work"><div class="groupTitle" data-i18n="nav.work">เวลาทำงาน</div>
           <button class="navBtn" data-view="schedule" data-url="./schedule.html?admin=1&embed=1" data-title-key="view.schedule"><span class="ico">▦</span><span class="navLabel" data-i18n="view.schedule">ตารางงาน</span></button>
-          <button class="navBtn" data-view="attendance" data-url="./workforce.html?embed=1&view=attendance" data-title-key="view.attendance"><span class="ico">◷</span><span class="navLabel" data-i18n="view.attendance">เวลาเข้าออก</span></button>
+          <button class="navBtn" data-view="attendance" data-url="./workforce.html?embed=1&view=attendance" data-title-key="view.attendance"><span class="ico">◷</span><span class="navLabel" data-i18n="view.attendance">เวลาเข้า–ออก</span></button>
           <button class="navBtn" data-view="leave" data-url="./admin.html?embed=1&view=leave" data-title-key="view.leave"><span class="ico">✓</span><span class="navLabel" data-i18n="view.leave">การลา / วันหยุด</span></button>
-          <button class="navBtn" data-view="activity" data-url="./workforce.html?embed=1&view=activity" data-title-key="view.activity"><span class="ico">▣</span><span class="navLabel" data-i18n="view.activity">Daily Activity</span></button>
-          <button class="navBtn" data-view="shift-check" data-url="./workforce.html?embed=1&view=shift-check" data-title-key="view.shiftCheck"><span class="ico">✓</span><span class="navLabel" data-i18n="view.shiftCheck">Daily Shift Check</span></button>
         </div>
         <div class="group" data-group="payroll"><div class="groupTitle" data-i18n="nav.payroll">ค่าแรง</div>
           <button class="navBtn" data-view="payroll" data-url="./dashboard.html?embed=1&view=payroll" data-title-key="view.payrollReview"><span class="ico">฿</span><span class="navLabel" data-i18n="view.payrollReview">ตรวจค่าแรง</span></button>
@@ -64,33 +57,47 @@
           <button class="navBtn" data-view="payroll-history" data-url="./workforce.html?embed=1&view=payroll-history" data-title-key="view.paymentHistory"><span class="ico">↻</span><span class="navLabel" data-i18n="view.paymentHistory">ประวัติการจ่าย</span></button>
         </div>
         <div class="group" data-group="reports"><div class="groupTitle" data-i18n="nav.reports">รายงาน</div>
-          <button class="navBtn" data-view="report-workforce" data-url="./workforce.html?embed=1&view=report-workforce" data-title-key="view.reportWorkforce"><span class="ico">▤</span><span class="navLabel" data-i18n="view.reportWorkforce">กำลังคน</span></button>
-          <button class="navBtn" data-view="report-recruitment" data-url="./workforce.html?embed=1&view=report-recruitment" data-title-key="view.reportRecruitment"><span class="ico">◎</span><span class="navLabel" data-i18n="view.reportRecruitment">Recruitment</span></button>
-          <button class="navBtn" data-view="report-attendance" data-url="./workforce.html?embed=1&view=report-attendance" data-title-key="view.reportAttendance"><span class="ico">◷</span><span class="navLabel" data-i18n="view.reportAttendance">Attendance</span></button>
-          <button class="navBtn" data-view="report-activity" data-url="./workforce.html?embed=1&view=report-activity" data-title-key="view.reportActivity"><span class="ico">▣</span><span class="navLabel" data-i18n="view.reportActivity">Activity</span></button>
-          <button class="navBtn" data-view="report-performance" data-url="./workforce.html?embed=1&view=report-performance" data-title-key="view.reportPerformance"><span class="ico">◇</span><span class="navLabel" data-i18n="view.reportPerformance">Performance</span></button>
-          <button class="navBtn" data-view="report-payroll" data-url="./workforce.html?embed=1&view=report-payroll" data-title-key="view.reportPayroll"><span class="ico">฿</span><span class="navLabel" data-i18n="view.reportPayroll">ค่าแรง</span></button>
-          <button class="navBtn" data-view="report-retention" data-url="./workforce.html?embed=1&view=report-retention" data-title-key="view.reportRetention"><span class="ico">↻</span><span class="navLabel" data-i18n="view.reportRetention">Retention</span></button>
+          <button class="navBtn" data-view="report-workforce" data-url="./admin.html?embed=1&view=employees" data-title-key="view.reportWorkforce"><span class="ico">▤</span><span class="navLabel" data-i18n="view.reportWorkforce">รายงานพนักงาน</span></button>
+          <button class="navBtn" data-view="report-attendance" data-url="./workforce.html?embed=1&view=attendance" data-title-key="view.reportAttendance"><span class="ico">◷</span><span class="navLabel" data-i18n="view.reportAttendance">รายงานเวลาเข้างาน</span></button>
+          <button class="navBtn" data-view="report-leave" data-url="./admin.html?embed=1&view=leave" data-title-key="view.reportLeave"><span class="ico">✓</span><span class="navLabel" data-i18n="view.reportLeave">รายงานการลา</span></button>
+          <button class="navBtn" data-view="report-payroll" data-url="./dashboard.html?embed=1&view=payroll" data-title-key="view.reportPayroll"><span class="ico">฿</span><span class="navLabel" data-i18n="view.reportPayroll">รายงานค่าแรง</span></button>
         </div>
         <div class="group" data-group="system"><div class="groupTitle" data-i18n="nav.system">ระบบ</div>
-          <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1" data-title-key="view.settings"><span class="ico">⚙</span><span class="navLabel" data-i18n="view.settings">ตั้งค่าระบบ</span></button>
           <button class="navBtn" data-view="permissions" data-url="./admin-settings.html?embed=1&view=permissions" data-title-key="view.permissions"><span class="ico">♙</span><span class="navLabel" data-i18n="view.permissions">สิทธิ์ผู้ใช้งาน</span></button>
-          <button class="navBtn" data-view="devices" data-url="./admin-settings.html?embed=1&view=devices" data-title-key="view.devices"><span class="ico">▣</span><span class="navLabel" data-i18n="view.devices">จัดการอุปกรณ์</span></button>
-          <button class="navBtn" data-view="master-data" data-url="./workforce.html?embed=1&view=master-data" data-title-key="view.masterData"><span class="ico">◆</span><span class="navLabel" data-i18n="view.masterData">Master Data</span></button>
-          <button class="navBtn" data-view="tools" data-url="./readiness.html?embed=1" data-title-key="view.tools"><span class="ico">⚒</span><span class="navLabel" data-i18n="view.tools">เครื่องมือระบบ</span></button>
+          <button class="navBtn" data-view="master-data" data-url="./admin-settings.html?embed=1&view=branches" data-title-key="view.masterData"><span class="ico">◆</span><span class="navLabel" data-i18n="view.masterData">ข้อมูลหลัก</span></button>
+          <button class="navBtn" data-view="devices" data-url="./admin-settings.html?embed=1&view=devices" data-title-key="view.devices"><span class="ico">▣</span><span class="navLabel" data-i18n="view.devices">อุปกรณ์</span></button>
+          <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1&view=backup" data-title-key="view.settings"><span class="ico">⚙</span><span class="navLabel" data-i18n="view.settings">ตั้งค่าระบบ</span></button>
+        </div>
+        <div class="group collapsed" data-group="coming-soon"><div class="groupTitle" data-i18n="nav.comingSoon">เร็ว ๆ นี้</div>
+          <button class="navBtn secondary" data-view="recruitment" data-url="./workforce.html?embed=1&view=recruitment" data-title-key="view.recruitment"><span class="ico">◎</span><span class="navLabel" data-i18n="view.recruitment">ระบบสรรหา</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="applicants" data-url="./workforce.html?embed=1&view=applicants" data-title-key="view.applicants"><span class="ico">•</span><span class="navLabel" data-i18n="view.applicants">ผู้สมัครงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="interviews" data-url="./workforce.html?embed=1&view=interviews" data-title-key="view.interviews"><span class="ico">•</span><span class="navLabel" data-i18n="view.interviews">นัดสัมภาษณ์</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="staffing" data-url="./workforce.html?embed=1&view=staffing" data-title-key="view.staffing"><span class="ico">•</span><span class="navLabel" data-i18n="view.staffing">แผนรับพนักงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="onboarding" data-url="./workforce.html?embed=1&view=onboarding" data-title-key="view.onboarding"><span class="ico">＋</span><span class="navLabel" data-i18n="view.onboarding">การเริ่มงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="activity" data-url="./workforce.html?embed=1&view=activity" data-title-key="view.activity"><span class="ico">▣</span><span class="navLabel" data-i18n="view.activity">บันทึกงานประจำวัน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="shift-check" data-url="./workforce.html?embed=1&view=shift-check" data-title-key="view.shiftCheck"><span class="ico">✓</span><span class="navLabel" data-i18n="view.shiftCheck">ตรวจความพร้อมประจำกะ</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="performance" data-url="./workforce.html?embed=1&view=performance" data-title-key="view.performance"><span class="ico">◇</span><span class="navLabel" data-i18n="view.performance">ผลการปฏิบัติงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="probation-review" data-url="./workforce.html?embed=1&view=probation-review" data-title-key="view.probationReview"><span class="ico">◇</span><span class="navLabel" data-i18n="view.probationReview">ประเมินช่วงทดลองงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="training" data-url="./workforce.html?embed=1&view=training" data-title-key="view.training"><span class="ico">◇</span><span class="navLabel" data-i18n="view.training">การฝึกอบรม</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="incident" data-url="./workforce.html?embed=1&view=incident" data-title-key="view.incident"><span class="ico">!</span><span class="navLabel" data-i18n="view.incident">เหตุการณ์พนักงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="movement" data-url="./workforce.html?embed=1&view=movement" data-title-key="view.movement"><span class="ico">↔</span><span class="navLabel" data-i18n="view.movement">การย้ายตำแหน่ง</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="offboarding" data-url="./workforce.html?embed=1&view=offboarding" data-title-key="view.offboarding"><span class="ico">↪</span><span class="navLabel" data-i18n="view.offboarding">การสิ้นสุดงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="retention" data-url="./workforce.html?embed=1&view=retention" data-title-key="view.reportRetention"><span class="ico">↻</span><span class="navLabel" data-i18n="view.reportRetention">รายงานการรักษาพนักงาน</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="advanced-kpi" data-url="./workforce.html?embed=1&view=advanced-kpi" data-title-key="view.advancedKpi"><span class="ico">◇</span><span class="navLabel" data-i18n="view.advancedKpi">ตัวชี้วัดขั้นสูง</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
+          <button class="navBtn secondary" data-view="advanced-reports" data-url="./workforce.html?embed=1&view=advanced-reports" data-title-key="view.advancedReports"><span class="ico">▤</span><span class="navLabel" data-i18n="view.advancedReports">รายงานขั้นสูง</span><span class="navBadge" data-i18n="common.comingSoon">เร็ว ๆ นี้</span></button>
         </div>
       </nav>
     </aside>
     <main class="main">
       <header class="topbar">
         <button class="topBtn mobileMenu" id="mobileMenu" type="button" data-i18n-title="workspace.menu">☰</button>
-        <div><div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><div class="uatTag">STAGING · UAT</div></div>
+        <div><div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><div class="uatTag" data-i18n="environment.staging">ระบบทดสอบ</div></div>
         <div class="spacer"></div>
-        <div class="languageSwitch" aria-label="Language"><button type="button" data-language="th">ไทย</button><button type="button" data-language="en">EN</button></div>
+        <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา"><button type="button" data-language="th" data-i18n="language.th">ไทย</button><button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button></div>
         <button class="topBtn" id="openBtn" type="button"><span data-i18n="workspace.openFull">เปิดเต็มหน้า</span> ↗</button>
         <button class="topBtn dangerBtn" id="logoutBtn" type="button"><span data-i18n="workspace.logout">ออกจากระบบ</span></button>
       </header>
-      <div class="frameWrap"><iframe id="contentFrame" title="KruaFlow Content" src="about:blank"></iframe></div>
+      <div class="frameWrap"><iframe id="contentFrame" data-i18n-title="workspace.content" title="เนื้อหาระบบบุคลากร" src="about:blank"></iframe></div>
     </main>
   </div>
 
@@ -148,6 +155,10 @@
     try { frame.contentWindow.postMessage({ type: 'KruaFlowAdminSession', token: value }, location.origin); } catch (_) {}
   }
 
+  function sendLanguage() {
+    try { frame.contentWindow.postMessage({ type: 'KruaFlowLanguage', language: I18N.getLanguage() }, location.origin); } catch (_) {}
+  }
+
   function openView(button, persist) {
     if (!button) return;
     buttons.forEach(function (item) { item.classList.toggle('active', item === button); });
@@ -186,7 +197,7 @@
       document.getElementById('adminPin').value = '';
       startWorkspace();
     } catch (error) {
-      errorBox.textContent = error.message || I18N.t('auth.failed');
+      errorBox.textContent = I18N.errorText(error);
       errorBox.classList.add('show');
     } finally {
       button.disabled = false;
@@ -200,7 +211,7 @@
     document.querySelectorAll('.group').forEach(function (group) {
       const key = group.dataset.group;
       const groupTitle = group.querySelector('.groupTitle');
-      if (saved[key]) group.classList.add('collapsed');
+      if (Object.prototype.hasOwnProperty.call(saved, key)) group.classList.toggle('collapsed', Boolean(saved[key]));
       groupTitle.setAttribute('role', 'button');
       groupTitle.setAttribute('tabindex', '0');
       function toggle() {
@@ -218,12 +229,16 @@
   }
 
   buttons.forEach(function (button) { button.onclick = function () { openView(button); }; });
-  frame.addEventListener('load', function () { setTimeout(sendAdminSession, 30); try { frame.contentWindow.scrollTo(0, 0); } catch (_) {} });
+  frame.addEventListener('load', function () { setTimeout(sendAdminSession, 30); setTimeout(sendLanguage, 35); try { frame.contentWindow.scrollTo(0, 0); } catch (_) {} });
   window.addEventListener('message', function (event) {
     if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
     if ((event.data || {}).type === 'KruaFlowAdminSessionRequest') sendAdminSession();
+    if ((event.data || {}).type === 'KruaFlowLanguageChange' && event.data.language !== I18N.getLanguage()) I18N.setLanguage(event.data.language);
   });
-  window.addEventListener('KruaFlowLanguageChange', refreshLanguage);
+  window.addEventListener('KruaFlowLanguageChange', function () {
+    refreshLanguage();
+    try { frame.contentWindow.postMessage({ type: 'KruaFlowLanguage', language: I18N.getLanguage() }, location.origin); } catch (_) {}
+  });
   document.getElementById('loginBtn').onclick = login;
   document.getElementById('adminPin').onkeydown = function (event) { if (event.key === 'Enter') login(); };
   document.getElementById('collapseBtn').onclick = function () { shell.classList.toggle('collapsed'); localStorage.setItem(KEY_COLLAPSE, shell.classList.contains('collapsed') ? '1' : '0'); };

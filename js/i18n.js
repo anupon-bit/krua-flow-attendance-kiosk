@@ -4,16 +4,21 @@
   const STORAGE_KEY = 'kruaflow.language.v1';
   const dictionaries = {
     th: {
-      'app.name': 'KruaFlow Workforce',
-      'app.uat': 'สภาพแวดล้อม UAT',
+      'app.name': 'KruaFlow ระบบบุคลากร',
+      'app.uat': 'ระบบทดสอบ',
+      'environment.staging': 'ระบบทดสอบ',
+      'environment.production': 'ระบบใช้งานจริง',
       'language.th': 'ไทย',
-      'language.en': 'EN',
+      'language.en': 'อังกฤษ',
+      'language.label': 'เลือกภาษา',
+      'workspace.navigation': 'เมนูระบบบุคลากร',
+      'workspace.content': 'เนื้อหาระบบบุคลากร',
       'auth.title': 'เข้าสู่ระบบผู้ดูแล',
-      'auth.subtitle': 'ใช้ PIN ผู้ดูแลเดิมเพื่อเปิด Workspace',
-      'auth.pin': 'PIN ผู้ดูแล',
+      'auth.subtitle': 'ใช้รหัสผู้ดูแลเดิมเพื่อเปิดพื้นที่ทำงาน',
+      'auth.pin': 'รหัสผู้ดูแล',
       'auth.submit': 'เข้าสู่ระบบ',
-      'auth.missingPin': 'กรุณากรอก PIN ผู้ดูแล',
-      'auth.missingSession': 'ไม่พบ Admin session กรุณาเปิดผ่าน Workspace',
+      'auth.missingPin': 'กรุณากรอกรหัสผู้ดูแล',
+      'auth.missingSession': 'ไม่พบสิทธิ์ผู้ดูแล กรุณาเปิดผ่านพื้นที่ทำงาน',
       'auth.failed': 'เข้าสู่ระบบไม่สำเร็จ',
       'workspace.openFull': 'เปิดเต็มหน้า',
       'workspace.logout': 'ออกจากระบบ',
@@ -22,44 +27,56 @@
       'nav.overview': 'ภาพรวม',
       'nav.recruitment': 'สรรหา',
       'nav.people': 'พนักงาน',
-      'nav.work': 'การทำงาน',
+      'nav.work': 'เวลาทำงาน',
       'nav.payroll': 'ค่าแรง',
       'nav.reports': 'รายงาน',
       'nav.system': 'ระบบ',
+      'nav.comingSoon': 'เร็ว ๆ นี้',
       'view.overview': 'ภาพรวมระบบ',
       'view.review': 'งานรอตรวจ',
       'view.notifications': 'แจ้งเตือน',
       'view.applicants': 'ผู้สมัครงาน',
       'view.interviews': 'นัดสัมภาษณ์',
       'view.staffing': 'แผนรับพนักงาน',
-      'view.employees': 'ภาพรวมพนักงาน',
-      'view.onboarding': 'Onboarding',
+      'view.employees': 'รายชื่อพนักงาน',
+      'view.employeeRegistration': 'เพิ่ม / ลงทะเบียนพนักงาน',
+      'view.onboarding': 'การเริ่มงาน',
       'view.employeeDocuments': 'เอกสารพนักงาน',
-      'view.offboarding': 'Offboarding',
+      'view.offboarding': 'การสิ้นสุดงาน',
       'view.schedule': 'ตารางงาน',
-      'view.attendance': 'เวลาเข้าออก',
+      'view.attendance': 'เวลาเข้า–ออก',
       'view.leave': 'การลา / วันหยุด',
-      'view.activity': 'Daily Activity',
-      'view.shiftCheck': 'Daily Shift Check',
+      'view.activity': 'บันทึกงานประจำวัน',
+      'view.shiftCheck': 'ตรวจความพร้อมประจำกะ',
       'view.payrollReview': 'ตรวจค่าแรง',
       'view.payrollPeriod': 'รอบค่าแรง',
       'view.paymentPrep': 'เตรียมจ่าย',
       'view.paymentHistory': 'ประวัติการจ่าย',
-      'view.reportWorkforce': 'กำลังคน',
-      'view.reportRecruitment': 'Recruitment',
-      'view.reportAttendance': 'Attendance',
-      'view.reportActivity': 'Activity',
-      'view.reportPerformance': 'Performance',
-      'view.reportPayroll': 'ค่าแรง',
-      'view.reportRetention': 'Retention',
+      'view.reportWorkforce': 'รายงานพนักงาน',
+      'view.reportRecruitment': 'รายงานการสรรหา',
+      'view.reportAttendance': 'รายงานเวลาเข้างาน',
+      'view.reportLeave': 'รายงานการลา',
+      'view.reportActivity': 'รายงานกิจกรรม',
+      'view.reportPerformance': 'รายงานผลการปฏิบัติงาน',
+      'view.reportPayroll': 'รายงานค่าแรง',
+      'view.reportRetention': 'รายงานการรักษาพนักงาน',
+      'view.recruitment': 'ระบบสรรหา',
+      'view.performance': 'ผลการปฏิบัติงาน',
+      'view.probationReview': 'ประเมินช่วงทดลองงาน',
+      'view.training': 'การฝึกอบรม',
+      'view.incident': 'เหตุการณ์พนักงาน',
+      'view.movement': 'การย้ายตำแหน่ง',
+      'view.advancedKpi': 'ตัวชี้วัดขั้นสูง',
+      'view.advancedReports': 'รายงานขั้นสูง',
       'view.settings': 'ตั้งค่าระบบ',
       'view.permissions': 'สิทธิ์ผู้ใช้งาน',
       'view.devices': 'จัดการอุปกรณ์',
-      'view.masterData': 'Master Data',
+      'view.masterData': 'ข้อมูลหลัก',
       'view.tools': 'เครื่องมือระบบ',
       'subtitle.dashboard': 'สถานะกำลังคน งานค้าง และสัญญาณที่ต้องติดตาม',
+      'subtitle.dashboardLive': 'ภาพรวมที่ต้องรู้และต้องดำเนินการวันนี้',
       'subtitle.queue': 'รวมรายการที่ต้องตรวจสอบไว้ในจุดเดียว',
-      'subtitle.notifications': 'แจ้งเตือนจากกระบวนการ Workforce',
+      'subtitle.notifications': 'แจ้งเตือนจากกระบวนการบุคลากร',
       'subtitle.attendance': 'ค้นหาและตรวจรายการเวลาเข้าออกแบบอ่านอย่างเดียว',
       'subtitle.payrollPeriod': 'ตรวจสถานะรอบค่าแรงโดยไม่เปลี่ยนข้อมูล',
       'subtitle.preview': 'สำรวจรูปแบบการใช้งานก่อนเปิดโมดูลจริง',
@@ -81,6 +98,7 @@
       'common.noResults': 'ไม่พบข้อมูล',
       'common.readOnly': 'อ่านอย่างเดียว',
       'common.preview': 'ตัวอย่าง',
+      'common.comingSoon': 'เร็ว ๆ นี้',
       'common.total': 'ทั้งหมด',
       'common.pending': 'รอตรวจ',
       'common.completed': 'เสร็จแล้ว',
@@ -89,11 +107,14 @@
       'common.notAvailable': '—',
       'common.error': 'โหลดข้อมูลไม่สำเร็จ',
       'common.errorHint': 'ตรวจสอบการเชื่อมต่อแล้วลองใหม่อีกครั้ง',
-      'preview.label': 'โหมดตัวอย่าง UAT — ฟังก์ชันนี้ยังไม่เปิดใช้งาน',
-      'preview.body': 'หน้านี้แสดงโครงสร้าง UX และข้อมูลตัวอย่างเท่านั้น ปุ่มที่เขียนข้อมูลถูกปิดไว้',
+      'error.timeout': 'ระบบตอบสนองช้าเกินไป กรุณาลองใหม่',
+      'error.invalidUrl': 'ที่อยู่ระบบไม่ถูกต้อง',
+      'error.unauthorized': 'สิทธิ์ผู้ดูแลหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
+      'preview.label': 'เร็ว ๆ นี้ — ฟังก์ชันนี้อยู่ระหว่างพัฒนาและยังไม่เปิดใช้งานจริง',
+      'preview.body': 'หน้านี้เปิดให้ตรวจรูปแบบการใช้งานเท่านั้น ปุ่มที่เขียนข้อมูลถูกปิดไว้',
       'preview.noWrite': 'ไม่มีการเขียนข้อมูลจริง',
-      'preview.sampleData': 'ข้อมูลตัวอย่างสำหรับตรวจ UX',
-      'preview.actionDisabled': 'เปิดใช้งานหลังผ่าน UAT',
+      'preview.sampleData': 'ข้อมูลตัวอย่างสำหรับตรวจการใช้งาน',
+      'preview.actionDisabled': 'เปิดใช้งานหลังผ่านการทดสอบ',
       'metric.activeEmployees': 'พนักงานที่ใช้งาน',
       'metric.pendingItems': 'รายการรอตรวจ',
       'metric.todayAttendance': 'ลงเวลาในวันนี้',
@@ -101,6 +122,20 @@
       'metric.unread': 'ยังไม่อ่าน',
       'metric.periods': 'รอบค่าแรง',
       'metric.previewRecords': 'รายการตัวอย่าง',
+      'metric.scheduledToday': 'ต้องมาทำงานวันนี้',
+      'metric.arrived': 'มาแล้ว',
+      'metric.notArrived': 'ยังไม่เข้า',
+      'metric.late': 'มาสาย',
+      'metric.onLeave': 'ลา',
+      'metric.noCheckout': 'ไม่มีเวลาออก',
+      'metric.payrollReview': 'ค่าแรงที่ต้องตรวจ',
+      'dashboard.actionToday': 'ต้องดำเนินการวันนี้',
+      'dashboard.importantAlerts': 'แจ้งเตือนสำคัญ',
+      'dashboard.todayAttendance': 'สถานะเวลาทำงานวันนี้',
+      'dashboard.openWork': 'งานที่ยังต้องตรวจ',
+      'dashboard.openModule': 'เปิดหน้าจัดการ',
+      'dashboard.noAction': 'วันนี้ยังไม่มีรายการเร่งด่วน',
+      'dashboard.sectionUnavailable': 'ส่วนนี้โหลดไม่สำเร็จ แต่ส่วนอื่นยังใช้งานได้',
       'table.person': 'บุคคล',
       'table.employee': 'พนักงาน',
       'table.module': 'โมดูล',
@@ -144,18 +179,30 @@
       'status.medium': 'ปานกลาง',
       'status.low': 'ต่ำ',
       'status.probation': 'ทดลองงาน',
+      'status.final': 'สรุปยอดแล้ว',
+      'status.hold': 'พักการดำเนินการ',
+      'status.disputed': 'มีข้อโต้แย้ง',
+      'status.cancelled': 'ยกเลิก',
+      'status.ready': 'พร้อมดำเนินการ',
+      'status.accepted': 'ยืนยันแล้ว',
+      'status.unknown': 'ไม่ระบุสถานะ',
       'sample.record1': 'รายการตัวอย่าง 01',
       'sample.record2': 'รายการตัวอย่าง 02',
-      'sample.owner': 'ทีม Workforce',
+      'sample.owner': 'ทีมบุคลากร',
       'environment.unknown': 'ไม่ทราบสภาพแวดล้อม',
-      'schema.notReady': 'Workforce V2 schema ยังไม่พร้อม',
-      'schema.disabled': 'Workforce V2 ยังไม่เปิดในสภาพแวดล้อมนี้'
+      'schema.notReady': 'โครงสร้างระบบบุคลากรรุ่นใหม่ยังไม่พร้อม',
+      'schema.disabled': 'ระบบบุคลากรรุ่นใหม่ยังไม่เปิดในสภาพแวดล้อมนี้'
     },
     en: {
       'app.name': 'KruaFlow Workforce',
       'app.uat': 'UAT environment',
+      'environment.staging': 'STAGING',
+      'environment.production': 'PRODUCTION',
       'language.th': 'TH',
       'language.en': 'English',
+      'language.label': 'Select language',
+      'workspace.navigation': 'Workforce navigation',
+      'workspace.content': 'Workforce content',
       'auth.title': 'Administrator sign in',
       'auth.subtitle': 'Use the existing administrator PIN to open the Workspace',
       'auth.pin': 'Administrator PIN',
@@ -174,6 +221,7 @@
       'nav.payroll': 'Payroll',
       'nav.reports': 'Reports',
       'nav.system': 'System',
+      'nav.comingSoon': 'Coming Soon',
       'view.overview': 'System overview',
       'view.review': 'Review queue',
       'view.notifications': 'Notifications',
@@ -181,6 +229,7 @@
       'view.interviews': 'Interviews',
       'view.staffing': 'Hiring plan',
       'view.employees': 'Employee overview',
+      'view.employeeRegistration': 'Add / register employee',
       'view.onboarding': 'Onboarding',
       'view.employeeDocuments': 'Employee documents',
       'view.offboarding': 'Offboarding',
@@ -196,16 +245,26 @@
       'view.reportWorkforce': 'Workforce',
       'view.reportRecruitment': 'Recruitment',
       'view.reportAttendance': 'Attendance',
+      'view.reportLeave': 'Leave',
       'view.reportActivity': 'Activity',
       'view.reportPerformance': 'Performance',
       'view.reportPayroll': 'Payroll',
       'view.reportRetention': 'Retention',
+      'view.recruitment': 'Recruitment',
+      'view.performance': 'Performance',
+      'view.probationReview': 'Probation Review',
+      'view.training': 'Training',
+      'view.incident': 'Incident',
+      'view.movement': 'Movement',
+      'view.advancedKpi': 'Advanced KPI',
+      'view.advancedReports': 'Advanced reports',
       'view.settings': 'System settings',
       'view.permissions': 'User permissions',
       'view.devices': 'Device management',
       'view.masterData': 'Master Data',
       'view.tools': 'System tools',
       'subtitle.dashboard': 'Workforce status, open work and signals requiring attention',
+      'subtitle.dashboardLive': 'What you need to know and act on today',
       'subtitle.queue': 'Review pending workforce items in one place',
       'subtitle.notifications': 'Notifications from workforce processes',
       'subtitle.attendance': 'Search and review attendance records in read-only mode',
@@ -229,6 +288,7 @@
       'common.noResults': 'No results',
       'common.readOnly': 'Read only',
       'common.preview': 'Preview',
+      'common.comingSoon': 'Coming Soon',
       'common.total': 'Total',
       'common.pending': 'Pending',
       'common.completed': 'Completed',
@@ -237,8 +297,11 @@
       'common.notAvailable': '—',
       'common.error': 'Unable to load data',
       'common.errorHint': 'Check the connection and try again',
-      'preview.label': 'UAT Preview — this feature is not enabled',
-      'preview.body': 'This screen shows the UX structure and sample data only. Data-writing actions are disabled.',
+      'error.timeout': 'The system took too long to respond. Please try again.',
+      'error.invalidUrl': 'The system address is invalid.',
+      'error.unauthorized': 'The administrator session has expired. Please sign in again.',
+      'preview.label': 'Coming Soon — This feature is under development and is not yet available for live use.',
+      'preview.body': 'This screen is available for experience review only. Data-writing actions are disabled.',
       'preview.noWrite': 'No production data writes',
       'preview.sampleData': 'Sample data for UX review',
       'preview.actionDisabled': 'Available after UAT approval',
@@ -249,6 +312,20 @@
       'metric.unread': 'Unread',
       'metric.periods': 'Payroll periods',
       'metric.previewRecords': 'Sample records',
+      'metric.scheduledToday': 'Scheduled today',
+      'metric.arrived': 'Arrived',
+      'metric.notArrived': 'Not checked in',
+      'metric.late': 'Late',
+      'metric.onLeave': 'On leave',
+      'metric.noCheckout': 'No check-out',
+      'metric.payrollReview': 'Payroll to review',
+      'dashboard.actionToday': 'Action required today',
+      'dashboard.importantAlerts': 'Important alerts',
+      'dashboard.todayAttendance': 'Today’s attendance',
+      'dashboard.openWork': 'Open review items',
+      'dashboard.openModule': 'Open workspace',
+      'dashboard.noAction': 'There are no urgent items today',
+      'dashboard.sectionUnavailable': 'This section could not load; other sections remain available',
       'table.person': 'Person',
       'table.employee': 'Employee',
       'table.module': 'Module',
@@ -292,6 +369,13 @@
       'status.medium': 'Medium',
       'status.low': 'Low',
       'status.probation': 'Probation',
+      'status.final': 'Final',
+      'status.hold': 'On hold',
+      'status.disputed': 'Disputed',
+      'status.cancelled': 'Cancelled',
+      'status.ready': 'Ready',
+      'status.accepted': 'Accepted',
+      'status.unknown': 'Unknown status',
       'sample.record1': 'Sample record 01',
       'sample.record2': 'Sample record 02',
       'sample.owner': 'Workforce team',
@@ -315,9 +399,20 @@
     });
   }
 
+  const missingKeys = new Set();
+
   function t(key, vars) {
     const language = getLanguage();
-    const value = dictionaries[language][key] || dictionaries.th[key] || key;
+    const selected = dictionaries[language] || dictionaries.th;
+    let value = Object.prototype.hasOwnProperty.call(selected, key) ? selected[key] : undefined;
+    if (value === undefined && language !== 'th' && Object.prototype.hasOwnProperty.call(dictionaries.th, key)) value = dictionaries.th[key];
+    if (value === undefined) {
+      if (!missingKeys.has(key)) {
+        missingKeys.add(key);
+        if (global.console && typeof global.console.warn === 'function') global.console.warn('[KruaFlow i18n] missing key:', key, 'locale:', language);
+      }
+      value = '—';
+    }
     return interpolate(value, vars);
   }
 
@@ -332,6 +427,9 @@
     });
     scope.querySelectorAll('[data-i18n-title]').forEach(function (node) {
       node.setAttribute('title', t(node.dataset.i18nTitle));
+    });
+    scope.querySelectorAll('[data-i18n-aria-label]').forEach(function (node) {
+      node.setAttribute('aria-label', t(node.dataset.i18nAriaLabel));
     });
     scope.querySelectorAll('[data-language]').forEach(function (node) {
       const active = node.dataset.language === getLanguage();
@@ -357,10 +455,25 @@
     apply(root || document);
   }
 
+  function errorText(error) {
+    const raw = String(error && error.message ? error.message : error || '').trim();
+    if (!raw) return t('common.errorHint');
+    if (getLanguage() === 'en') return raw;
+    if (/ตอบช้า|ไม่ตอบสนอง|timeout/i.test(raw)) return t('error.timeout');
+    if (/Backend URL|URL.*ไม่ถูก|invalid.*url/i.test(raw)) return t('error.invalidUrl');
+    if (/Admin|Token|session|หมดอายุ|สิทธิ์/i.test(raw)) return t('error.unauthorized');
+    if (/[A-Za-z]{2,}/.test(raw)) {
+      if (global.console && typeof global.console.warn === 'function') global.console.warn('[KruaFlow i18n] untranslated error:', raw);
+      return t('common.errorHint');
+    }
+    return raw;
+  }
+
   global.KruaFlowI18n = Object.freeze({
     apply: apply,
     bindLanguageSwitchers: bindLanguageSwitchers,
     dictionaries: dictionaries,
+    errorText: errorText,
     getLanguage: getLanguage,
     setLanguage: setLanguage,
     t: t
