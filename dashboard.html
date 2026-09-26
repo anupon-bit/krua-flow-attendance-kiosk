@@ -18,6 +18,14 @@ body.kfEmbedded .side{display:none}
 body.kfEmbedded .main{padding:12px}
 body.kfEmbedded .top .title{display:none}
 body.kfEmbedded .top{grid-template-columns:auto auto minmax(260px,1fr) auto}
+body.kfEmbedded.kfViewPayroll .top,body.kfEmbedded.kfViewPayroll .kpis,body.kfEmbedded.kfViewPayroll .topGrid{display:none}
+body.kfEmbedded.kfViewPayroll .lower{grid-template-columns:1fr}
+body.kfEmbedded.kfViewPayroll .stack{display:none}
+body.kfEmbedded.kfViewBank .top,body.kfEmbedded.kfViewBank .kpis,body.kfEmbedded.kfViewBank .topGrid,body.kfEmbedded.kfViewBank #payroll{display:none}
+body.kfEmbedded.kfViewBank .lower{grid-template-columns:1fr}
+body.kfEmbedded.kfViewBank .stack{display:block}
+body.kfEmbedded.kfViewBank .review{display:none}
+body.kfEmbedded.kfViewBank #bank{margin:0}
 @media(max-width:850px){body.kfEmbedded .top{grid-template-columns:1fr}}
 </style></head><body>
 <iframe name="apiSink" id="apiSink" style="display:none"></iframe><div class="loading" id="loading"><div class="loadBox"><div id="loadText">กำลังโหลด Dashboard...</div><div class="prog"><div id="prog"></div></div></div></div>
@@ -57,7 +65,12 @@ body.kfEmbedded .top{grid-template-columns:auto auto minmax(260px,1fr) auto}
 <button class="download" id="download">⇩ ดาวน์โหลดไฟล์จ่ายธนาคาร</button><div class="secBtns" id="export"><button id="preview">▣ ดูตัวอย่างไฟล์</button><button id="excel">▦ ส่งออก Excel</button></div><div class="small" style="margin-top:9px">Bank Transfer File ใช้โครงกลางก่อน จนกว่าจะกำหนดรูปแบบธนาคารที่ใช้จริง</div></section>
 <section class="card review"><div class="cardTitle">รายการต้องตรวจสอบ</div><div class="reviewItem"><span>🔴 ไม่มีเวลาเข้า</span><span id="rNoIn">0 คน</span></div><div class="reviewItem"><span>🟠 ไม่มีเวลาออก</span><span id="rNoOut">0 คน</span></div><div class="reviewItem"><span>🏦 ข้อมูลบัญชีธนาคารไม่ครบ</span><span id="rBank">0 คน</span></div><div class="reviewItem"><span>🟪 เงินเพิ่ม/เงินหักผิดปกติ</span><span id="rAdj">0 คน</span></div></section></aside></div></main></div>
 <script>
-if(new URLSearchParams(location.search).get('embed')==='1')document.body.classList.add('kfEmbedded');
+try{history.scrollRestoration='manual'}catch(e){}
+const __kfParams=new URLSearchParams(location.search),__kfEmbed=__kfParams.get('embed')==='1',__kfView=__kfParams.get('view')||'overview';
+if(__kfEmbed)document.body.classList.add('kfEmbedded');
+if(__kfEmbed&&__kfView==='payroll')document.body.classList.add('kfViewPayroll');
+if(__kfEmbed&&__kfView==='bank')document.body.classList.add('kfViewBank');
+window.addEventListener('pageshow',()=>{if(__kfEmbed)setTimeout(()=>window.scrollTo(0,0),0)});
 
 (function(){const $=id=>document.getElementById(id),SS='kruaFlowAdminTokenV4',LS_ADMIN='kruaFlowAdminTokenPersistentV1',LS_ADMIN_EXP='kruaFlowAdminTokenPersistentExpV1',state={api:'',token:'',employees:[],payroll:[],summary:null,start:'',end:'',payDate:'',mode:'WEEKLY',snapshots:{},selected:new Set(),snapshotBackend:true};
 function money(v){return (Number(v)||0).toLocaleString('th-TH',{maximumFractionDigits:0})+' บาท'}function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
