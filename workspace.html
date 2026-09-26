@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>KruaFlow ศูนย์ควบคุม</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#16304b;--muted:#73839a;--line:#e1e8f0;--nav:#123e66;--blue:#2474df;--warn:#b86a00}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Noto Sans Thai","Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+button{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:250px 1fr;overflow:hidden}.shell.collapsed{grid-template-columns:78px 1fr}
+.sidebar{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;transition:.2s}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 16px 12px}.brandMark{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#1769c5,#3e93ef);color:#fff;display:grid;place-items:center;font-weight:1000}.brandText{min-width:0}.brandName{font-size:22px;font-weight:1000;color:#0e5687}.brandSub{font-size:12px;color:var(--muted);font-weight:800}
+.collapseBtn{margin-left:auto;width:36px;height:36px;border:0;border-radius:10px;background:#eef3f8;color:#35516d;font-weight:1000;cursor:pointer}
+.nav{overflow:auto;padding:4px 10px 18px}.group{margin-top:12px}.groupTitle{font-size:11px;font-weight:950;color:#97a3b2;padding:6px 11px;text-transform:uppercase;letter-spacing:.04em}
+.navBtn{width:100%;border:0;background:transparent;border-radius:11px;padding:11px 12px;display:flex;align-items:center;gap:11px;text-align:left;color:#294864;font-weight:900;cursor:pointer;margin:2px 0}.navBtn:hover{background:#f0f5fa}.navBtn.active{background:#e7f2ff;color:#145f9b}.ico{width:25px;text-align:center;font-size:18px;flex:0 0 25px}.navLabel{white-space:nowrap}.navNote{margin-left:auto;font-size:10px;padding:3px 6px;border-radius:999px;background:#fff1d8;color:var(--warn)}
+.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navNote{display:none}.shell.collapsed .brand{justify-content:center;padding-left:8px;padding-right:8px;flex-wrap:wrap}.shell.collapsed .collapseBtn{margin:0}.shell.collapsed .navBtn{justify-content:center;padding:12px 8px}
+.main{min-width:0;display:grid;grid-template-rows:64px 1fr}.topbar{background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 16px}.pageTitle{font-size:18px;font-weight:1000}.spacer{flex:1}.topBtn{border:1px solid var(--line);background:#fff;border-radius:10px;min-height:40px;padding:0 12px;font-weight:900;cursor:pointer;color:#35516d}.frameWrap{min-height:0;padding:0;background:var(--bg)}iframe{width:100%;height:100%;border:0;background:var(--bg)}
+.mobileMenu{display:none}
+@media(max-width:820px){
+  .shell,.shell.collapsed{grid-template-columns:1fr}.sidebar{position:fixed;inset:0 auto 0 0;width:min(290px,86vw);z-index:20;transform:translateX(-102%);box-shadow:0 12px 40px #0002}.shell.menuOpen .sidebar{transform:translateX(0)}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navNote{display:block}.shell.collapsed .navBtn{justify-content:flex-start;padding:11px 12px}.mobileMenu{display:inline-flex}.collapseBtn{display:none}.main{grid-column:1}.topbar{padding:0 10px}.pageTitle{font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="shell" id="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brandMark">KF</div>
+      <div class="brandText"><div class="brandName">KruaFlow</div><div class="brandSub">ศูนย์ควบคุมผู้ดูแล</div></div>
+      <button class="collapseBtn" id="collapseBtn" title="ย่อเมนู">‹</button>
+    </div>
+    <nav class="nav">
+      <div class="group">
+        <div class="groupTitle">ภาพรวม</div>
+        <button class="navBtn active" data-view="overview" data-url="./dashboard.html" data-title="ภาพรวมระบบ"><span class="ico">⌂</span><span class="navLabel">ภาพรวมระบบ</span></button>
+      </div>
+      <div class="group">
+        <div class="groupTitle">พนักงาน</div>
+        <button class="navBtn" data-view="employees" data-url="./admin.html" data-title="ภาพรวมพนักงาน"><span class="ico">👥</span><span class="navLabel">ภาพรวมพนักงาน</span></button>
+        <button class="navBtn" data-view="register" data-url="./register.html" data-title="รับพนักงานใหม่"><span class="ico">＋</span><span class="navLabel">รับพนักงานใหม่</span></button>
+      </div>
+      <div class="group">
+        <div class="groupTitle">การทำงาน</div>
+        <button class="navBtn" data-view="schedule" data-url="./schedule.html" data-title="ตารางงาน"><span class="ico">▦</span><span class="navLabel">ตารางงาน</span></button>
+        <button class="navBtn" data-view="manager" data-url="./manager.html" data-title="บริหารทีม"><span class="ico">✓</span><span class="navLabel">บริหารทีม</span></button>
+        <button class="navBtn" data-view="kiosk" data-url="./index.html" data-title="เครื่องลงเวลา"><span class="ico">◷</span><span class="navLabel">เครื่องลงเวลา</span></button>
+        <button class="navBtn" type="button" disabled><span class="ico">▣</span><span class="navLabel">บันทึกงานประจำวัน</span><span class="navNote">กำลังพัฒนา</span></button>
+      </div>
+      <div class="group">
+        <div class="groupTitle">ระบบ</div>
+        <button class="navBtn" data-view="settings" data-url="./admin-settings.html" data-title="ตั้งค่าระบบ"><span class="ico">⚙</span><span class="navLabel">ตั้งค่าระบบ</span></button>
+        <button class="navBtn" data-view="readiness" data-url="./readiness.html" data-title="เครื่องมือระบบ"><span class="ico">⚒</span><span class="navLabel">เครื่องมือระบบ</span></button>
+      </div>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <button class="topBtn mobileMenu" id="mobileMenu">☰</button>
+      <div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div>
+      <div class="spacer"></div>
+      <button class="topBtn" id="reloadBtn">รีเฟรชหน้านี้</button>
+      <button class="topBtn" id="openBtn">เปิดเต็มหน้า</button>
+    </header>
+    <div class="frameWrap"><iframe id="contentFrame" title="KruaFlow Content" src="./dashboard.html"></iframe></div>
+  </main>
+</div>
+<script>
+(()=>{
+  const shell=document.getElementById('shell'),frame=document.getElementById('contentFrame'),title=document.getElementById('pageTitle');
+  const buttons=[...document.querySelectorAll('.navBtn[data-url]')];
+  const KEY_VIEW='kfOwnerWorkspaceViewV1',KEY_COLLAPSE='kfOwnerWorkspaceCollapsedV1';
+  function openView(btn,persist=true){
+    if(!btn)return;
+    buttons.forEach(x=>x.classList.toggle('active',x===btn));
+    frame.src=btn.dataset.url;
+    title.textContent=btn.dataset.title||btn.textContent.trim();
+    if(persist)localStorage.setItem(KEY_VIEW,btn.dataset.view||'overview');
+    shell.classList.remove('menuOpen');
+  }
+  buttons.forEach(btn=>btn.onclick=()=>openView(btn));
+  document.getElementById('collapseBtn').onclick=()=>{
+    shell.classList.toggle('collapsed');
+    localStorage.setItem(KEY_COLLAPSE,shell.classList.contains('collapsed')?'1':'0');
+  };
+  document.getElementById('mobileMenu').onclick=()=>shell.classList.toggle('menuOpen');
+  document.getElementById('reloadBtn').onclick=()=>{try{frame.contentWindow.location.reload()}catch(e){frame.src=frame.src}};
+  document.getElementById('openBtn').onclick=()=>window.open(frame.src,'_blank','noopener');
+  if(localStorage.getItem(KEY_COLLAPSE)==='1')shell.classList.add('collapsed');
+  const q=new URLSearchParams(location.search).get('view');
+  const saved=q||localStorage.getItem(KEY_VIEW)||'overview';
+  const start=buttons.find(x=>x.dataset.view===saved)||buttons[0];
+  openView(start,false);
+})();
+</script>
+</body>
+</html>
