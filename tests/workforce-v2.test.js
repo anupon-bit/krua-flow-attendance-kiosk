@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const core=require('../apps-script/WorkforceV2.js');
 const performance=require('../apps-script/WorkforcePerformanceV2.js');
+const reports=require('../apps-script/WorkforceReportsV2.js');
 
 assert.equal(core.normalizePhone('+66 81-234-5678'),'0812345678');
 assert.equal(core.normalizePhone('081 234 5678'),'0812345678');
@@ -19,4 +20,18 @@ assert.equal(performance.scoreMetric(95,90,'HIGHER_IS_BETTER'),100);
 assert.equal(performance.scoreMetric(4,5,'LOWER_IS_BETTER'),100);
 assert.equal(performance.scoreMetric(1,0,'LOWER_IS_BETTER'),0);
 assert.equal(performance.scoreMetric(null,90,'HIGHER_IS_BETTER'),null);
+assert.equal(reports.passedApplicantCount([
+  {'Applicant ID':'A1','Result':'PASSED'},
+  {'Applicant ID':'A1','Result':'PASSED'},
+  {'Applicant ID':'A2','Result':'REJECTED'},
+  {'Applicant ID':'A3','Result':'PASSED'}
+]),2);
+const scoped=reports.scopedExits([
+  {'Employee ID':'E1','Status':'EXITED','Last Working Date':'2026-01-15'},
+  {'Employee ID':'E2','Status':'EXITED','Last Working Date':'2026-01-20'},
+  {'Employee ID':'E1','Status':'NOTICE_PERIOD','Last Working Date':'2026-01-25'},
+  {'Employee ID':'E1','Status':'EXITED','Last Working Date':'2025-12-31'}
+],new Set(['E1']),'2026-01-01','2026-01-31',value=>String(value));
+assert.equal(scoped.length,1);
+assert.equal(scoped[0]['Employee ID'],'E1');
 console.log('workforce-v2 tests: pass');

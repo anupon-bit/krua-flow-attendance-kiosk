@@ -116,7 +116,31 @@ function wf2AdminMigrate_(payload) {
   requireAdmin_(String(payload.adminToken||''));
   const apply=payload.apply===true;
   const ss=SpreadsheetApp.openById(SPREADSHEET_ID);
-  const plan={schemaVersion:WF2_SCHEMA_VERSION_,mode:apply?'APPLY':'DRY_RUN',sheets:[],columns:[],backfill:null};
+  const backfillRequested=payload.backfillLegacy===true;
+  const settingSpecs=WF2_FLAGS_.map(key=>({key:key,value:'FALSE',description:'Workforce V2 feature flag — enable in STAGING after UAT'})).concat([
+    {key:'WORKFORCE_SCHEMA_VERSION',value:WF2_SCHEMA_VERSION_,description:'Additive workforce schema version'},
+    {key:'DOCUMENT_MAX_BYTES',value:'10485760',description:'Maximum document size (10 MB)'}
+  ]);
+  const settingRows=wf2MigrationSettings_(ss);
+  const settings=settingSpecs.map(spec=>({
+    key:spec.key,
+    exists:Object.prototype.hasOwnProperty.call(settingRows,spec.key),
+    currentValue:Object.prototype.hasOwnProperty.call(settingRows,spec.key)?String(settingRows[spec.key]):'',
+    plannedValue:spec.value,
+    action:Object.prototype.hasOwnProperty.call(settingRows,spec.key)?'PRESERVE':'CREATE'
+  }));
+  const enabledFlags=settings.filter(item=>WF2_FLAGS_.indexOf(item.key)>=0&&/^(1|true|yes|on)$/i.test(item.currentValue));
+  const schemaSetting=settings.find(item=>item.key==='WORKFORCE_SCHEMA_VERSION');
+  const legacyBefore=wf2MigrationLegacyCounts_(ss);
+  const plan={
+    schemaVersion:WF2_SCHEMA_VERSION_,mode:apply?'APPLY':'DRY_RUN',sheets:[],columns:[],settings:settings,
+    seeds:wf2MigrationSeedPlan_(ss),backfillRequested:backfillRequested,backfill:null,
+    safeguards:{deleteOperations:0,reorderOperations:0,legacyRowOverwriteOperations:0,backfillAllowed:backfillRequested},
+    legacyRowCounts:{before:legacyBefore,after:null,unchanged:null},
+    rowsModified:{legacyExistingRows:0,settingsInserted:0,kpiSeedsInserted:0,positionSeedsInserted:0,auditRowsAppended:apply?1:0}
+  };
+  if(apply&&enabledFlags.length)throw new Error('หยุด migration: feature flags ต้องเป็น FALSE ก่อน apply ('+enabledFlags.map(item=>item.key).join(', ')+')');
+  if(apply&&schemaSetting&&schemaSetting.exists&&schemaSetting.currentValue&&schemaSetting.currentValue!==WF2_SCHEMA_VERSION_)throw new Error('หยุด migration: WORKFORCE_SCHEMA_VERSION ปัจจุบันไม่ตรงกับ '+WF2_SCHEMA_VERSION_);
   Object.keys(WF2_SHEETS_).forEach(name=>{
     const existing=ss.getSheetByName(name);
     const current=existing&&existing.getLastColumn()>0?existing.getRange(1,1,1,existing.getLastColumn()).getDisplayValues()[0].filter(String):[];
@@ -135,12 +159,38 @@ function wf2AdminMigrate_(payload) {
     WF2_FLAGS_.forEach(flag=>ensureSettingV7_(flag,'FALSE','Workforce V2 feature flag — enable in STAGING after UAT'));
     ensureSettingV7_('WORKFORCE_SCHEMA_VERSION',WF2_SCHEMA_VERSION_,'Additive workforce schema version');
     ensureSettingV7_('DOCUMENT_MAX_BYTES','10485760','Maximum document size (10 MB)');
-    wf2SeedKpis_();
-    wf2SeedPositions_();
-    if(payload.backfillLegacy===true) plan.backfill=wf2BackfillLegacyPeople_();
+    plan.rowsModified.settingsInserted=settings.filter(item=>item.action==='CREATE').length;
+    plan.rowsModified.kpiSeedsInserted=wf2SeedKpis_();
+    plan.rowsModified.positionSeedsInserted=wf2SeedPositions_();
+    if(backfillRequested) plan.backfill=wf2BackfillLegacyPeople_();
     auditLogV7_('ADMIN','ADMIN','MIGRATE_WORKFORCE_SCHEMA','SYSTEM','WORKFORCE_V2','',{version:WF2_SCHEMA_VERSION_,backfill:plan.backfill||null},'',String(payload.requestId||''));
+    const legacyAfter=wf2MigrationLegacyCounts_(ss);
+    plan.legacyRowCounts.after=legacyAfter;
+    plan.legacyRowCounts.unchanged=Object.keys(legacyBefore).every(name=>legacyBefore[name]===legacyAfter[name]);
   }
   return {ok:true,plan:plan,serverEpochMs:Date.now()};
+}
+
+function wf2MigrationSettings_(ss){
+  const sh=ss.getSheetByName(SETTINGS_SHEET),out={};
+  if(!sh||sh.getLastRow()<2)return out;
+  sh.getRange(2,1,sh.getLastRow()-1,2).getValues().forEach(row=>{const key=String(row[0]||'');if(key)out[key]=row[1]});
+  return out;
+}
+
+function wf2MigrationLegacyCounts_(ss){
+  const out={};
+  [EMPLOYEE_SHEET,ATTENDANCE_SHEET,LEAVE_SHEET,'Payroll_Snapshots',REGISTRATION_SHEET].forEach(name=>{const sh=ss.getSheetByName(name);out[name]=sh?Math.max(0,sh.getLastRow()-1):null});
+  return out;
+}
+
+function wf2MigrationSeedPlan_(ss){
+  const kpi=ss.getSheetByName('KPI_Definitions'),positions=ss.getSheetByName('Positions');
+  const kpiRows=kpi?Math.max(0,kpi.getLastRow()-1):0,positionRows=positions?Math.max(0,positions.getLastRow()-1):0;
+  return{
+    kpiDefinitions:{existingRows:kpiRows,action:kpiRows?'PRESERVE':'INSERT_DEFAULTS',plannedKeys:kpiRows?[]:wf2KpiDictionary_().map(item=>item.key)},
+    positions:{existingRows:positionRows,action:positionRows?'PRESERVE':'INSERT_DEFAULTS',plannedCodes:positionRows?[]:['MANAGER','SUPERVISOR','STAFF']}
+  };
 }
 
 function wf2AdminSetFeatureFlag_(payload) {
@@ -450,7 +500,7 @@ function wf2KpiDictionary_(){return[
   {key:'offer_acceptance_rate',name:'Offer Acceptance Rate',source:'Offers',formula:'accepted offers / sent offers',unit:'PERCENT'},
   {key:'retention_90_day',name:'90-day Retention',source:'Employees + Employee_Exits',formula:'employees active after 90 days / employees started 90+ days ago',unit:'PERCENT'}
 ]}
-function wf2SeedKpis_(){const existing=wf2Rows_('KPI_Definitions');if(existing.length)return;wf2KpiDictionary_().forEach(k=>wf2Append_('KPI_Definitions',{'KPI Key':k.key,'Name':k.name,'Description':k.formula,'Source':k.source,'Formula Type':'RATIO','Formula':k.formula,'Numerator':k.formula.split(' / ')[0],'Denominator':k.formula.split(' / ')[1]||'','Unit':k.unit,'Period':'CONFIGURABLE','Direction':'HIGHER_IS_BETTER','Weight':0,'Owner':'HR','Data Quality Status':'NOT_EVALUATED','Active':true,'Created At':new Date(),'Updated At':new Date()}))}
-function wf2SeedPositions_(){if(wf2Rows_('Positions').length)return;[['MANAGER','ผู้จัดการ',''],['SUPERVISOR','หัวหน้างาน',''],['STAFF','พนักงาน','']].forEach((p,i)=>wf2Append_('Positions',{'Position Code':p[0],'Position Name':p[1],'Department Code':p[2],'Active':true,'Sort Order':i+1,'Created At':new Date(),'Updated At':new Date()}))}
+function wf2SeedKpis_(){const existing=wf2Rows_('KPI_Definitions');if(existing.length)return 0;const seeds=wf2KpiDictionary_();seeds.forEach(k=>wf2Append_('KPI_Definitions',{'KPI Key':k.key,'Name':k.name,'Description':k.formula,'Source':k.source,'Formula Type':'RATIO','Formula':k.formula,'Numerator':k.formula.split(' / ')[0],'Denominator':k.formula.split(' / ')[1]||'','Unit':k.unit,'Period':'CONFIGURABLE','Direction':'HIGHER_IS_BETTER','Weight':0,'Owner':'HR','Data Quality Status':'NOT_EVALUATED','Active':true,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
+function wf2SeedPositions_(){if(wf2Rows_('Positions').length)return 0;const seeds=[['MANAGER','ผู้จัดการ',''],['SUPERVISOR','หัวหน้างาน',''],['STAFF','พนักงาน','']];seeds.forEach((p,i)=>wf2Append_('Positions',{'Position Code':p[0],'Position Name':p[1],'Department Code':p[2],'Active':true,'Sort Order':i+1,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 
 if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_}}
