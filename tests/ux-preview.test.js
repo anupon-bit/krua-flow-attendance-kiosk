@@ -88,7 +88,7 @@ comingSoonViews.forEach(view => {
 assert(workspace.includes('./js/i18n.js'), 'workspace must import central i18n');
 assert(workforce.includes('./js/i18n.js'), 'workforce must import central i18n');
 assert(workspace.includes('data-language="th"') && workspace.includes('data-language="en"'), 'workspace language switcher is missing');
-assert(workforce.includes('data-language="th"') && workforce.includes('data-language="en"'), 'workforce language switcher is missing');
+assert(!workforce.includes('data-language="th"') && !workforce.includes('headActions'), 'embedded content must not duplicate top-bar controls');
 assert(workspace.includes("type: 'KruaFlowLanguage'"), 'workspace must sync language to embedded core pages');
 assert(workforce.includes("type: 'KruaFlowLanguageChange'"), 'embedded workforce pages must sync language back to the shell');
 assert(i18nSource.includes('เร็ว ๆ นี้ — ฟังก์ชันนี้อยู่ระหว่างพัฒนาและยังไม่เปิดใช้งานจริง'), 'Thai Coming Soon banner is missing');

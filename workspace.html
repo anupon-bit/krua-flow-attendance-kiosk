@@ -8,6 +8,7 @@
   <script src="./config.js"></script>
   <script src="./mock-data.js"></script>
   <script src="./js/api-client.js"></script>
+  <script src="./js/admin-session.js"></script>
   <script src="./js/i18n.js"></script>
   <style>
     :root{--bg:#f6f7f8;--paper:#fff;--ink:#18231f;--muted:#69756f;--line:#e4e8e6;--brand:#176b4f;--brandDark:#10523d;--brandSoft:#edf6f1;--danger:#b23b3b;--warning:#94620a;--secondary:#7b8580;font-family:"Noto Sans Thai","Leelawadee UI",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
@@ -23,8 +24,8 @@
         <div><div class="authTitle" data-i18n="auth.title">เข้าสู่ระบบผู้ดูแล</div><div class="uatTag" data-i18n="app.uat">ระบบทดสอบ</div></div>
         <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา"><button type="button" data-language="th" data-i18n="language.th">ไทย</button><button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button></div>
       </div>
-      <div class="authSub" data-i18n="auth.subtitle">ใช้ PIN ผู้ดูแลเดิมเพื่อเปิด Workspace</div>
-      <div class="field"><label for="adminPin" data-i18n="auth.pin">PIN ผู้ดูแล</label><input class="input" id="adminPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="current-password"></div>
+      <div class="authSub" data-i18n="auth.subtitle">ใช้รหัสผู้ดูแลเดิมเพื่อเปิดพื้นที่ทำงาน</div>
+      <div class="field"><label for="adminPin" data-i18n="auth.pin">รหัสผู้ดูแล</label><input class="input" id="adminPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="current-password"></div>
       <button class="loginBtn" id="loginBtn" type="button" data-i18n="auth.submit">เข้าสู่ระบบ</button>
       <div class="busyText" id="busyText" role="status"></div>
       <div class="authErr" id="authErr" role="alert"></div>
@@ -91,7 +92,7 @@
     <main class="main">
       <header class="topbar">
         <button class="topBtn mobileMenu" id="mobileMenu" type="button" data-i18n-title="workspace.menu">☰</button>
-        <div><div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><div class="uatTag" data-i18n="environment.staging">ระบบทดสอบ</div></div>
+        <div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><span class="uatTag" data-i18n="environment.staging">ระบบทดสอบ</span>
         <div class="spacer"></div>
         <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา"><button type="button" data-language="th" data-i18n="language.th">ไทย</button><button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button></div>
         <button class="topBtn" id="openBtn" type="button"><span data-i18n="workspace.openFull">เปิดเต็มหน้า</span> ↗</button>
@@ -105,41 +106,36 @@
 (function () {
   'use strict';
   const I18N = window.KruaFlowI18n;
-  const api = new KruaFlowApi.Client({ timeout: 30000 });
+  const SESSION = window.KruaFlowAdminSession;
+  const pageParams = new URLSearchParams(location.search);
+  const isStaging = pageParams.get('staging') === '1';
+  const stagingApiUrl = String((window.KRUA_FLOW_CONFIG || {}).STAGING_API_URL || '').split('?')[0];
+  const stagingBackendReady = isStaging && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(stagingApiUrl);
+  const api = stagingBackendReady ? new KruaFlowApi.Client({ url: stagingApiUrl, timeout: 30000 }) : null;
   const shell = document.getElementById('shell');
   const frame = document.getElementById('contentFrame');
   const title = document.getElementById('pageTitle');
   const auth = document.getElementById('auth');
   const errorBox = document.getElementById('authErr');
   const buttons = Array.from(document.querySelectorAll('.navBtn[data-url]'));
-  const SS = 'kruaFlowAdminTokenV4';
-  const LS = 'kruaFlowAdminTokenPersistentV1';
-  const EXP = 'kruaFlowAdminTokenPersistentExpV1';
   const KEY_VIEW = 'kfOwnerWorkspaceViewV1';
   const KEY_COLLAPSE = 'kfOwnerWorkspaceCollapsedV1';
   const KEY_GROUPS = 'kfOwnerWorkspaceGroupsV2';
-  const isStaging = new URLSearchParams(location.search).get('staging') === '1';
+  function getToken() { return SESSION.get(); }
+  function saveToken(value, expiresIn) { return SESSION.save(value, expiresIn); }
+  function clearToken() { SESSION.clear(); }
 
-  function getToken() {
-    const session = sessionStorage.getItem(SS) || '';
-    if (session) return session;
-    const persisted = localStorage.getItem(LS) || '';
-    const expiry = Number(localStorage.getItem(EXP) || 0);
-    if (persisted && expiry > Date.now()) { sessionStorage.setItem(SS, persisted); return persisted; }
-    return '';
-  }
-
-  function saveToken(value) {
-    const expiry = Date.now() + 8 * 60 * 60 * 1000;
-    sessionStorage.setItem(SS, value);
-    localStorage.setItem(LS, value);
-    localStorage.setItem(EXP, String(expiry));
-  }
-
-  function clearToken() {
-    sessionStorage.removeItem(SS);
-    localStorage.removeItem(LS);
-    localStorage.removeItem(EXP);
+  function showLogin(messageKey) {
+    clearToken();
+    frame.src = 'about:blank';
+    auth.classList.remove('hidden');
+    shell.classList.remove('menuOpen');
+    document.getElementById('busyText').textContent = '';
+    if (messageKey) {
+      errorBox.textContent = I18N.t(messageKey);
+      errorBox.classList.add('show');
+    }
+    setTimeout(function () { document.getElementById('adminPin').focus(); }, 0);
   }
 
   function environmentUrl(raw) {
@@ -151,8 +147,8 @@
 
   function sendAdminSession() {
     const value = getToken();
-    if (!value) return;
-    try { frame.contentWindow.postMessage({ type: 'KruaFlowAdminSession', token: value }, location.origin); } catch (_) {}
+    if (!value) { showLogin('error.unauthorized'); return; }
+    try { frame.contentWindow.postMessage({ type: 'KruaFlowAdminSession', token: value, expiresIn: SESSION.remainingSeconds() }, location.origin); } catch (_) {}
   }
 
   function sendLanguage() {
@@ -176,6 +172,7 @@
   }
 
   function startWorkspace() {
+    if (!stagingBackendReady) { showLogin('error.stagingOnly'); return; }
     auth.classList.add('hidden');
     const requested = new URLSearchParams(location.search).get('view');
     const selected = requested || localStorage.getItem(KEY_VIEW) || 'overview';
@@ -184,16 +181,17 @@
 
   async function login() {
     errorBox.classList.remove('show');
+    if (!stagingBackendReady || !api) { showLogin('error.stagingOnly'); return; }
     const pin = document.getElementById('adminPin').value.replace(/\D/g, '').slice(0, 6);
     if (pin.length !== 6) { errorBox.textContent = I18N.t('auth.missingPin'); errorBox.classList.add('show'); return; }
     const button = document.getElementById('loginBtn');
     button.disabled = true;
     document.getElementById('busyText').textContent = I18N.t('common.loading');
     try {
-      const result = await api.call({ op: 'adminLoginFast', adminPin: pin });
+      const result = await api.call({ op: 'adminLogin', adminPin: pin });
       const value = result.token || result.adminToken || result.sessionToken || '';
       if (!value) throw new Error(I18N.t('auth.failed'));
-      saveToken(value);
+      saveToken(value, result.expiresIn);
       document.getElementById('adminPin').value = '';
       startWorkspace();
     } catch (error) {
@@ -233,6 +231,8 @@
   window.addEventListener('message', function (event) {
     if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
     if ((event.data || {}).type === 'KruaFlowAdminSessionRequest') sendAdminSession();
+    if ((event.data || {}).type === 'KruaFlowAdminSessionActive') SESSION.touch();
+    if ((event.data || {}).type === 'KruaFlowAdminSessionExpired') showLogin('error.unauthorized');
     if ((event.data || {}).type === 'KruaFlowLanguageChange' && event.data.language !== I18N.getLanguage()) I18N.setLanguage(event.data.language);
   });
   window.addEventListener('KruaFlowLanguageChange', function () {
@@ -244,13 +244,14 @@
   document.getElementById('collapseBtn').onclick = function () { shell.classList.toggle('collapsed'); localStorage.setItem(KEY_COLLAPSE, shell.classList.contains('collapsed') ? '1' : '0'); };
   document.getElementById('mobileMenu').onclick = function () { shell.classList.toggle('menuOpen'); };
   document.getElementById('openBtn').onclick = function () { window.open(frame.src, '_blank', 'noopener'); };
-  document.getElementById('logoutBtn').onclick = function () { clearToken(); frame.src = 'about:blank'; auth.classList.remove('hidden'); };
+  document.getElementById('logoutBtn').onclick = function () { showLogin(); };
 
   loadGroupState();
   I18N.bindLanguageSwitchers(document);
   refreshLanguage();
   if (localStorage.getItem(KEY_COLLAPSE) === '1') shell.classList.add('collapsed');
-  if (getToken()) startWorkspace();
+  if (!stagingBackendReady) showLogin('error.stagingOnly');
+  else if (getToken()) startWorkspace();
 })();
 </script>
 </body>

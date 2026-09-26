@@ -20,7 +20,8 @@
       'auth.missingPin': 'กรุณากรอกรหัสผู้ดูแล',
       'auth.missingSession': 'ไม่พบสิทธิ์ผู้ดูแล กรุณาเปิดผ่านพื้นที่ทำงาน',
       'auth.failed': 'เข้าสู่ระบบไม่สำเร็จ',
-      'workspace.openFull': 'เปิดเต็มหน้า',
+      'auth.invalidPin': 'รหัสผู้ดูแลไม่ถูกต้อง',
+      'workspace.openFull': 'เต็มหน้าจอ',
       'workspace.logout': 'ออกจากระบบ',
       'workspace.menu': 'เมนู',
       'workspace.current': 'หน้าปัจจุบัน',
@@ -110,6 +111,7 @@
       'error.timeout': 'ระบบตอบสนองช้าเกินไป กรุณาลองใหม่',
       'error.invalidUrl': 'ที่อยู่ระบบไม่ถูกต้อง',
       'error.unauthorized': 'สิทธิ์ผู้ดูแลหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
+      'error.stagingOnly': 'หน้านี้ใช้งานได้กับระบบทดสอบเท่านั้น กรุณาเปิดจากลิงก์ทดสอบที่กำหนด',
       'preview.label': 'เร็ว ๆ นี้ — ฟังก์ชันนี้อยู่ระหว่างพัฒนาและยังไม่เปิดใช้งานจริง',
       'preview.body': 'หน้านี้เปิดให้ตรวจรูปแบบการใช้งานเท่านั้น ปุ่มที่เขียนข้อมูลถูกปิดไว้',
       'preview.noWrite': 'ไม่มีการเขียนข้อมูลจริง',
@@ -210,7 +212,8 @@
       'auth.missingPin': 'Enter the administrator PIN',
       'auth.missingSession': 'No admin session. Open this page through Workspace.',
       'auth.failed': 'Sign in failed',
-      'workspace.openFull': 'Open full page',
+      'auth.invalidPin': 'The administrator PIN is incorrect',
+      'workspace.openFull': 'Full screen',
       'workspace.logout': 'Sign out',
       'workspace.menu': 'Menu',
       'workspace.current': 'Current page',
@@ -300,6 +303,7 @@
       'error.timeout': 'The system took too long to respond. Please try again.',
       'error.invalidUrl': 'The system address is invalid.',
       'error.unauthorized': 'The administrator session has expired. Please sign in again.',
+      'error.stagingOnly': 'This page is available only with the staging system. Open the designated UAT link.',
       'preview.label': 'Coming Soon — This feature is under development and is not yet available for live use.',
       'preview.body': 'This screen is available for experience review only. Data-writing actions are disabled.',
       'preview.noWrite': 'No production data writes',
@@ -458,10 +462,11 @@
   function errorText(error) {
     const raw = String(error && error.message ? error.message : error || '').trim();
     if (!raw) return t('common.errorHint');
-    if (getLanguage() === 'en') return raw;
+    if (/PIN\s*Admin\s*ไม่ถูกต้อง|PIN.*incorrect|invalid.*pin/i.test(raw)) return t('auth.invalidPin');
     if (/ตอบช้า|ไม่ตอบสนอง|timeout/i.test(raw)) return t('error.timeout');
     if (/Backend URL|URL.*ไม่ถูก|invalid.*url/i.test(raw)) return t('error.invalidUrl');
     if (/Admin|Token|session|หมดอายุ|สิทธิ์/i.test(raw)) return t('error.unauthorized');
+    if (getLanguage() === 'en') return raw;
     if (/[A-Za-z]{2,}/.test(raw)) {
       if (global.console && typeof global.console.warn === 'function') global.console.warn('[KruaFlow i18n] untranslated error:', raw);
       return t('common.errorHint');

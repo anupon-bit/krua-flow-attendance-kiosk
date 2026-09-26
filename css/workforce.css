@@ -29,11 +29,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .head h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.25; }
 .subtitle { margin: 5px 0 0; color: var(--muted); line-height: 1.55; }
-.headActions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.env, .modeBadge { display: inline-flex; align-items: center; min-height: 34px; padding: 6px 11px; border: 1px solid #9bc9b8; border-radius: 999px; background: var(--brand-soft); color: var(--brand-dark); font-size: .78rem; font-weight: 800; letter-spacing: .02em; }
-.languageSwitch { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
-.languageSwitch button { min-width: 42px; border: 0; border-radius: 9px; padding: 6px 9px; background: transparent; color: var(--muted); cursor: pointer; font-weight: 700; }
-.languageSwitch button.active { background: var(--ink); color: #fff; }
 .flowLabel { margin: 18px 0 9px; color: var(--muted); font-size: .72rem; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
 .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .card, .section { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow); }
@@ -118,7 +113,6 @@ tbody tr:hover { background: #f8fbf9; }
 @media (max-width: 600px) {
   .page { padding: 16px 12px 28px; }
   .head { align-items: stretch; flex-direction: column; }
-  .headActions { justify-content: flex-start; }
   .grid, .skeletonGrid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .dashboardMetrics { grid-template-columns: 1fr 1fr; }
   .card { min-height: 108px; padding: 14px; }

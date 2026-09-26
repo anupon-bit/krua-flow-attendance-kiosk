@@ -8,6 +8,7 @@
   <script src="./config.js"></script>
   <script src="./mock-data.js"></script>
   <script src="./js/api-client.js"></script>
+  <script src="./js/admin-session.js"></script>
   <script src="./js/i18n.js"></script>
   <link rel="stylesheet" href="./css/workforce.css">
 </head>
@@ -17,14 +18,6 @@
       <div>
         <h1 id="title">ภาพรวมระบบ</h1>
         <p class="subtitle" id="subtitle">สถานะกำลังคน งานค้าง และสัญญาณที่ต้องติดตาม</p>
-      </div>
-      <div class="headActions">
-        <span class="modeBadge" data-i18n="common.readOnly">อ่านอย่างเดียว</span>
-        <span class="env" id="env">ระบบทดสอบ</span>
-        <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา">
-          <button type="button" data-language="th" data-i18n="language.th">ไทย</button>
-          <button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button>
-        </div>
       </div>
     </header>
     <div id="app" aria-live="polite"></div>
@@ -48,15 +41,15 @@
   'use strict';
 
   const I18N = window.KruaFlowI18n;
+  const SESSION = window.KruaFlowAdminSession;
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
   const isStaging = params.get('staging') === '1';
-  const SESSION_KEY = 'kruaFlowAdminTokenV4';
-  const PERSIST_KEY = 'kruaFlowAdminTokenPersistentV1';
-  const EXPIRY_KEY = 'kruaFlowAdminTokenPersistentExpV1';
+  const stagingApiUrl = String((window.KRUA_FLOW_CONFIG || {}).STAGING_API_URL || '').split('?')[0];
+  const stagingBackendReady = isStaging && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(stagingApiUrl);
   const app = document.getElementById('app');
-  const api = new KruaFlowApi.Client({ timeout: 30000 });
+  const api = stagingBackendReady ? new KruaFlowApi.Client({ url: stagingApiUrl, timeout: 30000 }) : null;
   let token = '';
   let bootstrap = null;
   let renderSequence = 0;
@@ -181,23 +174,30 @@
     document.getElementById('retryButton').onclick = retry;
   }
 
-  function getToken() {
-    const session = sessionStorage.getItem(SESSION_KEY) || '';
-    if (session) return session;
-    const persisted = localStorage.getItem(PERSIST_KEY) || '';
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY) || 0);
-    return persisted && expiry > Date.now() ? persisted : '';
+  function getToken() { return SESSION.get(); }
+
+  function notifySessionExpired() {
+    SESSION.clear();
+    token = '';
+    bootstrap = null;
+    if (parent !== window) parent.postMessage({ type: 'KruaFlowAdminSessionExpired' }, location.origin);
   }
 
   function call(op, data) {
-    return api.call(Object.assign({ op: op, adminToken: token }, data || {}));
+    return api.call(Object.assign({ op: op, adminToken: token }, data || {})).then(function (result) {
+      SESSION.touch();
+      if (parent !== window) parent.postMessage({ type: 'KruaFlowAdminSessionActive' }, location.origin);
+      return result;
+    }).catch(function (error) {
+      if (SESSION.isAuthError(error)) notifySessionExpired();
+      throw error;
+    });
   }
 
   function updateHeading() {
     const meta = VIEW_META[view] || ['app.name', 'subtitle.preview'];
     document.getElementById('title').textContent = t(meta[0]);
     document.getElementById('subtitle').textContent = t(meta[1]);
-    document.getElementById('env').textContent = isStaging ? t('environment.staging') : t('environment.production');
     document.title = t(meta[0]) + ' · ' + t('app.name');
   }
 
@@ -508,6 +508,10 @@
   async function start() {
     updateHeading();
     I18N.bindLanguageSwitchers(document);
+    if (!stagingBackendReady || !api) {
+      app.innerHTML = '<div class="error"><strong>' + esc(t('error.stagingOnly')) + '</strong></div>';
+      return;
+    }
     token = getToken();
     if (!token && parent !== window) {
       parent.postMessage({ type: 'KruaFlowAdminSessionRequest' }, location.origin);
@@ -532,7 +536,7 @@
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape') document.getElementById('drawerBackdrop').hidden = true; });
   window.addEventListener('message', function (event) {
     if (event.origin !== location.origin || !event.data) return;
-    if (event.data.type === 'KruaFlowAdminSession' && event.data.token) sessionStorage.setItem(SESSION_KEY, event.data.token);
+    if (event.data.type === 'KruaFlowAdminSession' && event.data.token) SESSION.save(event.data.token, event.data.expiresIn);
     if (event.data.type === 'KruaFlowLanguage' && event.data.language !== I18N.getLanguage()) I18N.setLanguage(event.data.language);
   });
   window.addEventListener('KruaFlowLanguageChange', function () {
