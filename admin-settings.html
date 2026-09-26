@@ -79,7 +79,7 @@ window.addEventListener('pageshow',()=>{if(__kfSettingsParams.get('embed')==='1'
     </div>
 
     <div class="permStep managerOnly" id="managerScopeEditor">
-      <div class="permStepHead"><span class="stepNo">3</span><div><div class="stepTitle">กำหนดขอบเขตผู้จัดการ</div><div class="stepDesc">ใช้เฉพาะบทบาทผู้จัดการ เลือกสาขาและแผนกที่รับผิดชอบ</div></div></div>
+      <div class="permStepHead"><span class="stepNo">3</span><div><div class="stepTitle">กำหนดพื้นที่รับผิดชอบ</div><div class="stepDesc">เลือกสาขาและแผนกที่ดูแล ถ้าดูแลทั้งหมดให้เลือก “ทั้งหมด”</div></div></div>
       <div class="grid">
         <div class="field"><label>สาขาที่ดูแล</label><select class="select" id="mBranch"></select></div>
         <div class="field"><label>แผนกที่ดูแล</label><select class="select" id="mDept"></select></div>
@@ -94,13 +94,12 @@ window.addEventListener('pageshow',()=>{if(__kfSettingsParams.get('embed')==='1'
   </div>
   <div class="row" style="margin-top:14px">
     <button class="btn primary isHidden" id="savePermissionSetup" type="button">บันทึกการตั้งค่า</button>
-    <button class="btn secondary managerOnly isHidden" id="resetScope" type="button">เพิ่มขอบเขตใหม่</button>
     <span class="muted" id="permissionSaveHint">บันทึกบทบาทและสิทธิ์ของพนักงานที่เลือก</span>
   </div>
 </div>
 
 <div class="card managerOnly" id="selectedScopeCard">
-  <div class="permListHeader"><div><div class="sectionTitle" style="margin-bottom:2px">สิทธิ์ของพนักงานที่เลือก</div><div class="muted">แสดงเฉพาะขอบเขตของคนที่กำลังแก้ไข</div></div></div>
+  <div class="permListHeader"><div><div class="sectionTitle" style="margin-bottom:2px">สิทธิ์ปัจจุบัน</div><div class="muted">แสดงสิทธิ์ของพนักงานที่เลือกทันที</div></div></div>
   <div class="list" id="scopeList"></div>
 </div>
 
@@ -123,6 +122,8 @@ function setLoadStatus(msg,bad){const e=$('loadStatus');if(!e)return;e.textConte
 async function loadMasters(showBusy){try{if(showBusy)busy(1,'กำลังโหลด Master Data...');setLoadStatus('กำลังโหลดสาขา แผนก กะ และอุปกรณ์...',false);const m=await call({op:'adminGetOrgMasters',adminToken:state.token},{timeoutMs:45000});state.masters=m;renderAll();setLoadStatus('Master Data พร้อม • โหลดส่วนอื่นเมื่อเปิดแท็บ เพื่อลดเวลารอ',false)}catch(e){setLoadStatus('โหลด Master Data ไม่สำเร็จ: '+e.message,true);if(/Admin|หมดอายุ|สิทธิ์/.test(e.message))setTimeout(()=>location.href='./admin.html?next=settings',700)}finally{if(showBusy)busy(0)}}
 async function loadManagerData(force){
   if(state.managerLoaded&&!force)return;
+  if(!state.token)state.token=getToken();
+  if(!state.token)return;
   try{
     busy(1,'กำลังโหลดรายชื่อผู้ใช้งาน...');
     if(!state.employees.length){const ce=cachedEmployees();if(ce.length)state.employees=ce}
@@ -140,6 +141,8 @@ async function loadManagerData(force){
   }finally{busy(0)}
 }
 async function loadSelectedManagerScopes(employeeId,force){
+  if(!state.token)state.token=getToken();
+  if(!state.token)return;
   const id=String(employeeId||'').trim();
   if(!id)return;
   state.scopeLoadedFor=state.scopeLoadedFor||{};
@@ -183,7 +186,6 @@ function renderAll(){
  const branchLabel=code=>code==='*'?'ทุกสาขา':(((branches||[]).find(b=>b.code===code)||{}).name||code);
  const deptLabel=code=>code==='*'?'ทุกแผนก':(((deps||[]).find(d=>d.code===code)||{}).name||code);
  $('scopeList').innerHTML=selectedScopes.map(x=>'<div class="item"><div class="row"><div><b>'+branchLabel(x.branchCode)+' / '+deptLabel(x.departmentCode)+'</b><div class="muted">ลา '+(x.canApproveLeave?'✓ อนุญาต':'– ไม่อนุญาต')+' • ตาราง '+(x.canManageSchedule?'✓ อนุญาต':'– ไม่อนุญาต')+' • เวลาเข้าออก '+(x.canViewAttendance?'✓ อนุญาต':'– ไม่อนุญาต')+'</div></div><div class="spacer"></div><button class="btn secondary editScope" data-id="'+x.scopeId+'">แก้ไข</button><button class="btn danger delScope" data-id="'+x.scopeId+'">ปิดใช้งาน</button></div></div>').join('')||'<div class="muted">'+(state.managerLoaded?'ยังไม่มีขอบเขตสิทธิ์สำหรับพนักงานคนนี้':'กำลังโหลดข้อมูล...')+'</div>';
- if($('resetScope'))$('resetScope').classList.toggle('isHidden',!(employeeRole(permissionEmployeeId)==='MANAGER'&&selectedScopes.length>0));
  const currentScope=state.settingsBranch||'*',scopeRules=state.quotas.filter(x=>String(x.branchCode||'*')===currentScope);
  $('quotaList').innerHTML=scopeRules.map(x=>'<div class="item"><div class="row"><b>'+(currentScope==='*'?'ค่ากลาง':'เฉพาะสาขา')+' • '+x.departmentCode+' / '+x.shiftCode+'</b><div class="spacer"></div><button class="btn secondary editQuota" data-id="'+x.ruleId+'">แก้ไข</button></div><div>หยุดสูงสุด '+x.maxOff+' • Minimum '+x.minStaffing+' • ล่วงหน้า '+x.minLeadDays+' วัน '+(x.blackout?'• BLACKOUT':'')+'</div><div class="muted">'+(x.effectiveStart||'-')+' – '+(x.effectiveEnd||'-')+'</div></div>').join('')||'<div class="muted">'+(state.quotaLoaded?(currentScope==='*'?'ยังไม่มีกฎค่ากลาง':'ยังไม่มีข้อยกเว้นเฉพาะสาขา • ระบบจะใช้ค่ากลางทุกสาขา'):'เปิดแท็บนี้เพื่อโหลดข้อมูล')+'</div>';
  $('deviceList').innerHTML=(m.devices||[]).map(x=>'<div class="item"><div class="row"><b>'+x.deviceId+'</b><span> • '+(x.branchCode||'ยังไม่ผูกสาขา')+' • '+x.label+'</span><div class="spacer"></div><button class="btn secondary editDevice" data-id="'+x.deviceId+'">แก้ไข</button></div></div>').join('')||'<div class="muted">ยังไม่มีอุปกรณ์</div>';
@@ -219,7 +221,6 @@ function renderSelectedPermissionUser(){
   if($('managerScopeEditor'))$('managerScopeEditor').classList.toggle('isHidden',!showManager);
   if($('selectedScopeCard'))$('selectedScopeCard').classList.toggle('isHidden',!showManager);
   if(!state.permissionDirty&&$('permissionSaveHint'))$('permissionSaveHint').textContent='ข้อมูลเป็นปัจจุบัน';
-  if($('resetScope')&&!showManager)$('resetScope').classList.add('isHidden');
   bindPermissionDirtyFields();
 }
 function permissionRoleChanged(){
@@ -227,7 +228,6 @@ function permissionRoleChanged(){
   setPermissionDirty(true,'เปลี่ยนบทบาทแล้ว กดบันทึกการตั้งค่าเพื่อยืนยัน');
   if($('managerScopeEditor'))$('managerScopeEditor').classList.toggle('isHidden',!isManager);
   if($('selectedScopeCard'))$('selectedScopeCard').classList.toggle('isHidden',!isManager);
-  if($('resetScope')&&!isManager)$('resetScope').classList.add('isHidden');
 }
 function selectRoleEmployee(id){if(!$('rEmployee'))return;$('rEmployee').value=id;state.selectedPermissionEmployee=id;state.permissionDirty=false;renderSelectedPermissionUser();renderAll();setPermissionDirty(false);if(employeeRole(id)==='MANAGER')loadSelectedManagerScopes(id,false);try{window.scrollTo({top:0,left:0,behavior:'smooth'})}catch(e){}}
 async function savePermissionSetup(){
@@ -276,7 +276,7 @@ function editDevice(id){const x=(state.masters.devices||[]).find(a=>a.deviceId==
 async function saveBranch(){try{busy(1,'กำลังบันทึกสาขา...');await call({op:'adminSaveBranch',adminToken:state.token,branch:{code:$('bCode').value,name:$('bName').value,shortName:$('bShort').value,sort:Number($('bSort').value),phone:$('bPhone').value,timezone:$('bTz').value,address:$('bAddress').value,active:bool($('bActive').value)}});await reloadMasters()}catch(e){alert(e.message)}finally{busy(0)}}async function saveDept(){try{busy(1,'กำลังบันทึกแผนก...');await call({op:'adminSaveDepartment',adminToken:state.token,department:{code:$('dCode').value,name:$('dName').value,shortName:$('dShort').value,sort:Number($('dSort').value),color:$('dColor').value,active:bool($('dActive').value)}});await reloadMasters()}catch(e){alert(e.message)}finally{busy(0)}}async function saveShift(){if(!$('sCode').value.trim()||!$('sName').value.trim()||!$('sStart').value||!$('sEnd').value){alert('กรุณากรอกรหัส ชื่อ และเวลาเริ่ม/จบกะ');return}try{busy(1,'กำลังบันทึกกะ...');await call({op:'adminSaveShift',adminToken:state.token,shift:{code:$('sCode').value,name:$('sName').value,startTime:$('sStart').value,endTime:$('sEnd').value,crossMidnight:bool($('sCross').value),standardHours:Number($('sHours').value),nightAllowance:Number($('sAllowance').value),minStaffing:Number($('sMin').value),lateGraceMinutes:Number($('sGrace').value),lateDeduction:Number($('sLateDed').value),active:bool($('sActive').value)}});await reloadMasters();resetShift()}catch(e){alert(e.message)}finally{busy(0)}}
 async function deleteScope(id){if(!confirm('ลบ Scope นี้?'))return;try{busy(1,'กำลังลบ...');await call({op:'adminDeleteManagerScope',adminToken:state.token,scopeId:id});state.scopeLoadedFor[state.selectedPermissionEmployee]=false;await loadSelectedManagerScopes(state.selectedPermissionEmployee,true)}catch(e){alert(e.message)}finally{busy(0)}}
 async function saveQuota(){try{busy(1,'กำลังบันทึกกฎ...');await call({op:'adminSaveLeaveQuotaRule',adminToken:state.token,rule:{ruleId:state.editingQuotaId||'',branchCode:state.settingsBranch||'*',departmentCode:$('qDept').value,shiftCode:$('qShift').value,maxOff:Number($('qMax').value),minStaffing:Number($('qMin').value),minLeadDays:Number($('qLead').value),blackout:bool($('qBlack').value),effectiveStart:$('qStart').value,effectiveEnd:$('qEnd').value,priority:Number($('qPriority').value),active:true}});state.quotaLoaded=false;await loadQuotaData(true);resetQuota()}catch(e){alert(e.message)}finally{busy(0)}}async function saveDevice(){if(!$('xDevice').value.trim()){alert('กรุณาระบุ Device ID');return}try{busy(1,'กำลังบันทึกอุปกรณ์...');await call({op:'adminSaveDevice',adminToken:state.token,device:{deviceId:$('xDevice').value,branchCode:$('xBranch').value,label:$('xLabel').value,active:bool($('xActive').value)}});await reloadMasters();resetDevice()}catch(e){alert(e.message)}finally{busy(0)}}
-$('retryMasters').onclick=()=>loadMasters(true);if($('settingsBranch'))$('settingsBranch').onchange=changeSettingsBranch;if($('savePermissionSetup'))$('savePermissionSetup').onclick=savePermissionSetup;if($('rEmployee'))$('rEmployee').onchange=()=>{state.selectedPermissionEmployee=$('rEmployee').value;state.permissionDirty=false;renderSelectedPermissionUser();renderAll();setPermissionDirty(false);if(employeeRole(state.selectedPermissionEmployee)==='MANAGER')loadSelectedManagerScopes(state.selectedPermissionEmployee,false)};if($('rRole'))$('rRole').onchange=permissionRoleChanged;$('resetShift').onclick=resetShift;$('resetScope').onclick=()=>{resetScope();$('resetScope').classList.add('isHidden')};$('resetQuota').onclick=resetQuota;$('resetDevice').onclick=resetDevice;$('saveBranch').onclick=saveBranch;$('saveDept').onclick=saveDept;$('saveShift').onclick=saveShift;$('saveQuota').onclick=saveQuota;$('saveDevice').onclick=saveDevice;$('loadAudit').onclick=loadAudit;$('installTriggers').onclick=installTriggers;$('backupNow').onclick=backupNow;$('dashBtn').onclick=()=>location.href='./dashboard.html';$('readyBtn').onclick=()=>location.href='./readiness.html';$('adminBtn').onclick=()=>location.href='./admin.html';
+$('retryMasters').onclick=()=>loadMasters(true);if($('settingsBranch'))$('settingsBranch').onchange=changeSettingsBranch;if($('savePermissionSetup'))$('savePermissionSetup').onclick=savePermissionSetup;if($('rEmployee'))$('rEmployee').onchange=()=>{state.selectedPermissionEmployee=$('rEmployee').value;state.permissionDirty=false;renderSelectedPermissionUser();renderAll();setPermissionDirty(false);if(employeeRole(state.selectedPermissionEmployee)==='MANAGER')loadSelectedManagerScopes(state.selectedPermissionEmployee,false)};if($('rRole'))$('rRole').onchange=permissionRoleChanged;$('resetShift').onclick=resetShift;$('resetQuota').onclick=resetQuota;$('resetDevice').onclick=resetDevice;$('saveBranch').onclick=saveBranch;$('saveDept').onclick=saveDept;$('saveShift').onclick=saveShift;$('saveQuota').onclick=saveQuota;$('saveDevice').onclick=saveDevice;$('loadAudit').onclick=loadAudit;$('installTriggers').onclick=installTriggers;$('backupNow').onclick=backupNow;$('dashBtn').onclick=()=>location.href='./dashboard.html';$('readyBtn').onclick=()=>location.href='./readiness.html';$('adminBtn').onclick=()=>location.href='./admin.html';
 function activateSettingsView(view){
   if(view==='permissions')view='managers';
   const btn=[...document.querySelectorAll('.tabs button')].find(x=>x.dataset.view===view)||document.querySelector('.tabs button[data-view="branches"]');
@@ -291,5 +291,6 @@ function activateSettingsView(view){
   try{window.scrollTo({top:0,left:0,behavior:'auto'})}catch(e){window.scrollTo(0,0)}
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>activateSettingsView(b.dataset.view));
-const initialView=__kfSettingsParams.get('view')||'branches';activateSettingsView(initialView);boot()})();
+const initialView=__kfSettingsParams.get('view')||'branches';
+boot().then(()=>activateSettingsView(initialView)).catch(e=>setLoadStatus('เริ่มระบบไม่สำเร็จ: '+e.message,true))})();
 </script></body></html>
