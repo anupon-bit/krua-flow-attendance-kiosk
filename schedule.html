@@ -66,6 +66,8 @@ button,input,select{font:inherit}.wrap{max-width:1720px;margin:auto;padding:14px
 .empOption.disabled{opacity:.5;background:#f5f6f8}.empOption small{margin-left:auto;color:var(--muted);font-weight:750}.modalActions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
 @media(max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 48px 48px}.controls .wideAction{grid-column:span 1}.brand{font-size:26px}}
 @media(max-width:700px){.wrap{padding:9px}.controls{grid-template-columns:1fr 1fr}.controls .monthInput{grid-column:span 2}.monthTitle{font-size:21px}.summary{margin-right:-9px}.modal{padding:8px}.shiftChoices{grid-template-columns:1fr}.top .sub{display:none}}
+body.kfEmbedded .top{display:none}
+body.kfEmbedded .wrap{max-width:none;padding:10px 12px 40px}
 </style>
 </head>
 <body>
@@ -145,8 +147,10 @@ button,input,select{font:inherit}.wrap{max-width:1720px;margin:auto;padding:14px
 <script>
 (()=> {
 const $=id=>document.getElementById(id);
-const KEY='kruaFlowPortalTokenV7',EXP='kruaFlowPortalTokenV7Exp';
-const state={api:'',token:'',summary:null,scopes:[],branch:'',department:'',team:[],items:[],leaves:[],locks:{},shifts:[],weekData:{},dirtyWeeks:new Set(),editDate:'',editShift:'',queryApplied:false,loadSeq:0};
+const PARAMS=new URLSearchParams(location.search),ADMIN_MODE=PARAMS.get('admin')==='1',EMBED_MODE=PARAMS.get('embed')==='1';
+const KEY='kruaFlowPortalTokenV7',EXP='kruaFlowPortalTokenV7Exp',ADMIN_SS='kruaFlowAdminTokenV4',ADMIN_LS='kruaFlowAdminTokenPersistentV1',ADMIN_EXP='kruaFlowAdminTokenPersistentExpV1';
+const state={api:'',token:'',summary:null,scopes:[],branches:[],departments:[],branch:'',department:'',team:[],items:[],leaves:[],locks:{},shifts:[],weekData:{},dirtyWeeks:new Set(),editDate:'',editShift:'',queryApplied:false,loadSeq:0};
+if(EMBED_MODE)document.body.classList.add('kfEmbedded');
 const pending={};
 
 function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
@@ -167,8 +171,8 @@ function apiUrl(){const v=(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_
 window.addEventListener('message',e=>{const sink=$('apiSink');if(!sink||e.source!==sink.contentWindow)return;const m=e.data;if(!m||m.type!=='KruaFlowApiResult'||!pending[m.requestId])return;finishCall(m.requestId,!!(m.result&&m.result.ok),m.result&&m.result.ok?(m.result.data||{}):new Error(m.result&&m.result.error||'ทำรายการไม่สำเร็จ'))});
 function finishCall(id,ok,value){const p=pending[id];if(!p)return;clearTimeout(p.fallback);clearTimeout(p.timeout);delete pending[id];ok?p.res(value):p.rej(value)}
 function pollCall(id,n){if(!pending[id])return;if(n>18){finishCall(id,false,new Error('Backend ไม่ตอบสนองหลังรอ 45 วินาที'));return}const cb='__kfs_'+id.replace(/[^A-Za-z0-9_]/g,'_')+'_'+n,s=document.createElement('script');let done=false;function clean(){done=true;try{delete window[cb]}catch(e){window[cb]=undefined}s.remove()}window[cb]=r=>{clean();if(!r||!r.ready){setTimeout(()=>pollCall(id,n+1),900);return}r.ok?finishCall(id,true,r.data||{}):finishCall(id,false,new Error(r.error||'ทำรายการไม่สำเร็จ'))};s.onerror=()=>{clean();setTimeout(()=>pollCall(id,n+1),1000)};s.src=state.api+'?api=status&requestId='+encodeURIComponent(id)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();document.body.appendChild(s);setTimeout(()=>{if(!done){clean();setTimeout(()=>pollCall(id,n+1),900)}},3500)}
-function call(p,opts){opts=opts||{};if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,fallback:null,timeout:null};try{f.submit()}catch(e){delete pending[id];f.remove();rej(e);return}setTimeout(()=>f.remove(),3000);pending[id].fallback=setTimeout(()=>{if(pending[id])pollCall(id,0)},700);pending[id].timeout=setTimeout(()=>finishCall(id,false,new Error(opts.timeoutMessage||'Backend ตอบช้าเกินไป กรุณาลองใหม่')),opts.timeoutMs||45000)})}
-function token(){return localStorage.getItem(KEY)||''}
+function call(p,opts){opts=opts||{};if(ADMIN_MODE){const map={managerScheduleBundle:'adminScheduleBundle',managerGetSchedule:'adminGetSchedule',managerSaveSchedule:'adminSaveSchedule',managerPublishSchedule:'adminPublishSchedule'};if(map[p.op])p.op=map[p.op];if(/^admin/.test(p.op)){p.adminToken=state.token;delete p.portalToken}}if(window.KRUA_FLOW_MOCK&&window.KRUA_FLOW_MOCK.enabled)return Promise.resolve(window.KRUA_FLOW_MOCK.handle(p));return new Promise((res,rej)=>{const id=uid();p.requestId=id;const f=document.createElement('form');f.method='POST';f.action=state.api;f.target='apiSink';f.style.display='none';const i=document.createElement('input');i.name='payload';i.value=JSON.stringify(p);f.appendChild(i);document.body.appendChild(f);pending[id]={res,rej,fallback:null,timeout:null};try{f.submit()}catch(e){delete pending[id];f.remove();rej(e);return}setTimeout(()=>f.remove(),3000);pending[id].fallback=setTimeout(()=>{if(pending[id])pollCall(id,0)},700);pending[id].timeout=setTimeout(()=>finishCall(id,false,new Error(opts.timeoutMessage||'Backend ตอบช้าเกินไป กรุณาลองใหม่')),opts.timeoutMs||45000)})}
+function token(){if(!ADMIN_MODE)return localStorage.getItem(KEY)||'';const s=sessionStorage.getItem(ADMIN_SS)||'';if(s)return s;const p=localStorage.getItem(ADMIN_LS)||'',e=Number(localStorage.getItem(ADMIN_EXP)||0);if(p&&e>Date.now()){sessionStorage.setItem(ADMIN_SS,p);return p}return''}
 function monthCacheKey(){return 'kfManagerMonthV73:'+state.branch+':'+state.department+':'+$('month').value}
 function readMonthCache(){
   try{
@@ -193,16 +197,26 @@ function selectedMonthIsCurrent(){
   const d=monthStart($('month').value),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()
 }
 
-function query(){const q=new URLSearchParams(location.search);return{branch:q.get('branch')||'',department:q.get('department')||''}}
+function query(){return{branch:PARAMS.get('branch')||'',department:PARAMS.get('department')||''}}
 function syncScopeSelectors(){
-  const scopes=(state.scopes||[]).filter(s=>s.active!==false&&s.canManageSchedule!==false);
-  const branches=[...new Set(scopes.map(s=>s.branchCode).filter(x=>x&&x!=='*'))];
+  let branches=[],deps=[];
+  if(ADMIN_MODE){
+    branches=(state.branches||[]).filter(x=>x.active!==false).map(x=>x.code).filter(Boolean);
+    deps=(state.departments||[]).filter(x=>x.active!==false).map(x=>x.code).filter(Boolean);
+  }else{
+    const scopes=(state.scopes||[]).filter(s=>s.active!==false&&s.canManageSchedule!==false);
+    branches=[...new Set(scopes.map(s=>s.branchCode).filter(x=>x&&x!=='*'))];
+    deps=[...new Set(scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch).map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
+  }
   $('branch').innerHTML=branches.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
   const q=query();
   if(!state.queryApplied&&q.branch&&branches.includes(q.branch))state.branch=q.branch;
   if(!state.branch||!branches.includes(state.branch))state.branch=branches[0]||'';
   $('branch').value=state.branch;
-  const deps=[...new Set(scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch).map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
+  if(!ADMIN_MODE){
+    const scopes=(state.scopes||[]).filter(s=>s.active!==false&&s.canManageSchedule!==false);
+    deps=[...new Set(scopes.filter(s=>s.branchCode==='*'||s.branchCode===state.branch).map(s=>s.departmentCode).filter(x=>x&&x!=='*'))];
+  }
   $('department').innerHTML=deps.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
   if(!state.queryApplied&&q.department&&deps.includes(q.department))state.department=q.department;
   if(!state.department||!deps.includes(state.department))state.department=deps[0]||'';
@@ -251,16 +265,22 @@ function buildLocks(rows){
 }
 
 async function boot(){
-  state.api=apiUrl();state.token=token();if(!state.token){location.href='./portal.html';return}
+  state.api=apiUrl();state.token=token();if(!state.token){location.href=ADMIN_MODE?'./workspace.html?view=schedule':'./portal.html';return}
   try{
     busy(1,'กำลังเตรียมหน้าจัดตาราง...');
-    const s=await call({op:'managerSummary',portalToken:state.token},{timeoutMs:60000});
-    state.summary=s;state.scopes=s.scopes||[];syncScopeSelectors();
+    if(ADMIN_MODE){
+      const b=await call({op:'adminScheduleBundle',adminToken:state.token},{timeoutMs:60000});
+      state.branches=b.branches||[];state.departments=b.departments||[];state.shifts=(b.shifts||[]).filter(x=>x.active!==false);state.branch=b.branchCode||'';state.department=b.departmentCode||'';
+      $('managerBtn').style.display='none';
+    }else{
+      const s=await call({op:'managerSummary',portalToken:state.token},{timeoutMs:60000});
+      state.summary=s;state.scopes=s.scopes||[];
+    }
+    syncScopeSelectors();
     const now=new Date();$('month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-    busy(0);
-    loadMonth().catch(e=>alert(e.message));
+    busy(0);loadMonth().catch(e=>alert(e.message));
   }catch(e){
-    busy(0);alert(e.message);if(/สิทธิ์|Session|เข้าสู่ระบบ/.test(e.message))location.href='./portal.html';
+    busy(0);alert(e.message);if(/สิทธิ์|Session|เข้าสู่ระบบ|Admin|token/i.test(e.message))location.href=ADMIN_MODE?'./workspace.html?view=schedule':'./portal.html';
   }
 }
 
@@ -291,6 +311,7 @@ async function loadMonth(){
     const b=await call({op:'managerScheduleBundle',portalToken:state.token,branchCode:state.branch,departmentCode:state.department,weekStart:anchor},{timeoutMs:60000});
     if(seq!==state.loadSeq)return;
     state.team=b.team||state.team;
+    if(ADMIN_MODE){state.branches=b.branches||state.branches;state.departments=b.departments||state.departments}
     state.shifts=(b.shifts||state.shifts||[]).filter(x=>x.active!==false);
     state.leaves=b.leaves||[];
     buildLocks(state.leaves);
@@ -604,7 +625,7 @@ function moveMonth(delta){
   const d=monthStart($('month').value);d.setMonth(d.getMonth()+delta);$('month').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');loadMonth();
 }
 
-$('managerBtn').onclick=()=>location.href='./manager.html';
+$('managerBtn').onclick=()=>location.href=ADMIN_MODE?'./workspace.html':'./manager.html';
 $('branch').onchange=()=>{state.branch=$('branch').value;syncScopeSelectors();state.team=[];state.items=[];state.leaves=[];state.locks={};state.weekData={};loadMonth()};
 $('department').onchange=()=>{state.department=$('department').value;state.team=[];state.items=[];state.leaves=[];state.locks={};state.weekData={};loadMonth()};
 $('month').onchange=loadMonth;
