@@ -231,6 +231,7 @@ function isolateAdminView(view){
   ids.forEach(function(id){var x=$(id);if(x)x.style.display='none'});
   if(view==='attendance'){var a=$('attendanceAdminCard');if(a)a.style.display='block'}
   else if(view==='leave'){var l=$('leaveAdminCard');if(l)l.style.display='block'}
+  else if(view==='review'){var r=$('registrationsCard');if(r)r.style.display='block'}
   else{var e=$('employeeOverviewCard');if(e)e.style.display='block'}
 }
 function applyRequestedAdminView(){
