@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>KruaFlow ระบบบุคลากร</title>
+  <script src="./config.js"></script>
+  <script src="./mock-data.js"></script>
+  <script src="./js/api-client.js"></script>
+  <script src="./js/admin-session.js"></script>
+  <script src="./js/i18n.js"></script>
+  <link rel="stylesheet" href="./css/workforce.css">
+</head>
+<body>
+  <main class="page">
+    <header class="head">
+      <div>
+        <h1 id="title">ภาพรวมระบบ</h1>
+        <p class="subtitle" id="subtitle">สถานะกำลังคน งานค้าง และสัญญาณที่ต้องติดตาม</p>
+      </div>
+    </header>
+    <div id="app" aria-live="polite"></div>
+  </main>
+
+  <div class="drawerBackdrop" id="drawerBackdrop" hidden>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawerHead">
+        <div>
+          <div class="metricMeta" data-i18n="detail.title">รายละเอียด</div>
+          <h2 id="drawerTitle">รายละเอียดรายการ</h2>
+        </div>
+        <button class="btn small" type="button" id="drawerClose" data-i18n="common.close">ปิด</button>
+      </div>
+      <dl class="drawerGrid" id="drawerBody"></dl>
+    </aside>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  const I18N = window.KruaFlowI18n;
+  const SESSION = window.KruaFlowAdminSession;
+  const t = I18N.t;
+  const params = new URLSearchParams(location.search);
+  const view = params.get('view') || 'dashboard';
+  const isStaging = params.get('staging') === '1';
+  const configuredApiUrl = String((window.KRUA_FLOW_CONFIG || {})[isStaging ? 'STAGING_API_URL' : 'API_URL'] || '').split('?')[0];
+  const backendReady = /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(configuredApiUrl);
+  const app = document.getElementById('app');
+  const api = backendReady ? new KruaFlowApi.Client({ url: configuredApiUrl, timeout: 30000 }) : null;
+  let token = '';
+  let bootstrap = null;
+  let renderSequence = 0;
+  let dashboardCache = null;
+
+  const VIEW_META = {
+    dashboard: ['view.overview', 'subtitle.dashboardLive'],
+    'work-queue': ['view.review', 'subtitle.queue'],
+    notifications: ['view.notifications', 'subtitle.notifications'],
+    applicants: ['view.applicants', 'subtitle.preview'],
+    interviews: ['view.interviews', 'subtitle.preview'],
+    staffing: ['view.staffing', 'subtitle.preview'],
+    onboarding: ['view.onboarding', 'subtitle.preview'],
+    'employee-documents': ['view.employeeDocuments', 'subtitle.preview'],
+    offboarding: ['view.offboarding', 'subtitle.preview'],
+    attendance: ['view.attendance', 'subtitle.attendance'],
+    activity: ['view.activity', 'subtitle.preview'],
+    'shift-check': ['view.shiftCheck', 'subtitle.preview'],
+    'payroll-period': ['view.payrollPeriod', 'subtitle.payrollPeriod'],
+    'payroll-history': ['view.paymentHistory', 'subtitle.preview'],
+    'report-workforce': ['view.reportWorkforce', 'subtitle.preview'],
+    'report-recruitment': ['view.reportRecruitment', 'subtitle.preview'],
+    'report-attendance': ['view.reportAttendance', 'subtitle.preview'],
+    'report-leave': ['view.reportLeave', 'subtitle.preview'],
+    'report-activity': ['view.reportActivity', 'subtitle.preview'],
+    'report-performance': ['view.reportPerformance', 'subtitle.preview'],
+    'report-payroll': ['view.reportPayroll', 'subtitle.preview'],
+    'report-retention': ['view.reportRetention', 'subtitle.preview'],
+    performance: ['view.performance', 'subtitle.preview'],
+    retention: ['view.reportRetention', 'subtitle.preview'],
+    'master-data': ['view.masterData', 'subtitle.preview'],
+    recruitment: ['view.recruitment', 'subtitle.preview'],
+    'probation-review': ['view.probationReview', 'subtitle.preview'],
+    training: ['view.training', 'subtitle.preview'],
+    incident: ['view.incident', 'subtitle.preview'],
+    movement: ['view.movement', 'subtitle.preview'],
+    'advanced-kpi': ['view.advancedKpi', 'subtitle.preview'],
+    'advanced-reports': ['view.advancedReports', 'subtitle.preview']
+  };
+
+  const PREVIEW_RULES = {
+    applicants: 'RECRUITMENT_ENABLED',
+    interviews: 'RECRUITMENT_ENABLED',
+    staffing: 'RECRUITMENT_ENABLED',
+    onboarding: 'RECRUITMENT_ENABLED',
+    'report-recruitment': 'RECRUITMENT_ENABLED',
+    activity: 'ACTIVITY_ENABLED',
+    'report-activity': 'ACTIVITY_ENABLED',
+    performance: 'PERFORMANCE_ENABLED',
+    'report-performance': 'PERFORMANCE_ENABLED',
+    offboarding: 'OFFBOARDING_ENABLED',
+    retention: 'OFFBOARDING_ENABLED',
+    'report-retention': 'OFFBOARDING_ENABLED',
+    'employee-documents': 'GCS_DOCUMENTS_ENABLED'
+  };
+
+  const ALWAYS_PREVIEW = new Set([
+    'shift-check', 'payroll-history', 'report-workforce', 'report-attendance',
+    'report-leave', 'report-payroll', 'master-data', 'recruitment',
+    'probation-review', 'training', 'incident', 'movement', 'advanced-kpi', 'advanced-reports'
+  ]);
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+    });
+  }
+
+  function locale() { return I18N.getLanguage() === 'en' ? 'en-US' : 'th-TH'; }
+  function formatNumber(value) { return Number(value || 0).toLocaleString(locale(), { maximumFractionDigits: 2 }); }
+  function formatPercent(value) { return value == null ? t('common.notAvailable') : formatNumber(value) + '%'; }
+  function rowsOf(result) { return Array.isArray(result && result.rows) ? result.rows : []; }
+  function valueOf(value, fallback) { return value === undefined || value === null || value === '' ? fallback : value; }
+
+  function translateStatus(status) {
+    const normalized = String(status || '').toLowerCase();
+    const aliases = {
+      unread: 'review', open: 'open', active: 'active', inactive: 'inactive', pending: 'pending',
+      approved: 'approved', rejected: 'rejected', submitted: 'submitted', review: 'review',
+      completed: 'completed', done: 'completed', draft: 'draft', paid: 'paid', closed: 'closed',
+      verified: 'approved', passed: 'approved', accepted: 'approved', issue: 'review', preview: 'preview',
+      unread: 'unread', normal: 'normal', late: 'late', no_checkout: 'noCheckout',
+      not_checked_in: 'notCheckedIn', absent: 'absent', leave: 'leave', unplanned: 'unplanned',
+      urgent: 'urgent', high: 'high', medium: 'medium', low: 'low', probation: 'probation',
+      final: 'final', hold: 'hold', dispute: 'disputed', disputed: 'disputed', employee_review: 'review',
+      cancelled: 'cancelled', canceled: 'cancelled', no_show: 'cancelled', ready: 'ready', accept: 'accepted'
+    };
+    const key = aliases[normalized] || aliases[normalized.replace(/[^a-z_]/g, '')];
+    if (key) return t('status.' + key);
+    if (!status) return t('common.notAvailable');
+    return I18N.getLanguage() === 'th' ? t('status.unknown') : String(status);
+  }
+
+  function badge(status) {
+    const raw = String(status || '');
+    const good = /ACTIVE|HIRED|ACCEPTED|PASSED|DONE|VERIFIED|APPROVED|PAID|COMPLETED/i.test(raw);
+    const bad = /REJECTED|DECLINED|CANCELLED|NO_SHOW|ISSUE/i.test(raw);
+    return '<span class="badge ' + (good ? 'ok' : bad ? 'bad' : 'warn') + '">' + esc(translateStatus(raw)) + '</span>';
+  }
+
+  function metric(labelKey, value, meta) {
+    return '<div class="card"><div class="metricLabel">' + esc(t(labelKey)) + '</div><div class="metric">' + esc(valueOf(value, t('common.notAvailable'))) + '</div><div class="metricMeta">' + esc(meta || '') + '</div></div>';
+  }
+
+  function flowLabel(key) { return '<div class="flowLabel">' + esc(t(key)) + '</div>'; }
+  function section(titleKey, body) {
+    return '<section class="section"><div class="sectionHead"><h2>' + esc(t(titleKey)) + '</h2></div>' + body + '</section>';
+  }
+
+  function loading() {
+    app.className = '';
+    app.innerHTML = '<div class="sr" role="status">' + esc(t('common.loading')) + '</div>' +
+      flowLabel('summary.title') + '<div class="skeletonGrid">' + '<div class="skeleton skeletonCard"></div>'.repeat(4) + '</div>' +
+      flowLabel('detail.title') + '<section class="section"><div class="skeleton skeletonLine short"></div><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></section>';
+  }
+
+  function showError(error, retry) {
+    const message = I18N.errorText(error);
+    app.className = '';
+    app.innerHTML = '<div class="error" role="alert"><strong>' + esc(t('common.error')) + '</strong><div>' + esc(message || t('common.errorHint')) + '</div>' +
+      '<button class="btn" type="button" id="retryButton">' + esc(t('common.retry')) + '</button></div>';
+    document.getElementById('retryButton').onclick = retry;
+  }
+
+  function getToken() { return SESSION.get(); }
+
+  function notifySessionExpired() {
+    SESSION.clear();
+    token = '';
+    bootstrap = null;
+    if (parent !== window) parent.postMessage({ type: 'KruaFlowAdminSessionExpired' }, location.origin);
+  }
+
+  function call(op, data) {
+    return api.call(Object.assign({ op: op, adminToken: token }, data || {})).then(function (result) {
+      SESSION.touch();
+      if (parent !== window) parent.postMessage({ type: 'KruaFlowAdminSessionActive' }, location.origin);
+      return result;
+    }).catch(function (error) {
+      if (SESSION.isAuthError(error)) notifySessionExpired();
+      throw error;
+    });
+  }
+
+  function updateHeading() {
+    const meta = VIEW_META[view] || ['app.name', 'subtitle.preview'];
+    document.getElementById('title').textContent = t(meta[0]);
+    document.getElementById('subtitle').textContent = t(meta[1]);
+    document.title = t(meta[0]) + ' · ' + t('app.name');
+  }
+
+  function previewView() {
+    const titleKey = (VIEW_META[view] || ['app.name'])[0];
+    const samples = [
+      { item: t('sample.record1'), owner: t('sample.owner'), status: 'PENDING' },
+      { item: t('sample.record2'), owner: t('sample.owner'), status: 'PREVIEW' }
+    ];
+    app.className = '';
+    app.innerHTML = '<div class="previewBanner"><div class="previewIcon">…</div><div><strong>' + esc(t('preview.label')) + '</strong><div>' + esc(t('preview.body')) + '</div></div></div>' +
+      flowLabel('summary.title') + '<div class="grid">' +
+      metric('metric.previewRecords', samples.length, t('preview.sampleData')) +
+      metric('common.pending', 1, t('common.preview')) +
+      metric('common.completed', 0, t('common.preview')) +
+      metric('common.readOnly', '100%', t('preview.noWrite')) + '</div>' +
+      flowLabel('action.title') + '<section class="section"><div class="toolbar">' +
+      '<label class="sr" for="previewSearch">' + esc(t('common.search')) + '</label><input class="input" id="previewSearch" disabled placeholder="' + esc(t('common.searchPlaceholder')) + '">' +
+      '<select class="select" disabled><option>' + esc(t('common.allStatuses')) + '</option></select>' +
+      '<button class="btn primary" type="button" disabled>' + esc(t('preview.actionDisabled')) + '</button></div></section>' +
+      flowLabel('detail.title') + section(titleKey, '<div class="tableWrap"><table><thead><tr><th>' + esc(t('table.item')) + '</th><th>' + esc(t('table.owner')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' +
+      samples.map(function (row, index) { return '<tr><td><button class="rowButton" type="button" data-preview-row="' + index + '">' + esc(row.item) + '</button><div class="metricMeta">' + esc(t('preview.sampleData')) + '</div></td><td>' + esc(row.owner) + '</td><td>' + badge(row.status) + '</td><td><button class="btn small" type="button" data-preview-row="' + index + '">' + esc(t('common.viewDetail')) + '</button></td></tr>'; }).join('') +
+      '</tbody></table></div>');
+    app.querySelectorAll('[data-preview-row]').forEach(function (button) {
+      button.onclick = function () {
+        const row = samples[Number(button.dataset.previewRow)];
+        openDrawer(row.item, [
+          [t('table.module'), t(titleKey)],
+          [t('table.owner'), row.owner],
+          [t('table.status'), translateStatus(row.status)],
+          [t('detail.title'), t('drawer.preview')]
+        ]);
+      };
+    });
+  }
+
+  function openDrawer(title, fields) {
+    document.getElementById('drawerTitle').textContent = title || t('drawer.title');
+    document.getElementById('drawerBody').innerHTML = fields.map(function (field) {
+      return '<dt>' + esc(field[0]) + '</dt><dd>' + esc(valueOf(field[1], t('common.notAvailable'))) + '</dd>';
+    }).join('');
+    document.getElementById('drawerBackdrop').hidden = false;
+    document.getElementById('drawerClose').focus();
+  }
+
+  function bindRowDetails(container, rows, fieldMap) {
+    container.querySelectorAll('[data-row-index]').forEach(function (button) {
+      button.onclick = function () {
+        const row = rows[Number(button.dataset.rowIndex)] || {};
+        openDrawer(valueOf(row.title || row.employeeName || row['Period ID'], t('drawer.title')), fieldMap.map(function (field) {
+          return [t(field[0]), row[field[1]]];
+        }));
+      };
+    });
+  }
+
+  async function renderDashboard(reuseCache) {
+    const today = new Date().toISOString().slice(0, 10);
+    const state = reuseCache && dashboardCache ? {
+      attendance: dashboardCache.attendance,
+      queue: dashboardCache.queue,
+      notifications: dashboardCache.notifications,
+      payroll: dashboardCache.payroll
+    } : { attendance: null, queue: null, notifications: null, payroll: null };
+    app.className = '';
+    app.innerHTML = flowLabel('dashboard.actionToday') +
+      '<section class="actionToday"><div class="sectionHead"><h2>' + esc(t('dashboard.actionToday')) + '</h2><button class="btn small" type="button" id="dashboardRefresh">' + esc(t('common.refresh')) + '</button></div><div id="dashboardActions" class="actionList"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></div></section>' +
+      flowLabel('summary.title') + '<div class="dashboardMetrics" id="dashboardMetrics">' +
+      '<div class="skeleton skeletonCard"></div>'.repeat(10) + '</div>' +
+      '<div class="dashboardColumns">' +
+      '<section class="section"><div class="sectionHead"><h2>' + esc(t('dashboard.todayAttendance')) + '</h2></div><div id="dashboardAttendance"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></div></section>' +
+      '<section class="section"><div class="sectionHead"><h2>' + esc(t('dashboard.importantAlerts')) + '</h2></div><div id="dashboardNotifications"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></div></section>' +
+      '</div>' +
+      flowLabel('detail.title') + '<section class="section"><div class="sectionHead"><h2>' + esc(t('dashboard.openWork')) + '</h2></div><div id="dashboardQueue"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></div></section>';
+    document.getElementById('dashboardRefresh').onclick = function () { dashboardCache = null; renderDashboard(false); };
+
+    function sectionError(id, retry) {
+      const node = document.getElementById(id);
+      if (!node) return;
+      node.innerHTML = '<div class="sectionError"><strong>' + esc(t('dashboard.sectionUnavailable')) + '</strong><button class="btn small" type="button">' + esc(t('common.retry')) + '</button></div>';
+      node.querySelector('button').onclick = retry;
+    }
+
+    function renderActions() {
+      const items = [];
+      if (state.attendance) {
+        const missing = Number(state.attendance.notCheckedIn || 0) + Number(state.attendance.absent || 0);
+        const noCheckout = Number(state.attendance.noCheckOut || 0);
+        if (missing) items.push([t('metric.notArrived'), missing, 'attendance', 'REVIEW']);
+        if (noCheckout) items.push([t('metric.noCheckout'), noCheckout, 'attendance', 'REVIEW']);
+      }
+      if (state.queue && state.queue.length) items.push([t('view.review'), state.queue.length, 'work-queue', 'PENDING']);
+      if (state.payroll) {
+        const count = state.payroll.filter(function (row) { return /REVIEW|HOLD|DISPUTE|EMPLOYEE_REVIEW/i.test(row.status || row.Status || ''); }).length;
+        if (count) items.push([t('metric.payrollReview'), count, 'payroll-period', 'REVIEW']);
+      }
+      if (state.notifications) {
+        const unread = Number(state.notifications.unread || 0);
+        if (unread) items.push([t('dashboard.importantAlerts'), unread, 'notifications', 'UNREAD']);
+      }
+      const box = document.getElementById('dashboardActions');
+      if (!box) return;
+      if (!items.length && [state.attendance, state.queue, state.payroll, state.notifications].some(Boolean)) {
+        box.innerHTML = '<div class="empty compact">' + esc(t('dashboard.noAction')) + '</div>';
+        return;
+      }
+      if (!items.length) return;
+      box.innerHTML = items.map(function (item) {
+        const url = './workforce.html?view=' + encodeURIComponent(item[2]) + (isStaging ? '&staging=1' : '');
+        return '<div class="actionRow"><div><strong>' + esc(item[0]) + '</strong><div class="metricMeta">' + esc(t('common.attention')) + '</div></div><span class="actionCount">' + esc(item[1]) + '</span>' + badge(item[3]) + '<a class="btn small" href="' + url + '">' + esc(t('dashboard.openModule')) + '</a></div>';
+      }).join('');
+    }
+
+    function renderMetrics(workforce) {
+      const attendance = state.attendance || {};
+      const queue = state.queue || [];
+      const payroll = state.payroll || [];
+      const notifications = state.notifications || {};
+      const payrollReview = payroll.filter(function (row) { return /REVIEW|HOLD|DISPUTE|EMPLOYEE_REVIEW/i.test(row.status || row.Status || ''); }).length;
+      document.getElementById('dashboardMetrics').innerHTML =
+        metric('common.total', workforce.total, t('view.employees')) +
+        metric('metric.scheduledToday', attendance.expected, t('view.schedule')) +
+        metric('metric.arrived', attendance.present, t('status.active')) +
+        metric('metric.notArrived', Number(attendance.notCheckedIn || 0) + Number(attendance.absent || 0), t('common.attention')) +
+        metric('metric.late', attendance.late, t('view.attendance')) +
+        metric('metric.onLeave', attendance.leave, t('view.leave')) +
+        metric('metric.noCheckout', attendance.noCheckOut, t('common.attention')) +
+        metric('metric.pendingItems', queue.length, t('view.review')) +
+        metric('metric.payrollReview', payrollReview, t('view.payrollReview')) +
+        metric('metric.unread', notifications.unread, t('view.notifications'));
+    }
+
+    function renderAttendanceSection(summary) {
+      const box = document.getElementById('dashboardAttendance');
+      box.innerHTML = '<div class="miniStats">' +
+        '<div><span>' + esc(t('metric.scheduledToday')) + '</span><strong>' + esc(valueOf(summary.expected, 0)) + '</strong></div>' +
+        '<div><span>' + esc(t('metric.arrived')) + '</span><strong>' + esc(valueOf(summary.present, 0)) + '</strong></div>' +
+        '<div><span>' + esc(t('metric.late')) + '</span><strong>' + esc(valueOf(summary.late, 0)) + '</strong></div>' +
+        '<div><span>' + esc(t('metric.onLeave')) + '</span><strong>' + esc(valueOf(summary.leave, 0)) + '</strong></div>' +
+        '</div>';
+    }
+
+    function renderQueueSection(rows) {
+      const box = document.getElementById('dashboardQueue');
+      if (!rows.length) { box.innerHTML = '<div class="empty compact">' + esc(t('common.noData')) + '</div>'; return; }
+      box.innerHTML = '<div class="tableWrap"><table><thead><tr><th>' + esc(t('table.item')) + '</th><th>' + esc(t('table.branch')) + '</th><th>' + esc(t('table.date')) + '</th><th>' + esc(t('table.status')) + '</th></tr></thead><tbody>' + rows.slice(0, 8).map(function (row) {
+        return '<tr><td><strong>' + esc(row.title) + '</strong><div class="metricMeta">' + esc(row.entityId) + '</div></td><td>' + esc(valueOf(row.branchCode, t('common.notAvailable'))) + '</td><td>' + esc(valueOf(row.dueAt, t('common.notAvailable'))) + '</td><td>' + badge(row.priority || row.status) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    }
+
+    function renderNotificationSection(result) {
+      const rows = rowsOf(result).slice(0, 5);
+      const box = document.getElementById('dashboardNotifications');
+      if (!rows.length) { box.innerHTML = '<div class="empty compact">' + esc(t('common.noData')) + '</div>'; return; }
+      box.innerHTML = '<div class="notificationList">' + rows.map(function (row) {
+        return '<div class="notificationItem"><div><strong>' + esc(row.title) + '</strong><div class="metricMeta">' + esc(row.message) + '</div></div>' + badge(row.status) + '</div>';
+      }).join('') + '</div>';
+    }
+
+    let workforce = reuseCache && dashboardCache ? dashboardCache.workforce : {};
+    if (reuseCache && dashboardCache) {
+      renderMetrics(workforce);
+      if (state.attendance) renderAttendanceSection(state.attendance);
+      if (state.queue) renderQueueSection(state.queue);
+      if (state.notifications) renderNotificationSection(state.notifications);
+      renderActions();
+      return;
+    }
+    const loadWorkforce = function () { return call('adminSearchEmployees', { query: '', limit: 1 }).then(function (result) { workforce = { total: Number(result.total || rowsOf(result).length) }; renderMetrics(workforce); }).catch(function () { renderMetrics(workforce); }); };
+    const loadAttendance = function () { return call('adminAttendanceControl', { date: today, branchCode: '', departmentCode: '', employeeQuery: '', status: '' }).then(function (result) { state.attendance = result.summary || {}; renderAttendanceSection(state.attendance); renderMetrics(workforce); renderActions(); }).catch(function () { sectionError('dashboardAttendance', loadAttendance); }); };
+    const loadQueue = function () { return call('adminGetWorkQueue', { status: 'OPEN', limit: 8 }).then(function (result) { state.queue = rowsOf(result); renderQueueSection(state.queue); renderMetrics(workforce); renderActions(); }).catch(function () { sectionError('dashboardQueue', loadQueue); }); };
+    const loadNotifications = function () { return call('adminGetNotificationCenter').then(function (result) { state.notifications = result; renderNotificationSection(result); renderMetrics(workforce); renderActions(); }).catch(function () { sectionError('dashboardNotifications', loadNotifications); }); };
+    const loadPayroll = function () { return call('adminGetPayrollPeriods').then(function (result) { state.payroll = rowsOf(result); renderMetrics(workforce); renderActions(); }).catch(function () { state.payroll = []; renderMetrics(workforce); renderActions(); }); };
+    await Promise.allSettled([loadWorkforce(), loadAttendance(), loadQueue(), loadNotifications(), loadPayroll()]);
+    dashboardCache = { workforce: workforce, attendance: state.attendance, queue: state.queue, notifications: state.notifications, payroll: state.payroll };
+  }
+
+  async function renderQueue() {
+    loading();
+    try {
+      const result = await call('adminGetWorkQueue', { status: 'OPEN', limit: 100 });
+      const rows = rowsOf(result);
+      app.innerHTML = flowLabel('summary.title') + '<div class="grid">' +
+        metric('metric.pendingItems', rows.length, t('common.readOnly')) +
+        metric('common.attention', rows.filter(function (row) { return /URGENT|HIGH/i.test(row.priority || ''); }).length, t('view.review')) +
+        metric('common.completed', 0, t('common.readOnly')) +
+        metric('common.total', rows.length, t('common.updatedAt')) + '</div>' +
+        flowLabel('action.title') + '<section class="section"><div class="toolbar"><input class="input" id="queueSearch" placeholder="' + esc(t('common.searchPlaceholder')) + '"><button class="btn" id="queueRefresh" type="button">' + esc(t('common.refresh')) + '</button></div></section>' +
+        flowLabel('detail.title') + '<section class="section" id="queueDetail"></section>';
+      const detail = document.getElementById('queueDetail');
+      function draw(query) {
+        const term = String(query || '').trim().toLowerCase();
+        const filtered = rows.filter(function (row) { return !term || JSON.stringify(row).toLowerCase().includes(term); });
+        if (!filtered.length) { detail.innerHTML = '<div class="empty">' + esc(t('common.noData')) + '</div>'; return; }
+        detail.innerHTML = '<div class="tableWrap"><table><thead><tr><th>' + esc(t('table.item')) + '</th><th>' + esc(t('table.branch')) + '</th><th>' + esc(t('table.date')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' +
+          filtered.map(function (row, index) { return '<tr><td><strong>' + esc(row.title) + '</strong><div class="metricMeta">' + esc(row.entityType) + ' · ' + esc(row.entityId) + '</div></td><td>' + esc(valueOf(row.branchCode, t('common.notAvailable'))) + '</td><td>' + esc(valueOf(row.dueAt, t('common.notAvailable'))) + '</td><td>' + badge(row.status || row.priority) + '</td><td><button class="btn small" type="button" data-row-index="' + index + '">' + esc(t('common.viewDetail')) + '</button></td></tr>'; }).join('') + '</tbody></table></div>';
+        bindRowDetails(detail, filtered, [['table.item', 'title'], ['table.branch', 'branchCode'], ['table.department', 'departmentCode'], ['table.status', 'status']]);
+      }
+      draw('');
+      let timer;
+      document.getElementById('queueSearch').oninput = function (event) { clearTimeout(timer); timer = setTimeout(function () { draw(event.target.value); }, 250); };
+      document.getElementById('queueRefresh').onclick = renderQueue;
+    } catch (error) { showError(error, renderQueue); }
+  }
+
+  async function renderNotifications() {
+    loading();
+    try {
+      const result = await call('adminGetNotificationCenter');
+      const rows = rowsOf(result);
+      const unread = Number(result.unread || rows.filter(function (row) { return row.status === 'UNREAD'; }).length);
+      app.innerHTML = flowLabel('summary.title') + '<div class="grid">' +
+        metric('metric.unread', unread, t('common.readOnly')) + metric('common.total', rows.length, t('view.notifications')) +
+        metric('common.completed', Math.max(0, rows.length - unread), t('common.readOnly')) + metric('common.attention', unread, t('view.review')) + '</div>' +
+        flowLabel('action.title') + '<section class="section"><div class="toolbar"><button class="btn" id="notificationRefresh" type="button">' + esc(t('common.refresh')) + '</button><span class="metricMeta">' + esc(t('preview.noWrite')) + '</span></div></section>' +
+        flowLabel('detail.title') + section('view.notifications', rows.length ? '<div class="tableWrap"><table><thead><tr><th>' + esc(t('table.date')) + '</th><th>' + esc(t('table.message')) + '</th><th>' + esc(t('table.status')) + '</th></tr></thead><tbody>' +
+        rows.map(function (row) { return '<tr><td>' + esc(row.createdAt) + '</td><td><strong>' + esc(row.title) + '</strong><div class="metricMeta">' + esc(row.message) + '</div></td><td>' + badge(row.status) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">' + esc(t('common.noData')) + '</div>');
+      document.getElementById('notificationRefresh').onclick = renderNotifications;
+    } catch (error) { showError(error, renderNotifications); }
+  }
+
+  async function renderAttendance() {
+    const requestId = ++renderSequence;
+    const today = new Date().toISOString().slice(0, 10);
+    app.innerHTML = flowLabel('summary.title') + '<div id="attendanceSummary" class="skeletonGrid">' + '<div class="skeleton skeletonCard"></div>'.repeat(4) + '</div>' +
+      flowLabel('action.title') + '<section class="section"><div class="toolbar"><input class="input" id="attendanceDate" type="date" value="' + today + '">' +
+      '<select class="select" id="attendanceBranch"><option value="">' + esc(t('common.allBranches')) + '</option>' + (bootstrap.branches || []).map(function (item) { return '<option value="' + esc(item.code) + '">' + esc(item.name) + '</option>'; }).join('') + '</select>' +
+      '<select class="select" id="attendanceDepartment"><option value="">' + esc(t('common.allDepartments')) + '</option>' + (bootstrap.departments || []).map(function (item) { return '<option value="' + esc(item.code) + '">' + esc(item.name) + '</option>'; }).join('') + '</select>' +
+      '<input class="input" id="attendanceSearch" placeholder="' + esc(t('common.searchPlaceholder')) + '"><button class="btn" id="attendanceLoad" type="button">' + esc(t('common.refresh')) + '</button></div></section>' +
+      flowLabel('detail.title') + '<section class="section" id="attendanceDetail"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></section>';
+
+    async function load() {
+      const ownRequest = ++renderSequence;
+      const summaryBox = document.getElementById('attendanceSummary');
+      const detailBox = document.getElementById('attendanceDetail');
+      if (!summaryBox || !detailBox) return;
+      detailBox.innerHTML = '<div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div>';
+      try {
+        const result = await call('adminAttendanceControl', {
+          date: document.getElementById('attendanceDate').value,
+          branchCode: document.getElementById('attendanceBranch').value,
+          departmentCode: document.getElementById('attendanceDepartment').value,
+          employeeQuery: document.getElementById('attendanceSearch').value,
+          status: ''
+        });
+        if (ownRequest !== renderSequence) return;
+        const summary = result.summary || {};
+        const rows = rowsOf(result);
+        summaryBox.className = 'grid';
+        summaryBox.innerHTML = metric('common.total', summary.expected, t('view.attendance')) +
+          metric('metric.todayAttendance', summary.present, t('status.active')) +
+          metric('common.attention', Number(summary.absent || 0) + Number(summary.noCheckOut || 0), t('view.review')) +
+          metric('common.pending', summary.notCheckedIn, t('view.attendance'));
+        detailBox.innerHTML = rows.length ? '<div class="tableWrap"><table><thead><tr><th>' + esc(t('table.employee')) + '</th><th>' + esc(t('table.branch')) + '</th><th>' + esc(t('table.time')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' +
+          rows.map(function (row, index) { return '<tr><td><strong>' + esc(row.employeeName) + '</strong><div class="metricMeta">' + esc(row.employeeId) + ' · ' + esc(row.nickname) + '</div></td><td>' + esc(row.branchCode) + '<div class="metricMeta">' + esc(row.departmentCode) + '</div></td><td>' + esc(valueOf(row.checkIn, '—')) + ' – ' + esc(valueOf(row.checkOut, '—')) + '</td><td>' + badge(row.status) + '</td><td><button class="btn small" type="button" data-row-index="' + index + '">' + esc(t('common.viewDetail')) + '</button></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">' + esc(t('common.noData')) + '</div>';
+        bindRowDetails(detailBox, rows, [['table.employee', 'employeeName'], ['table.branch', 'branchCode'], ['table.department', 'departmentCode'], ['table.status', 'status']]);
+      } catch (error) {
+        if (ownRequest !== renderSequence) return;
+        detailBox.innerHTML = '<div class="error"><strong>' + esc(t('common.error')) + '</strong><div>' + esc(I18N.errorText(error)) + '</div><button class="btn" id="attendanceRetry" type="button">' + esc(t('common.retry')) + '</button></div>';
+        document.getElementById('attendanceRetry').onclick = load;
+      }
+    }
+
+    document.getElementById('attendanceLoad').onclick = load;
+    document.getElementById('attendanceDate').onchange = load;
+    document.getElementById('attendanceBranch').onchange = load;
+    document.getElementById('attendanceDepartment').onchange = load;
+    let timer;
+    document.getElementById('attendanceSearch').oninput = function () { clearTimeout(timer); timer = setTimeout(load, 350); };
+    if (requestId <= renderSequence) await load();
+  }
+
+  async function renderPayrollPeriods() {
+    loading();
+    try {
+      const result = await call('adminGetPayrollPeriods');
+      const rows = rowsOf(result);
+      const total = rows.reduce(function (sum, row) { return sum + Number(row['Total Amount'] || 0); }, 0);
+      app.innerHTML = flowLabel('summary.title') + '<div class="grid">' +
+        metric('metric.periods', rows.length, t('common.readOnly')) + metric('table.amount', formatNumber(total), t('view.payrollPeriod')) +
+        metric('common.completed', rows.filter(function (row) { return /PAID|CLOSED|COMPLETED/i.test(row.Status || ''); }).length, t('common.total')) +
+        metric('common.pending', rows.filter(function (row) { return !/PAID|CLOSED|COMPLETED/i.test(row.Status || ''); }).length, t('common.total')) + '</div>' +
+        flowLabel('action.title') + '<section class="section"><div class="toolbar"><button class="btn" id="payrollRefresh" type="button">' + esc(t('common.refresh')) + '</button><span class="metricMeta">' + esc(t('preview.noWrite')) + '</span></div></section>' +
+        flowLabel('detail.title') + section('view.payrollPeriod', rows.length ? '<div class="tableWrap"><table><thead><tr><th>' + esc(t('table.period')) + '</th><th>' + esc(t('table.date')) + '</th><th>' + esc(t('table.employee')) + '</th><th>' + esc(t('table.amount')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' +
+        rows.map(function (row, index) { return '<tr><td><strong>' + esc(row['Period ID']) + '</strong></td><td>' + esc(row['Start Date']) + ' – ' + esc(row['End Date']) + '</td><td>' + esc(row['Employee Count']) + '</td><td>' + esc(formatNumber(row['Total Amount'])) + '</td><td>' + badge(row.Status) + '</td><td><button class="btn small" type="button" data-row-index="' + index + '">' + esc(t('common.viewDetail')) + '</button></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">' + esc(t('common.noData')) + '</div>');
+      bindRowDetails(app, rows, [['table.period', 'Period ID'], ['table.date', 'Pay Date'], ['table.amount', 'Total Amount'], ['table.status', 'Status']]);
+      document.getElementById('payrollRefresh').onclick = renderPayrollPeriods;
+    } catch (error) { showError(error, renderPayrollPeriods); }
+  }
+
+  function shouldPreview() {
+    if (ALWAYS_PREVIEW.has(view)) return true;
+    const flag = PREVIEW_RULES[view];
+    return Boolean(flag && !(bootstrap.flags || {})[flag]);
+  }
+
+  async function renderCurrentView() {
+    updateHeading();
+    if (shouldPreview()) return previewView();
+    if (view === 'dashboard') return renderDashboard();
+    if (view === 'work-queue') return renderQueue();
+    if (view === 'notifications') return renderNotifications();
+    if (view === 'attendance') return renderAttendance();
+    if (view === 'payroll-period') return renderPayrollPeriods();
+    return previewView();
+  }
+
+  async function start() {
+    updateHeading();
+    I18N.bindLanguageSwitchers(document);
+    if (!backendReady || !api) {
+      app.innerHTML = '<div class="error"><strong>' + esc(t('error.invalidUrl')) + '</strong></div>';
+      return;
+    }
+    token = getToken();
+    if (!token && parent !== window) {
+      parent.postMessage({ type: 'KruaFlowAdminSessionRequest' }, location.origin);
+      await new Promise(function (resolve) { setTimeout(resolve, 350); });
+      token = getToken();
+    }
+    if (!token) {
+      app.innerHTML = '<div class="error"><strong>' + esc(t('auth.missingSession')) + '</strong><div><a class="btn" href="./workspace.html' + (isStaging ? '?staging=1' : '') + '">' + esc(t('app.name')) + '</a></div></div>';
+      return;
+    }
+    loading();
+    try {
+      bootstrap = await call('workforceBootstrap');
+      if (!bootstrap.ready) { app.innerHTML = '<div class="notice"><strong>' + esc(t('schema.notReady')) + '</strong></div>'; return; }
+      if (!(bootstrap.flags || {}).WORKFORCE_V2_ENABLED) { app.innerHTML = '<div class="notice"><strong>' + esc(t('schema.disabled')) + '</strong></div>'; return; }
+      await renderCurrentView();
+    } catch (error) { showError(error, start); }
+  }
+
+  document.getElementById('drawerClose').onclick = function () { document.getElementById('drawerBackdrop').hidden = true; };
+  document.getElementById('drawerBackdrop').onclick = function (event) { if (event.target === event.currentTarget) event.currentTarget.hidden = true; };
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape') document.getElementById('drawerBackdrop').hidden = true; });
+  window.addEventListener('message', function (event) {
+    if (event.origin !== location.origin || !event.data) return;
+    if (event.data.type === 'KruaFlowAdminSession' && event.data.token) SESSION.save(event.data.token, event.data.expiresIn);
+    if (event.data.type === 'KruaFlowLanguage' && event.data.language !== I18N.getLanguage()) I18N.setLanguage(event.data.language);
+  });
+  window.addEventListener('KruaFlowLanguageChange', function () {
+    updateHeading();
+    if (parent !== window) parent.postMessage({ type: 'KruaFlowLanguageChange', language: I18N.getLanguage() }, location.origin);
+    if (bootstrap) {
+      if (view === 'dashboard' && dashboardCache) renderDashboard(true);
+      else renderCurrentView();
+    }
+  });
+  start();
+})();
+</script>
+</body>
+</html>
