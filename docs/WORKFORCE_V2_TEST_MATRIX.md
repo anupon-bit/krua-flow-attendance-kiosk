@@ -8,6 +8,7 @@
 - Phone normalization and Person ID helper behavior.
 - KPI zero-denominator and score-weight validation.
 - GCS object-key traversal rejection and safe filename handling.
+- Route uniqueness, handler presence, legacy API preservation, and secret-pattern checks.
 
 ## STAGING manual/UAT required
 

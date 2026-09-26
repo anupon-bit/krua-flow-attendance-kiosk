@@ -27,6 +27,8 @@
   const swaps=[{swapId:'SWP-001',requesterId:'E002',targetEmployeeId:'E005',date:iso(plus(nextMon,5)),requesterShift:'DAY',targetShift:'NIGHT',status:'PENDING_MANAGER',reason:'ติดธุระช่วงกลางวัน',branchCode:'KORAT',departmentCode:'KITCHEN'}];
   const daily=[{checkId:'CHK-001',checkType:'START',date:iso(today),branchCode:'KORAT',departmentCode:'KITCHEN',shiftCode:'DAY',expectedCount:5,leaveCount:1,requiredCount:4,presentCount:3,lateCount:1,missingCount:1,unplannedCount:1,minimumStaffing:4,status:'ACTION_REQUIRED',createdAt:'08:25',detail:{missing:[{employeeId:'E005',name:'วิทยา พร้อม'}],late:[{employeeId:'E003',name:'นที ตั้งใจ',time:'08:11'}],unplanned:[{employeeId:'E006',name:'สุรีย์ งานดี',time:'08:09'}]}}];
   const notifications=[{notificationId:'N-001',title:'ตารางงานสัปดาห์หน้า',message:'ผู้จัดการประกาศตารางงานสัปดาห์หน้าแล้ว',severity:'INFO',status:'UNREAD',createdAt:'วันนี้ 09:10'},{notificationId:'N-002',title:'คำขอหยุด',message:'คำขอหยุดของคุณวันที่ '+iso(plus(nextMon,4))+' ได้รับอนุมัติแล้ว',severity:'SUCCESS',status:'READ',createdAt:'เมื่อวาน 18:20'}];
+  const mockApplicants=[{applicantId:'APP-MOCK-001',personId:'P000101',name:'กมล งานดี',nickname:'มล',phone:'0811111111',positionCode:'STAFF',branchCode:'KORAT',departmentCode:'KITCHEN',source:'Facebook',status:'SUBMITTED',submittedAt:'วันนี้ 09:00',duplicateReviewRequired:false}];
+  let mockActivityItems=[{'Activity Item ID':'ATI-MOCK-1','Report ID':'ACT-MOCK','Task':'ตรวจ FIFO วัตถุดิบ','Target':'ครบทุกชั้น','Unit':'จุด','Status':'NOT_STARTED','Note':''},{'Activity Item ID':'ATI-MOCK-2','Report ID':'ACT-MOCK','Task':'บันทึกอุณหภูมิตู้เย็น','Target':'4','Unit':'ตู้','Status':'DONE','Note':'ปกติ'}];
   let scheduleItems=[];
   function seedSchedule(){
     if(scheduleItems.length)return;
@@ -66,6 +68,10 @@
     if(op==='portalGetNotifications') return {rows:notifications};
     if(op==='portalMarkNotificationRead'){const x=notifications.find(x=>x.notificationId===p.notificationId);if(x)x.status='READ';return{ok:true}}
     if(op==='portalAcknowledgeSchedule') return {ok:true};
+    if(op==='portalGetDailyActivities') return {report:{'Activity Report ID':'ACT-MOCK','Employee ID':'E001','Date':iso(today),'Shift Code':'DAY','Status':'IN_PROGRESS'},items:mockActivityItems};
+    if(op==='portalAddActivityItem'){mockActivityItems.push({'Activity Item ID':'ATI-MOCK-'+Date.now(),'Report ID':'ACT-MOCK','Task':p.task,'Status':'NOT_STARTED','Note':''});return{ok:true}}
+    if(op==='portalUpdateActivityItem'){const x=mockActivityItems.find(x=>x['Activity Item ID']===p.activityItemId);if(x){x.Status=p.status;x['Status']=p.status;x['Note']=p.note||''}return{ok:true,status:p.status}}
+    if(op==='portalSubmitActivityReport') return {ok:true,status:'SUBMITTED',assigned:mockActivityItems.length,completed:mockActivityItems.filter(x=>x['Status']==='DONE').length,issues:mockActivityItems.filter(x=>x['Status']==='ISSUE').length,pending:mockActivityItems.filter(x=>!['DONE','ISSUE'].includes(x['Status'])).length};
     if(op==='managerSummary') return {employee:employee(),scopes,pendingLeave:leaveRows.filter(x=>x.status==='PENDING').length,pendingCorrections:corrections.filter(x=>x.status==='PENDING').length,pendingSwaps:swaps.filter(x=>x.status==='PENDING_MANAGER').length};
     if(op==='managerGetTeam') return {rows:employees.filter(x=>(p.branchCode==='*'||x.branch===p.branchCode)&&(p.departmentCode==='*'||x.department===p.departmentCode))};
     if(op==='managerGetLeaveRequests') return {rows:leaveRows.filter(x=>p.status==='ALL'||x.status===p.status)};
@@ -91,6 +97,21 @@
     if(op==='adminGetLeaveQuotaRules') return {rows:quotas};
     if(op==='adminGetAuditLog') return {rows:[{auditId:'AUD-001',timestamp:'25/09/2569 09:30',actorType:'MANAGER',actorId:'E001',action:'PUBLISH_SCHEDULE',entityType:'SCHEDULE_VERSION',entityId:'VER-1',reason:'ประกาศตารางสัปดาห์หน้า'},{auditId:'AUD-002',timestamp:'25/09/2569 08:45',actorType:'MANAGER',actorId:'E001',action:'APPROVE_LEAVE',entityType:'LEAVE',entityId:'LEV-002',reason:'อนุมัติวันหยุด'}]};
     if(op==='adminBackupNow') return {ok:true,backupId:'BKP-MOCK',fileUrl:'#'};
+    if(op==='workforcePublicBootstrap') return {ready:true,recruitmentEnabled:true,gcsDocumentsEnabled:false,documentMaxBytes:10485760,branches,departments,positions:[{code:'MANAGER',name:'ผู้จัดการ'},{code:'SUPERVISOR',name:'หัวหน้างาน'},{code:'STAFF',name:'พนักงาน'}]};
+    if(op==='applicantSubmit') return {ok:true,personId:'P-MOCK',applicantId:'APP-MOCK-'+Date.now(),status:'SUBMITTED'};
+    if(op==='workforceBootstrap') return {ready:true,schemaVersion:'MOCK',flags:{WORKFORCE_V2_ENABLED:true,RECRUITMENT_ENABLED:true,ACTIVITY_ENABLED:true,GCS_DOCUMENTS_ENABLED:false,PERFORMANCE_ENABLED:true,OFFBOARDING_ENABLED:true},branches,departments,positions:[{code:'MANAGER',name:'ผู้จัดการ'},{code:'STAFF',name:'พนักงาน'}],kpiDictionary:[]};
+    if(op==='adminWorkforceDashboard') return {workforce:{total:6,active:5,probation:1,inactive:0},recruitment:{applicants:1,screening:0,interviews:0,interviewShowRate:null,passed:0,hired:0,hireConversionRate:0,offerAcceptanceRate:null},workQueue:{open:2,urgent:1}};
+    if(op==='adminRecruitmentList') return {rows:mockApplicants.filter(x=>(!p.status||x.status===p.status)&&(!p.query||(x.name+' '+x.phone+' '+x.applicantId).toLowerCase().includes(String(p.query).toLowerCase()))),total:mockApplicants.length};
+    if(op==='adminTransitionApplicant'){const x=mockApplicants.find(x=>x.applicantId===p.applicantId);if(x)x.status=p.status;return{ok:true,status:p.status}}
+    if(op==='adminGetWorkQueue') return {rows:[{workItemId:'WRK-MOCK-1',entityType:'APPLICANT',entityId:'APP-MOCK-001',title:'ตรวจใบสมัคร กมล งานดี',assignedRole:'ADMIN',dueAt:'วันนี้ 17:00',priority:'NORMAL',status:'OPEN',branchCode:'KORAT',departmentCode:'KITCHEN'}],total:1};
+    if(op==='adminGetStaffingTargets') return {rows:[{staffingTargetId:'STF-MOCK',branchCode:'KORAT',departmentCode:'KITCHEN',positionCode:'STAFF',targetHeadcount:8,activeHeadcount:6,probationHeadcount:1,gap:1,pipelineCount:1}]};
+    if(op==='adminActivityDashboard') return {requiredReporters:6,submitted:5,notSubmitted:1,assignedTasks:22,completed:20,pending:1,issues:1,submissionRate:83.3,completionRate:90.9,onTimeCompletionRate:86.4};
+    if(op==='adminAttendanceControl') return {summary:{expected:6,present:5,notCheckedIn:1,leave:0,absent:0,late:1,noCheckOut:0,unplanned:0,ot:1.5},rows:[{employeeId:'E001',employeeName:'สมชาย ใจดี',nickname:'ชาย',branchCode:'KORAT',departmentCode:'KITCHEN',shiftCode:'DAY',scheduledShift:'08:00–20:00',checkIn:'07:54',checkOut:'',workedHours:0,lateMinutes:0,otHours:0,status:'NORMAL'}],total:1};
+    if(op==='adminRecruitmentReport') return {metrics:{applications:10,interviewsScheduled:5,interviewShowRate:80,passed:3,offersSent:2,offerAcceptanceRate:50,hired:1,hireConversionRate:10},bySource:[{source:'Facebook',applications:6,hired:1,conversionRate:16.7}],formulas:{interviewShowRate:'attended / scheduled',offerAcceptanceRate:'accepted / sent',hireConversionRate:'hired / submitted'}};
+    if(op==='adminRetentionReport') return {metrics:{turnoverRate:2,voluntary:1,involuntary:0,averageTenureDays:320,retention30:{retained:5,eligible:5,rate:100},retention60:{retained:5,eligible:5,rate:100},retention90:{retained:4,eligible:5,rate:80}},formulas:{turnoverRate:'exits / active at period start',averageTenureDays:'sum tenure / employees'}};
+    if(op==='adminGetPayrollPeriods') return {rows:[]};
+    if(op==='adminGetNotificationCenter') return {rows:[],unread:0};
+    if(op==='adminGetEmployeeExits') return {rows:[]};
     if(/^adminSave/.test(op)||op==='adminDeleteManagerScope') return {ok:true};
     return {ok:true,rows:[]};
   }

@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const core=require('../apps-script/WorkforceV2.js');
+const performance=require('../apps-script/WorkforcePerformanceV2.js');
 
 assert.equal(core.normalizePhone('+66 81-234-5678'),'0812345678');
 assert.equal(core.normalizePhone('081 234 5678'),'0812345678');
@@ -14,4 +15,8 @@ assert.equal(core.buildObjectKey('EMPLOYEE','E002','DOC-ABC123','id card.pdf'),'
 assert.throws(()=>core.buildObjectKey('EMPLOYEE','../E002','DOC-1','a.pdf'),/Document owner/);
 assert.deepEqual(core.validateWeights([{weight:20},{weight:80}]),{valid:true,total:100});
 assert.deepEqual(core.validateWeights([{weight:20},{weight:70}]),{valid:false,total:90});
+assert.equal(performance.scoreMetric(95,90,'HIGHER_IS_BETTER'),100);
+assert.equal(performance.scoreMetric(4,5,'LOWER_IS_BETTER'),100);
+assert.equal(performance.scoreMetric(1,0,'LOWER_IS_BETTER'),0);
+assert.equal(performance.scoreMetric(null,90,'HIGHER_IS_BETTER'),null);
 console.log('workforce-v2 tests: pass');

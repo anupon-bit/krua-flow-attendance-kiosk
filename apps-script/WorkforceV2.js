@@ -10,7 +10,7 @@ const WF2_SHEETS_ = Object.freeze({
   Offers:['Offer ID','Applicant ID','Person ID','Position Code','Branch Code','Department Code','Wage Type','Wage Amount','Start Date','Offer Date','Accepted Date','Status','Note','Created At','Updated At'],
   Staffing_Targets:['Staffing Target ID','Branch Code','Department Code','Position Code','Target Headcount','Effective Start','Effective End','Active','Updated At','Updated By'],
   Positions:['Position Code','Position Name','Department Code','Active','Sort Order','Created At','Updated At','Admin Note'],
-  Employee_Movements:['Movement ID','Employee ID','Person ID','Movement Type','Effective Date','Field Name','Old Value','New Value','Reason','Approved By','Created At'],
+  Employee_Movements:['Movement ID','Employee ID','Person ID','Movement Type','Effective Date','Field Name','Old Value','New Value','Reason','Approved By','Status','Applied At','Created At'],
   Probation_Reviews:['Probation Review ID','Employee ID','Person ID','Start Date','Planned End Date','Actual End Date','Status','Review Date','Reviewer ID','KPI Result JSON','Supervisor Rating','Notes','Created At','Updated At'],
   KPI_Definitions:['KPI Key','Name','Description','Source','Formula Type','Formula','Numerator','Denominator','Unit','Period','Dimension','Target','Direction','Weight','Applicable Position','Applicable Department','Applicable Branch','Lifecycle Stage','Owner','Data Quality Status','Active','Created At','Updated At'],
   KPI_Targets:['KPI Target ID','KPI Key','Position Code','Department Code','Branch Code','Lifecycle Stage','Period','Target','Weight','Active','Effective Start','Effective End','Updated At'],
@@ -22,7 +22,7 @@ const WF2_SHEETS_ = Object.freeze({
   Documents:['Document ID','Person ID','Applicant ID','Registration ID','Employee ID','Owner Type','Owner ID','Type','Label','Original File Name','MIME Type','Size','Storage Provider','Bucket','Object Key','Checksum','Uploaded At','Uploaded By','Status','Required','Verified At','Verified By','Expiry Date','Version','Replaced Document ID','Created At','Updated At'],
   Activity_Categories:['Activity Category ID','Name','Department Code','Active','Sort Order','Created At','Updated At'],
   Activity_Templates:['Activity Template ID','Category ID','Branch Code','Department Code','Position Code','Shift Code','Task','Target','Unit','Due Offset Minutes','Required','Active','Created At','Updated At'],
-  Activity_Reports:['Activity Report ID','Employee ID','Date','Shift Code','Status','Submitted At','Created At','Updated At'],
+  Activity_Reports:['Activity Report ID','Employee ID','Date','Branch Code','Department Code','Position Code','Shift Code','Status','Submitted At','Created At','Updated At'],
   Activity_Items:['Activity Item ID','Report ID','Template ID','Category ID','Task','Target','Actual','Unit','Status','Started At','Completed At','Due At','Issue Flag','Note','Evidence Document ID','Created At','Updated At'],
   Activity_Issues:['Activity Issue ID','Activity Item ID','Employee ID','Description','Severity','Created At','Assigned To','Action','Status','Resolved At','Updated At'],
   Payroll_Periods:['Period ID','Start Date','End Date','Cutoff','Pay Date','Period Type','Employee Count','Total Amount','Status','Created At','Updated At'],
@@ -67,6 +67,45 @@ function apiWorkforceV2HandlePost_(payload) {
   if(op==='adminSaveStaffingTarget') return wf2AdminSaveStaffingTarget_(payload);
   if(op==='adminStartOnboarding') return wf2AdminStartOnboarding_(payload);
   if(op==='adminGetWorkQueue') return wf2AdminGetWorkQueue_(payload);
+  if(op==='adminCompleteWorkItem') return wf2AdminCompleteWorkItem_(payload);
+  if(op==='adminWorkforceDiagnostics') return wf2AdminDiagnostics_(payload);
+  if(op==='adminGetEmployeeLifecycleProfile') return wf2AdminEmployeeLifecycleProfile_(payload);
+  if(op==='adminSearchEmployees') return wf2AdminSearchEmployees_(payload);
+  if(op==='adminGetInterviews') return wf2AdminGetInterviews_(payload);
+  if(op==='adminRecordEmployeeMovement') return wf2AdminRecordEmployeeMovement_(payload);
+  if(op==='adminApplyDueEmployeeMovements') return wf2AdminApplyDueMovements_(payload);
+  if(op==='adminSaveProbationReview') return wf2AdminSaveProbationReview_(payload);
+  if(op==='portalGetDailyActivities') return wf2PortalGetDailyActivities_(payload);
+  if(op==='portalAddActivityItem') return wf2PortalAddActivityItem_(payload);
+  if(op==='portalUpdateActivityItem') return wf2PortalUpdateActivityItem_(payload);
+  if(op==='portalSubmitActivityReport') return wf2PortalSubmitActivityReport_(payload);
+  if(op==='managerGetActivityIssues') return wf2ManagerGetActivityIssues_(payload);
+  if(op==='managerResolveActivityIssue') return wf2ManagerResolveActivityIssue_(payload);
+  if(op==='adminGetActivityTemplates') return wf2AdminGetActivityTemplates_(payload);
+  if(op==='adminSaveActivityTemplate') return wf2AdminSaveActivityTemplate_(payload);
+  if(op==='adminActivityDashboard') return wf2AdminActivityDashboard_(payload);
+  if(op==='adminCreateEmployeeExit') return wf2AdminCreateEmployeeExit_(payload);
+  if(op==='adminUpdateExitChecklist') return wf2AdminUpdateExitChecklist_(payload);
+  if(op==='adminCompleteEmployeeExit') return wf2AdminCompleteEmployeeExit_(payload);
+  if(op==='adminGetKpiDefinitions') return wf2AdminGetKpiDefinitions_(payload);
+  if(op==='adminSaveKpiDefinition') return wf2AdminSaveKpiDefinition_(payload);
+  if(op==='adminCalculateEmployeePerformance') return wf2AdminCalculatePerformance_(payload);
+  if(op==='adminSavePerformanceReview') return wf2AdminSavePerformanceReview_(payload);
+  if(op==='adminSaveTrainingCatalog') return wf2AdminSaveTrainingCatalog_(payload);
+  if(op==='adminAssignEmployeeTraining') return wf2AdminAssignTraining_(payload);
+  if(op==='adminCompleteEmployeeTraining') return wf2AdminCompleteTraining_(payload);
+  if(op==='adminRecordEmployeeIncident') return wf2AdminRecordIncident_(payload);
+  if(op==='adminSetUserCapability') return wf2AdminSetCapability_(payload);
+  if(op==='adminAttendanceControl') return wf2AdminAttendanceControl_(payload);
+  if(op==='adminRecruitmentReport') return wf2AdminRecruitmentReport_(payload);
+  if(op==='adminRetentionReport') return wf2AdminRetentionReport_(payload);
+  if(op==='adminGetPayrollPeriods') return wf2AdminGetPayrollPeriods_(payload);
+  if(op==='adminSavePayrollPeriod') return wf2AdminSavePayrollPeriod_(payload);
+  if(op==='adminTransitionPayrollPeriod') return wf2AdminTransitionPayrollPeriod_(payload);
+  if(op==='adminGetNotificationCenter') return wf2AdminNotificationCenter_(payload);
+  if(op==='adminMarkNotificationRead') return wf2AdminMarkNotificationRead_(payload);
+  if(op==='adminGetEmployeeExits') return wf2AdminGetEmployeeExits_(payload);
+  if(op==='adminSaveExitInterview') return wf2AdminSaveExitInterview_(payload);
   if(op==='documentCreateUploadSession') return wf2DocumentCreateUploadSession_(payload);
   if(op==='documentFinalizeUpload') return wf2DocumentFinalizeUpload_(payload);
   if(op==='documentGetViewUrl') return wf2DocumentGetViewUrl_(payload);

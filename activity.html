@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>KruaFlow Daily Activity</title><script src="./config.js"></script><script src="./js/api-client.js"></script><link rel="stylesheet" href="./css/workforce.css"><style>.activityPage{max-width:900px}.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}.item h3{margin:0 0 5px}.item+.item{margin-top:10px}.itemControls{display:flex;gap:6px;flex-wrap:wrap}.note{width:100%;min-height:70px;border:1px solid #cbd7e4;border-radius:10px;padding:9px;margin-top:9px}.done{border-left:6px solid var(--green)}.issue{border-left:6px solid var(--red)}@media(max-width:600px){.item{grid-template-columns:1fr}}</style></head>
+<body><main class="page activityPage"><header class="head"><div><h1>Daily Activity</h1><div class="sub" id="meta">งานถูกสร้างจาก Template ตามตำแหน่งและกะ</div></div><div class="spacer"></div><a class="btn" id="back" href="./portal.html" style="text-decoration:none;display:grid;place-items:center">กลับ Portal</a></header><div id="app" class="loading">กำลังโหลดงานวันนี้...</div></main><script>
+(function(){
+  'use strict';
+  let staging=new URLSearchParams(location.search).get('staging')==='1';try{staging=staging||new URL(document.referrer).searchParams.get('staging')==='1'}catch(e){}
+  const token=localStorage.getItem('kruaFlowPortalTokenV7')||'',expiry=Number(localStorage.getItem('kruaFlowPortalTokenV7Exp')||0),api=new KruaFlowApi.Client({url:staging?(window.KRUA_FLOW_CONFIG.STAGING_API_URL||''):window.KRUA_FLOW_CONFIG.API_URL}),app=document.getElementById('app');let report=null;
+  document.getElementById('back').href='./portal.html'+(staging?'?staging=1':'');
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
+  function call(op,data){return api.call(Object.assign({op:op,portalToken:token},data||{}))}
+  function cardClass(status){return status==='DONE'?'done':status==='ISSUE'?'issue':''}
+  async function load(){
+    if(!token||expiry<=Date.now()){app.className='error';app.innerHTML='Session หมดอายุ กรุณา <a href="'+document.getElementById('back').href+'">เข้าสู่ระบบใหม่</a>';return}
+    try{const r=await call('portalGetDailyActivities');report=r.report;document.getElementById('meta').textContent=(report['Date']||'วันนี้')+' • '+(report['Shift Code']||'-')+' • '+(report['Status']||'NOT_STARTED');render(r.items||[])}catch(e){app.className='error';app.textContent=e.message||e}
+  }
+  function render(items){
+    app.className='';
+    app.innerHTML='<div class="toolbar"><button class="btn" id="add">+ เพิ่มงานเพิ่มเติม</button><button class="btn primary" id="submitReport">ส่งรายงานวันนี้</button></div><div id="items">'+(items.map(x=>'<article class="card item '+cardClass(x['Status'])+'"><div><h3>'+esc(x['Task'])+'</h3><div class="metricMeta">เป้าหมาย '+esc(x['Target']||'-')+' '+esc(x['Unit']||'')+' • '+esc(x['Status'])+'</div><textarea class="note" data-note="'+esc(x['Activity Item ID'])+'" placeholder="ผลที่ทำ / หมายเหตุ">'+esc(x['Note']||'')+'</textarea></div><div class="itemControls"><button class="btn small" data-status="IN_PROGRESS" data-id="'+esc(x['Activity Item ID'])+'">เริ่ม</button><button class="btn small primary" data-status="DONE" data-id="'+esc(x['Activity Item ID'])+'">เสร็จ</button><button class="btn small" data-status="ISSUE" data-id="'+esc(x['Activity Item ID'])+'">มีปัญหา</button></div></article>').join('')||'<div class="empty">วันนี้ยังไม่มี Template งาน กด “เพิ่มงานเพิ่มเติม” ได้</div>')+'</div>';
+    app.querySelectorAll('[data-status]').forEach(b=>b.onclick=async()=>{b.disabled=true;const note=app.querySelector('[data-note="'+b.dataset.id+'"]');try{await call('portalUpdateActivityItem',{activityItemId:b.dataset.id,status:b.dataset.status,note:note?note.value:''});await load()}catch(e){alert(e.message||e)}finally{b.disabled=false}});
+    document.getElementById('add').onclick=async()=>{const task=prompt('งานที่เพิ่ม');if(!task)return;try{await call('portalAddActivityItem',{activityReportId:report['Activity Report ID'],task:task});await load()}catch(e){alert(e.message||e)}};
+    document.getElementById('submitReport').onclick=async()=>{if(!confirm('ส่งรายงานงานวันนี้?'))return;try{const r=await call('portalSubmitActivityReport',{activityReportId:report['Activity Report ID']});alert('ส่งแล้ว • เสร็จ '+r.completed+' • ค้าง '+r.pending+' • ปัญหา '+r.issues);await load()}catch(e){alert(e.message||e)}};
+  }
+  load();
+})();
+</script></body></html>
