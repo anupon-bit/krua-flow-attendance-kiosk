@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
   <title>KruaFlow ระบบบุคลากร</title>
-  <script src="./config.js"></script>
-  <script src="./mock-data.js"></script>
-  <script src="./js/api-client.js"></script>
-  <script src="./js/admin-session.js"></script>
-  <script src="./js/i18n.js"></script>
+  <script src="./config.js?v=c1780cc"></script>
+  <script src="./mock-data.js?v=c1780cc"></script>
+  <script src="./js/api-client.js?v=c1780cc"></script>
+  <script src="./js/admin-session.js?v=c1780cc"></script>
+  <script src="./js/i18n.js?v=c1780cc"></script>
   <style>
     :root{--bg:#f6f7f8;--paper:#fff;--ink:#18231f;--muted:#69756f;--line:#e4e8e6;--brand:#176b4f;--brandDark:#10523d;--brandSoft:#edf6f1;--danger:#b23b3b;--warning:#94620a;--secondary:#7b8580;font-family:"Noto Sans Thai","Leelawadee UI",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
     *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}button,input{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:264px 1fr;overflow:hidden}.shell.collapsed{grid-template-columns:72px 1fr}.sidebar{height:100vh;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--paper);transition:grid-template-columns .2s}.brand{display:flex;align-items:center;gap:11px;padding:19px 16px 15px;border-bottom:1px solid #f0f2f1}.brandMark{width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:10px;background:var(--brand);color:#fff;font-size:13px;font-weight:900}.brandText{min-width:0}.brandName{font-size:17px;font-weight:850;color:var(--ink)}.brandSub{font-size:11px;color:var(--muted);font-weight:650}.collapseBtn{width:32px;height:32px;margin-left:auto;border:0;border-radius:8px;background:#f3f5f4;color:#4e5f57;font-weight:900;cursor:pointer}.nav{flex:1 1 auto;min-height:0;overflow:auto;padding:8px 10px 22px;scrollbar-gutter:stable}.group{margin-top:12px}.groupTitle{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:7px;color:#929b97;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;user-select:none}.groupTitle:hover{background:#f6f8f7}.groupTitle::after{content:'⌄';font-size:13px;transition:transform .18s}.group.collapsed .groupTitle::after{transform:rotate(-90deg)}.group.collapsed>.navBtn{display:none}.navBtn{width:100%;display:flex;align-items:center;gap:10px;margin:1px 0;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:#34453e;text-align:left;font-size:13px;font-weight:720;cursor:pointer}.navBtn:hover{background:#f3f6f4}.navBtn.active{background:var(--brandSoft);color:var(--brandDark)}.navBtn.secondary{color:#69756f}.navBtn.secondary .ico{opacity:.68}.ico{width:22px;flex:0 0 22px;text-align:center;font-size:15px}.navLabel{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.navBadge{margin-left:auto;padding:2px 6px;border-radius:999px;background:#f0f2f1;color:#7b8580;font-size:9px;font-weight:800;white-space:nowrap}.shell.collapsed .brandText,.shell.collapsed .groupTitle,.shell.collapsed .navLabel,.shell.collapsed .navBadge{display:none}.shell.collapsed .brand{justify-content:center;padding-inline:8px;flex-wrap:wrap}.shell.collapsed .collapseBtn{margin:0}.shell.collapsed .navBtn{justify-content:center;padding-inline:8px}.main{min-width:0;display:grid;grid-template-rows:68px 1fr}.topbar{display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.96)}.pageTitle{font-size:17px;font-weight:850}.spacer{flex:1}.topBtn{min-height:38px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#405149;font-size:12px;font-weight:750;cursor:pointer}.topBtn:hover{border-color:#aeb9b4}.dangerBtn{color:var(--danger)}.frameWrap{min-height:0;background:var(--bg)}iframe{width:100%;height:100%;border:0;background:var(--bg)}.mobileMenu{display:none}.languageSwitch{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:10px;background:#fff}.languageSwitch button{min-width:37px;padding:5px 8px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:12px;font-weight:750;cursor:pointer}.languageSwitch button.active{background:var(--ink);color:#fff}.auth{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(246,247,248,.97)}.auth.hidden{display:none}.authCard{width:min(460px,100%);padding:28px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(24,35,31,.09)}.authTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.authTitle{font-size:23px;font-weight:850}.authSub{margin:6px 0 20px;color:var(--muted);font-weight:650;line-height:1.5}.field label{display:block;margin-bottom:7px;font-weight:800}.input{width:100%;min-height:50px;padding:0 14px;border:1px solid #ccd4d0;border-radius:10px;font-size:20px;text-align:center;letter-spacing:.2em}.loginBtn{width:100%;min-height:50px;margin-top:12px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:850;cursor:pointer}.loginBtn:disabled{opacity:.55;cursor:wait}.authErr{display:none;margin-top:10px;padding:11px;border-radius:9px;background:#fff0f0;color:var(--danger);font-weight:750}.authErr.show{display:block}.busyText{min-height:22px;margin-top:10px;color:var(--muted);font-size:12px;font-weight:700}.uatTag{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border:1px solid #c9dcd2;border-radius:999px;background:var(--brandSoft);color:var(--brandDark);font-size:10px;font-weight:800}
@@ -107,6 +107,7 @@
   'use strict';
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
+  const FRONTEND_VERSION = 'c1780cc';
   const pageParams = new URLSearchParams(location.search);
   const isStaging = pageParams.get('staging') === '1';
   const configuredApiUrl = String((window.KRUA_FLOW_CONFIG || {})[isStaging ? 'STAGING_API_URL' : 'API_URL'] || '').split('?')[0];
@@ -139,9 +140,10 @@
   }
 
   function environmentUrl(raw) {
-    if (!isStaging) return raw || '';
     const url = new URL(raw || '', location.href);
-    url.searchParams.set('staging', '1');
+    url.searchParams.set('v', FRONTEND_VERSION);
+    if (isStaging) url.searchParams.set('staging', '1');
+    else url.searchParams.delete('staging');
     return url.href;
   }
 

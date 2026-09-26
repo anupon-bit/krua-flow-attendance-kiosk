@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
   <title>KruaFlow ระบบบุคลากร</title>
-  <script src="./config.js"></script>
-  <script src="./mock-data.js"></script>
-  <script src="./js/api-client.js"></script>
-  <script src="./js/admin-session.js"></script>
-  <script src="./js/i18n.js"></script>
-  <link rel="stylesheet" href="./css/workforce.css">
+  <script src="./config.js?v=c1780cc"></script>
+  <script src="./mock-data.js?v=c1780cc"></script>
+  <script src="./js/api-client.js?v=c1780cc"></script>
+  <script src="./js/admin-session.js?v=c1780cc"></script>
+  <script src="./js/i18n.js?v=c1780cc"></script>
+  <link rel="stylesheet" href="./css/workforce.css?v=c1780cc">
 </head>
 <body>
   <main class="page">
@@ -42,6 +42,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
+  const FRONTEND_VERSION = 'c1780cc';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
@@ -306,7 +307,7 @@
       }
       if (!items.length) return;
       box.innerHTML = items.map(function (item) {
-        const url = './workforce.html?view=' + encodeURIComponent(item[2]) + (isStaging ? '&staging=1' : '');
+        const url = './workforce.html?view=' + encodeURIComponent(item[2]) + '&v=' + FRONTEND_VERSION + (isStaging ? '&staging=1' : '');
         return '<div class="actionRow"><div><strong>' + esc(item[0]) + '</strong><div class="metricMeta">' + esc(t('common.attention')) + '</div></div><span class="actionCount">' + esc(item[1]) + '</span>' + badge(item[3]) + '<a class="btn small" href="' + url + '">' + esc(t('dashboard.openModule')) + '</a></div>';
       }).join('');
     }
@@ -519,7 +520,7 @@
       token = getToken();
     }
     if (!token) {
-      app.innerHTML = '<div class="error"><strong>' + esc(t('auth.missingSession')) + '</strong><div><a class="btn" href="./workspace.html' + (isStaging ? '?staging=1' : '') + '">' + esc(t('app.name')) + '</a></div></div>';
+      app.innerHTML = '<div class="error"><strong>' + esc(t('auth.missingSession')) + '</strong><div><a class="btn" href="./workspace.html?v=' + FRONTEND_VERSION + (isStaging ? '&staging=1' : '') + '">' + esc(t('app.name')) + '</a></div></div>';
       return;
     }
     loading();
