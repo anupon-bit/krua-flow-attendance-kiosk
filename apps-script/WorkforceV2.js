@@ -39,6 +39,8 @@ const WF2_FLAGS_ = Object.freeze([
   'GCS_DOCUMENTS_ENABLED','PERFORMANCE_ENABLED','OFFBOARDING_ENABLED'
 ]);
 
+const WF2_PHONE_TEXT_HEADERS_ = Object.freeze(['Phone','Phone Normalized','Emergency Contact Phone']);
+
 const WF2_APPLICANT_TRANSITIONS_ = Object.freeze({
   STARTED:['SUBMITTED'], SUBMITTED:['SCREENING','REJECTED'],
   SCREENING:['INTERVIEW_SCHEDULED','REJECTED'],
@@ -233,6 +235,7 @@ function wf2EnsureSheet_(ss,name,headers) {
     }
   }
   sh.setFrozenRows(1);
+  wf2FormatPhoneTextColumns_(sh,wf2Headers_(sh),2,Math.max(0,sh.getMaxRows()-1));
   return sh;
 }
 
@@ -252,13 +255,26 @@ function wf2Rows_(name) {
 }
 function wf2Append_(name,obj) {
   const sh=wf2Sheet_(name),headers=wf2Headers_(sh);
-  sh.appendRow(headers.map(h=>Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:''));
-  return sh.getLastRow();
+  const rowNumber=sh.getLastRow()+1;
+  if(rowNumber>sh.getMaxRows())sh.insertRowsAfter(sh.getMaxRows(),1);
+  const values=wf2CoercePhoneTextValues_(headers,headers.map(h=>Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:''));
+  wf2FormatPhoneTextColumns_(sh,headers,rowNumber,1);
+  sh.getRange(rowNumber,1,1,headers.length).setValues([values]);
+  return rowNumber;
 }
 function wf2UpdateRow_(name,rowNumber,changes) {
   const sh=wf2Sheet_(name),headers=wf2Headers_(sh),row=sh.getRange(rowNumber,1,1,headers.length).getValues()[0];
   Object.keys(changes).forEach(key=>{const i=headers.indexOf(key);if(i>=0)row[i]=changes[key]});
-  sh.getRange(rowNumber,1,1,headers.length).setValues([row]);
+  wf2FormatPhoneTextColumns_(sh,headers,rowNumber,1);
+  sh.getRange(rowNumber,1,1,headers.length).setValues([wf2CoercePhoneTextValues_(headers,row)]);
+}
+
+function wf2PhoneText_(value){return value===null||value===undefined?'':String(value).trim()}
+function wf2PersonPhoneFields_(value){const raw=wf2PhoneText_(value);return{'Phone':raw,'Phone Normalized':wf2NormalizePhone_(raw)}}
+function wf2CoercePhoneTextValues_(headers,values){return values.map((value,index)=>WF2_PHONE_TEXT_HEADERS_.indexOf(String(headers[index]||''))>=0?wf2PhoneText_(value):value)}
+function wf2FormatPhoneTextColumns_(sh,headers,startRow,numRows){
+  if(!sh||numRows<=0)return;
+  WF2_PHONE_TEXT_HEADERS_.forEach(header=>{const column=headers.indexOf(header)+1;if(column>0)sh.getRange(startRow,column,numRows,1).setNumberFormat('@')});
 }
 function wf2Setting_(key) {
   const ss=SpreadsheetApp.openById(SPREADSHEET_ID),sh=ss.getSheetByName(SETTINGS_SHEET);
@@ -301,7 +317,7 @@ function wf2SubmitApplicant_(payload) {
   if(!position)throw new Error('กรุณาเลือกตำแหน่งที่สมัคร');
   const candidates=wf2DuplicateCandidates_(phone,email),now=new Date();
   const personId=wf2NextPersonId_();
-  wf2Append_('Persons',{'Person ID':personId,'First Name':firstName,'Last Name':lastName,'Nickname':String(input.nickname||''),'Birth Date':parseIsoDate_(input.birthDate)||'','Phone':String(input.phone||''),'Phone Normalized':phone,'LINE':String(input.line||''),'Email':String(input.email||''),'Email Normalized':email,'Address':String(input.address||''),'Lifecycle Stage':'APPLICANT','Identity Status':'ACTIVE','Duplicate Review Required':candidates.length>0,'Created At':now,'Updated At':now,'Created By':'PUBLIC','Source':String(input.source||'Other')});
+  wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':firstName,'Last Name':lastName,'Nickname':String(input.nickname||''),'Birth Date':parseIsoDate_(input.birthDate)||''},wf2PersonPhoneFields_(input.phone),{'LINE':String(input.line||''),'Email':String(input.email||''),'Email Normalized':email,'Address':String(input.address||''),'Lifecycle Stage':'APPLICANT','Identity Status':'ACTIVE','Duplicate Review Required':candidates.length>0,'Created At':now,'Updated At':now,'Created By':'PUBLIC','Source':String(input.source||'Other')}));
   const applicantId=wf2EntityId_('APP');
   wf2Append_('Applicants',{'Applicant ID':applicantId,'Person ID':personId,'Position Code':position,'Branch Code':branch,'Department Code':String(input.departmentCode||''),'Experience':String(input.experience||''),'Expected Wage':Number(input.expectedWage)||0,'Available Start Date':parseIsoDate_(input.availableStartDate)||'','Source':String(input.source||'Other'),'Status':'SUBMITTED','Consent':true,'Submitted At':now,'Created At':now,'Updated At':now});
   wf2AddEvent_(personId,'','APPLICANT',applicantId,'APPLICATION_SUBMITTED','ส่งใบสมัครตำแหน่ง '+position,{source:String(input.source||'Other')},'PUBLIC');
@@ -317,7 +333,7 @@ function wf2AdminCreateLead_(payload) {
   const lead=payload.lead||{},now=new Date(),first=String(lead.firstName||'').trim(),last=String(lead.lastName||'').trim();
   if(!first&&!String(lead.phone||'').trim())throw new Error('กรุณากรอกชื่อหรือเบอร์โทรผู้สนใจ');
   const phone=wf2NormalizePhone_(lead.phone),email=String(lead.email||'').trim().toLowerCase(),duplicates=wf2DuplicateCandidates_(phone,email),personId=wf2NextPersonId_();
-  wf2Append_('Persons',{'Person ID':personId,'First Name':first,'Last Name':last,'Nickname':String(lead.nickname||''),'Phone':String(lead.phone||''),'Phone Normalized':phone,'LINE':String(lead.line||''),'Email':String(lead.email||''),'Email Normalized':email,'Lifecycle Stage':'INTERESTED','Identity Status':'ACTIVE','Duplicate Review Required':duplicates.length>0,'Created At':now,'Updated At':now,'Created By':'ADMIN','Source':String(lead.source||'Other')});
+  wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':first,'Last Name':last,'Nickname':String(lead.nickname||'')},wf2PersonPhoneFields_(lead.phone),{'LINE':String(lead.line||''),'Email':String(lead.email||''),'Email Normalized':email,'Lifecycle Stage':'INTERESTED','Identity Status':'ACTIVE','Duplicate Review Required':duplicates.length>0,'Created At':now,'Updated At':now,'Created By':'ADMIN','Source':String(lead.source||'Other')}));
   const leadId=wf2EntityId_('LEAD');
   wf2Append_('Recruitment_Leads',{'Lead ID':leadId,'Person ID':personId,'Source':String(lead.source||'Other'),'Campaign':String(lead.campaign||''),'Interested Position':String(lead.positionCode||''),'Interested Branch':String(lead.branchCode||''),'Status':'INTERESTED','Owner ID':'ADMIN','Cost':Number(lead.cost)||0,'Note':String(lead.note||''),'Created At':now,'Updated At':now});
   wf2AddEvent_(personId,'','LEAD',leadId,'LEAD_CREATED','สร้างผู้สนใจจาก '+String(lead.source||'Other'),{},'ADMIN');
@@ -385,8 +401,8 @@ function wf2AdminStartOnboarding_(payload) {
   if(!person||!offer)throw new Error('ข้อมูล Person/Offer ไม่ครบ');
   const regId='REG-'+Utilities.formatDate(new Date(),TZ,'yyyyMMdd-HHmmss')+'-'+Utilities.getUuid().slice(0,6).toUpperCase(),sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
   if(!sh)throw new Error('ไม่พบ Employee_Registrations');
-  const headers=wf2Headers_(sh),record={'Registration ID':regId,'Submitted At':new Date(),'Status':'DRAFT','Branch':String(offer['Branch Code']),'First Name':String(person['First Name']),'Last Name':String(person['Last Name']),'Nickname':String(person['Nickname']),'Phone':String(person['Phone']),'Position':String(offer['Position Code']),'Birth Date':person['Birth Date'],'Start Date':offer['Start Date'],'Wage Type':String(offer['Wage Type']),'Wage Amount':Number(offer['Wage Amount'])||0,'Department':String(offer['Department Code']),'Person ID':String(app['Person ID']),'Applicant ID':applicantId};
-  sh.appendRow(headers.map(h=>Object.prototype.hasOwnProperty.call(record,h)?record[h]:''));
+  const record={'Registration ID':regId,'Submitted At':new Date(),'Status':'DRAFT','Branch':String(offer['Branch Code']),'First Name':String(person['First Name']),'Last Name':String(person['Last Name']),'Nickname':String(person['Nickname']),'Phone':wf2PhoneText_(person['Phone']),'Position':String(offer['Position Code']),'Birth Date':person['Birth Date'],'Start Date':offer['Start Date'],'Wage Type':String(offer['Wage Type']),'Wage Amount':Number(offer['Wage Amount'])||0,'Department':String(offer['Department Code']),'Person ID':String(app['Person ID']),'Applicant ID':applicantId};
+  wf2Append_(REGISTRATION_SHEET,record);
   wf2UpdateRow_('Applicants',app._row,{'Status':'PRE_ONBOARDING','Updated At':new Date()});
   wf2UpdateRow_('Persons',person._row,{'Lifecycle Stage':'PRE_ONBOARDING','Updated At':new Date()});
   wf2AddWorkItem_('ONBOARDING',regId,'กรอกข้อมูล Onboarding ให้ครบ','ADMIN','',new Date(Date.now()+3*24*60*60*1000),'NORMAL',String(offer['Branch Code']),String(offer['Department Code']));
@@ -519,11 +535,11 @@ function wf2BackfillLegacyPeople_() {
   function next(){max++;return'P'+String(max).padStart(6,'0')}
   if(emp&&emp.getLastRow()>=2){
     const headers=wf2Headers_(emp),personCol=headers.indexOf('Person ID')+1,rows=emp.getRange(2,1,emp.getLastRow()-1,headers.length).getValues();
-    rows.forEach((r,i)=>{const employeeId=String(r[0]||'');if(!employeeId)return;let personId=personCol?String(r[personCol-1]||''):'';if(!personId){personId=next();emp.getRange(i+2,personCol).setValue(personId);linkedEmployees++}byEmployee[employeeId]=personId;if(!personIds.has(personId)){const full=String(r[1]||'').trim().split(/\s+/);wf2Append_('Persons',{'Person ID':personId,'First Name':String(r[11]||full[0]||''),'Last Name':String(r[12]||full.slice(1).join(' ')),'Nickname':String(r[7]||''),'Birth Date':r[16]||'','Phone':String(r[8]||''),'Phone Normalized':wf2NormalizePhone_(r[8]),'Lifecycle Stage':r[2]===false?'EXITED':String(r[24]||'ACTIVE_EMPLOYEE'),'Identity Status':'ACTIVE','Duplicate Review Required':false,'Created At':new Date(),'Updated At':new Date(),'Created By':'MIGRATION','Source':'LEGACY_EMPLOYEE'});personIds.add(personId);created++}});
+    rows.forEach((r,i)=>{const employeeId=String(r[0]||'');if(!employeeId)return;let personId=personCol?String(r[personCol-1]||''):'';if(!personId){personId=next();emp.getRange(i+2,personCol).setValue(personId);linkedEmployees++}byEmployee[employeeId]=personId;if(!personIds.has(personId)){const full=String(r[1]||'').trim().split(/\s+/);wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':String(r[11]||full[0]||''),'Last Name':String(r[12]||full.slice(1).join(' ')),'Nickname':String(r[7]||''),'Birth Date':r[16]||''},wf2PersonPhoneFields_(r[8]),{'Lifecycle Stage':r[2]===false?'EXITED':String(r[24]||'ACTIVE_EMPLOYEE'),'Identity Status':'ACTIVE','Duplicate Review Required':false,'Created At':new Date(),'Updated At':new Date(),'Created By':'MIGRATION','Source':'LEGACY_EMPLOYEE'}));personIds.add(personId);created++}});
   }
   if(reg&&reg.getLastRow()>=2){
     const headers=wf2Headers_(reg),personCol=headers.indexOf('Person ID')+1,employeeCol=headers.indexOf('Employee ID')+1,rows=reg.getRange(2,1,reg.getLastRow()-1,headers.length).getValues();
-    rows.forEach((r,i)=>{if(!String(r[0]||''))return;let personId=String(r[personCol-1]||''),employeeId=employeeCol?String(r[employeeCol-1]||''):'';if(!personId&&employeeId&&byEmployee[employeeId])personId=byEmployee[employeeId];if(!personId)personId=next();if(!String(r[personCol-1]||'')){reg.getRange(i+2,personCol).setValue(personId);linkedRegistrations++}if(!personIds.has(personId)){wf2Append_('Persons',{'Person ID':personId,'First Name':String(r[4]||''),'Last Name':String(r[5]||''),'Nickname':String(r[6]||''),'Birth Date':r[10]||'','Phone':String(r[7]||''),'Phone Normalized':wf2NormalizePhone_(r[7]),'Lifecycle Stage':String(r[2])==='APPROVED'?'ACTIVE_EMPLOYEE':'APPLICANT','Identity Status':'ACTIVE','Duplicate Review Required':false,'Created At':new Date(),'Updated At':new Date(),'Created By':'MIGRATION','Source':'LEGACY_REGISTRATION'});personIds.add(personId);created++}});
+    rows.forEach((r,i)=>{if(!String(r[0]||''))return;let personId=String(r[personCol-1]||''),employeeId=employeeCol?String(r[employeeCol-1]||''):'';if(!personId&&employeeId&&byEmployee[employeeId])personId=byEmployee[employeeId];if(!personId)personId=next();if(!String(r[personCol-1]||'')){reg.getRange(i+2,personCol).setValue(personId);linkedRegistrations++}if(!personIds.has(personId)){wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':String(r[4]||''),'Last Name':String(r[5]||''),'Nickname':String(r[6]||''),'Birth Date':r[10]||''},wf2PersonPhoneFields_(r[7]),{'Lifecycle Stage':String(r[2])==='APPROVED'?'ACTIVE_EMPLOYEE':'APPLICANT','Identity Status':'ACTIVE','Duplicate Review Required':false,'Created At':new Date(),'Updated At':new Date(),'Created By':'MIGRATION','Source':'LEGACY_REGISTRATION'}));personIds.add(personId);created++}});
   }
   return {personsCreated:created,employeesLinked:linkedEmployees,registrationsLinked:linkedRegistrations};
 }
@@ -531,7 +547,7 @@ function wf2BackfillLegacyPeople_() {
 function wf2DuplicateCandidates_(phone,email){return wf2Rows_('Persons').filter(r=>(phone&&String(r['Phone Normalized'])===phone)||(email&&String(r['Email Normalized']).toLowerCase()===email)).map(r=>String(r['Person ID']))}
 function wf2NextPersonId_(){const lock=LockService.getScriptLock();lock.waitLock(10000);try{const props=PropertiesService.getScriptProperties(),sheetMax=wf2Rows_('Persons').reduce((m,r)=>Math.max(m,Number(String(r['Person ID']||'').replace(/^P/,''))||0),0),reserved=Number(props.getProperty('WF2_PERSON_COUNTER'))||0,next=Math.max(sheetMax,reserved)+1;props.setProperty('WF2_PERSON_COUNTER',String(next));return'P'+String(next).padStart(6,'0')}finally{try{lock.releaseLock()}catch(e){}}}
 function wf2EntityId_(prefix){return prefix+'-'+Utilities.formatDate(new Date(),TZ,'yyyyMMddHHmmss')+'-'+Utilities.getUuid().slice(0,6).toUpperCase()}
-function wf2NormalizePhone_(value){let s=String(value||'').replace(/\D/g,'');if(s.indexOf('66')===0)s='0'+s.slice(2);return s}
+function wf2NormalizePhone_(value){let s=wf2PhoneText_(value).replace(/\D/g,'');if(s.indexOf('66')===0)s='0'+s.slice(2);return s}
 function wf2CanTransition_(from,to){const allowed=WF2_APPLICANT_TRANSITIONS_[String(from||'')]||[];return allowed.indexOf(String(to||''))>=0}
 function wf2Ratio_(numerator,denominator){const n=Number(numerator)||0,d=Number(denominator)||0;return d>0?Math.round(n/d*1000)/10:null}
 function wf2SafeFileName_(name){const clean=String(name||'file').normalize('NFKD').replace(/[^A-Za-z0-9._-]+/g,'-').replace(/-+/g,'-').replace(/^[-.]+|[-.]+$/g,'').slice(0,120);return clean||'file'}
@@ -553,4 +569,4 @@ function wf2KpiDictionary_(){return[
 function wf2SeedKpis_(){const existing=wf2Rows_('KPI_Definitions');if(existing.length)return 0;const seeds=wf2KpiDictionary_();seeds.forEach(k=>wf2Append_('KPI_Definitions',{'KPI Key':k.key,'Name':k.name,'Description':k.formula,'Source':k.source,'Formula Type':'RATIO','Formula':k.formula,'Numerator':k.formula.split(' / ')[0],'Denominator':k.formula.split(' / ')[1]||'','Unit':k.unit,'Period':'CONFIGURABLE','Direction':'HIGHER_IS_BETTER','Weight':0,'Owner':'HR','Data Quality Status':'NOT_EVALUATED','Active':true,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 function wf2SeedPositions_(){if(wf2Rows_('Positions').length)return 0;const seeds=[['MANAGER','ผู้จัดการ',''],['SUPERVISOR','หัวหน้างาน',''],['STAFF','พนักงาน','']];seeds.forEach((p,i)=>wf2Append_('Positions',{'Position Code':p[0],'Position Name':p[1],'Department Code':p[2],'Active':true,'Sort Order':i+1,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 
-if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_,buildBackfillPreview:wf2BuildBackfillPreview_}}
+if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,phoneText:wf2PhoneText_,personPhoneFields:wf2PersonPhoneFields_,coercePhoneTextValues:wf2CoercePhoneTextValues_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_,buildBackfillPreview:wf2BuildBackfillPreview_}}

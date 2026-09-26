@@ -1207,12 +1207,12 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
       const birthDate=parseIsoDate_(registration.birthDate), startDate=parseIsoDate_(registration.startDate);
       const photoUrl=String(registration.photoUrl || r[17] || '');
       const photoFileId=String(r[18] || '');
+      regSh.getRange(regRow,8).setNumberFormat('@'); regSh.getRange(regRow,13,1,2).setNumberFormat('@'); regSh.getRange(regRow,16).setNumberFormat('@'); regSh.getRange(regRow,11,1,2).setNumberFormat('dd/mm/yyyy');
       regSh.getRange(regRow,4,1,17).setValues([[
         branch,String(registration.firstName||''),String(registration.lastName||''),String(registration.nickname||''),String(registration.phone||''),String(registration.contact||''),position,
         birthDate,startDate,String(registration.registeredAddress||''),String(registration.currentAddress||''),String(registration.emergencyName||''),String(registration.emergencyPhone||''),
         String(registration.emergencyRelationship||''),photoUrl,photoFileId,String(registration.adminNote||'')
       ]]);
-      regSh.getRange(regRow,8).setNumberFormat('@'); regSh.getRange(regRow,13,1,2).setNumberFormat('@'); regSh.getRange(regRow,16).setNumberFormat('@'); regSh.getRange(regRow,11,1,2).setNumberFormat('dd/mm/yyyy');
       regSh.getRange(regRow,23).setValue(String(registration.wageType||'')); regSh.getRange(regRow,24).setValue(Number(registration.wageAmount)||0).setNumberFormat('#,##0.00');
       regSh.getRange(regRow,26).setNumberFormat('@').setValue(String(registration.bankName||'').trim()); regSh.getRange(regRow,27).setNumberFormat('@').setValue(String(registration.bankAccountNo||'').replace(/[^0-9A-Za-z-]/g,'').trim()); regSh.getRange(regRow,28).setNumberFormat('@').setValue(String(registration.bankAccountName||'').trim()); regSh.getRange(regRow,29).setNumberFormat('@').setValue(String(registration.bankCode||'').trim()); regSh.getRange(regRow,30).setValue(department);
       r = regSh.getRange(regRow,1,1,Math.max(30,regSh.getLastColumn())).getValues()[0];
@@ -1232,9 +1232,9 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
     const wageType=String((employee && employee.wageType)||r[22]||'').trim();
     const wageAmount=Number((employee && employee.wageAmount)||r[23]||0);
     const fullName=(String(r[4])+' '+String(r[5])).trim();
-    empSh.appendRow([id,fullName,true,Number((employee&&employee.sort)||999),'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']);
-    const erow=empSh.getLastRow();
+    const erow=empSh.getLastRow()+1;
     empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,19,1,2).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
+    empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number((employee&&employee.sort)||999),'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
 
     regSh.getRange(regRow,3).setValue('APPROVED'); regSh.getRange(regRow,21).setValue(new Date()); regSh.getRange(regRow,22).setValue(id); regSh.getRange(regRow,23).setValue(wageType); regSh.getRange(regRow,24).setValue(wageAmount).setNumberFormat('#,##0.00');
     attachDocumentsToEmployee_(ss, registrationId, id);
@@ -1367,9 +1367,10 @@ function adminAddEmployee(token, employee) {
   const phone = String(employee.phone || '').trim();
   const startDate = parseIsoDate_(employee.startDate);
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);
-  sh.appendRow([id, String(employee.name).trim(), true, Number(employee.sort)||999, '', new Date(), hashPortablePin_(pin), nickname, phone, startDate, String(employee.branch||''), String(employee.firstName||''), String(employee.lastName||''), String(employee.position||''), String(employee.wageType||''), Number(employee.wageAmount)||0, parseIsoDate_(employee.birthDate), parseIsoDate_(employee.resignationDate), String(employee.registeredAddress||''), String(employee.currentAddress||''), String(employee.emergencyName||''), String(employee.emergencyPhone||''), String(employee.emergencyRelationship||''), String(employee.photoUrl||''), String(employee.employmentStatus||'ACTIVE'), String(employee.adminNote||''), Number(employee.dailyWage)||0, String(employee.bankName||''), String(employee.bankAccountNo||''), String(employee.bankAccountName||''), String(employee.bankCode||''), String(employee.department||''), String(employee.accessRole||'EMPLOYEE')]);
-  const row = sh.getLastRow();
+  const row = sh.getLastRow()+1;
   sh.getRange(row, 9).setNumberFormat('@');
+  sh.getRange(row,22).setNumberFormat('@');
+  sh.getRange(row,1,1,33).setValues([[id, String(employee.name).trim(), true, Number(employee.sort)||999, '', new Date(), hashPortablePin_(pin), nickname, phone, startDate, String(employee.branch||''), String(employee.firstName||''), String(employee.lastName||''), String(employee.position||''), String(employee.wageType||''), Number(employee.wageAmount)||0, parseIsoDate_(employee.birthDate), parseIsoDate_(employee.resignationDate), String(employee.registeredAddress||''), String(employee.currentAddress||''), String(employee.emergencyName||''), String(employee.emergencyPhone||''), String(employee.emergencyRelationship||''), String(employee.photoUrl||''), String(employee.employmentStatus||'ACTIVE'), String(employee.adminNote||''), Number(employee.dailyWage)||0, String(employee.bankName||''), String(employee.bankAccountNo||''), String(employee.bankAccountName||''), String(employee.bankCode||''), String(employee.department||''), String(employee.accessRole||'EMPLOYEE')]]);
   if (startDate) sh.getRange(row, 10).setNumberFormat('dd/mm/yyyy');
   return { ok:true };
 }
@@ -1551,10 +1552,10 @@ function submitEmployeeRegistration_(registration) {
   }
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
   const initialStatus=registration.draft===true?'DRAFT':'PENDING';
-  sh.appendRow([registrationId,new Date(),initialStatus,branch,firstName,lastName,nickname,phone,contact,position,birthDate,startDate,registeredAddress,currentAddress,emergencyName,emergencyPhone,emergencyRelationship,photoUrl,photoFileId,'','', '', '', 0, registrationPinHash,bankName,bankAccountNo,bankAccountName,bankCode,department]);
-  const row = sh.getLastRow();
+  const row = sh.getLastRow()+1;
   sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,13,1,2).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@');
   sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy'); sh.getRange(row,26,1,4).setNumberFormat('@');
+  sh.getRange(row,1,1,30).setValues([[registrationId,new Date(),initialStatus,branch,firstName,lastName,nickname,phone,contact,position,birthDate,startDate,registeredAddress,currentAddress,emergencyName,emergencyPhone,emergencyRelationship,photoUrl,photoFileId,'','', '', '', 0, registrationPinHash,bankName,bankAccountNo,bankAccountName,bankCode,department]]);
   return {ok:true, registrationId:registrationId, status:initialStatus};
 }
 
@@ -1589,12 +1590,12 @@ function adminUpdateRegistration(token, registrationId, registration) {
   const position=validateRegistrationChoice_(registration.position,['MANAGER','SUPERVISOR','STAFF'],'Position');
   const department=registration.department!==undefined?validateDepartmentV7_(registration.department,true):String(sh.getRange(row,30).getValue()||'');
   const birthDate=parseIsoDate_(registration.birthDate), startDate=parseIsoDate_(registration.startDate);
+  sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@'); sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy');
   sh.getRange(row,4,1,17).setValues([[
     branch,String(registration.firstName||''),String(registration.lastName||''),String(registration.nickname||''),String(registration.phone||''),String(registration.contact||''),position,
     birthDate,startDate,String(registration.registeredAddress||''),String(registration.currentAddress||''),String(registration.emergencyName||''),String(registration.emergencyPhone||''),
     String(registration.emergencyRelationship||''),String(registration.photoUrl||sh.getRange(row,18).getValue()||''),sh.getRange(row,19).getValue(),String(registration.adminNote||'')
   ]]);
-  sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@'); sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy');
   sh.getRange(row,23).setValue(String(registration.wageType||'')); sh.getRange(row,24).setValue(Number(registration.wageAmount)||0).setNumberFormat('#,##0.00');
   sh.getRange(row,26).setNumberFormat('@').setValue(String(registration.bankName||'').trim()); sh.getRange(row,27).setNumberFormat('@').setValue(String(registration.bankAccountNo||'').replace(/[^0-9A-Za-z-]/g,'').trim()); sh.getRange(row,28).setNumberFormat('@').setValue(String(registration.bankAccountName||'').trim()); sh.getRange(row,29).setNumberFormat('@').setValue(String(registration.bankCode||'').trim());
   sh.getRange(row,30).setValue(department);
@@ -1622,8 +1623,8 @@ function adminApproveRegistration(token, registrationId, employee, registration)
   const wageAmount=Number(employee.wageAmount||r[23]||0);
   const fullName=(String(r[4])+' '+String(r[5])).trim();
   const empSh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);
-  empSh.appendRow([id,fullName,true,Number(employee.sort)||999,'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']);
-  const erow=empSh.getLastRow(); empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
+  const erow=empSh.getLastRow()+1; empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
+  empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number(employee.sort)||999,'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
   sh.getRange(row,3).setValue('APPROVED'); sh.getRange(row,21).setValue(new Date()); sh.getRange(row,22).setValue(id); sh.getRange(row,23).setValue(wageType); sh.getRange(row,24).setValue(wageAmount).setNumberFormat('#,##0.00');
   attachDocumentsToEmployee_(SpreadsheetApp.openById(SPREADSHEET_ID),registrationId,id);invalidateAdminSummary_();
   return {ok:true,employeeId:id};
@@ -2637,7 +2638,14 @@ function adminSetLeaveBalanceV7_(payload){requireAdmin_(String(payload.adminToke
 function adminGetLeaveBalancesV7_(payload){requireAdmin_(String(payload.adminToken||''));return{rows:leaveBalanceRowsV7_(String(payload.employeeId||''),Number(payload.year)||new Date().getFullYear())}}
 
 function adminGetOrgMastersV7_(payload){requireAdmin_(String(payload.adminToken||''));return{branches:getBranchesV7_(true),departments:getDepartmentsV7_(true),shifts:getShiftsV7_(true),devices:deviceRowsV7_(),serverEpochMs:Date.now()}}
-function upsertMasterV7_(sheetName,idCol,id,values){const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName),last=sh.getLastRow();let row=0;if(last>=2){const vals=sh.getRange(2,idCol,last-1,1).getValues();for(let i=0;i<vals.length;i++)if(String(vals[i][0])===String(id)){row=i+2;break}}if(row)sh.getRange(row,1,1,values.length).setValues([values]);else sh.appendRow(values);return row||sh.getLastRow()}
+function upsertMasterV7_(sheetName,idCol,id,values){
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName),last=sh.getLastRow();let row=0;
+  if(last>=2){const vals=sh.getRange(2,idCol,last-1,1).getValues();for(let i=0;i<vals.length;i++)if(String(vals[i][0])===String(id)){row=i+2;break}}
+  const targetRow=row||last+1;
+  if(sheetName===BRANCHES_SHEET)sh.getRange(targetRow,7).setNumberFormat('@');
+  sh.getRange(targetRow,1,1,values.length).setValues([values]);
+  return targetRow;
+}
 function codeV7_(v,label){const s=String(v||'').trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'_').slice(0,30);if(!s)throw new Error('กรุณาระบุรหัส'+label);return s}
 function adminSaveBranchV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.branch||{},code=codeV7_(x.code,'สาขา'),old=getBranchesV7_(true).find(b=>b.code===code)||null,now=new Date();upsertMasterV7_(BRANCHES_SHEET,1,code,[code,String(x.name||'').trim(),String(x.shortName||x.name||'').trim(),x.active!==false,Number(x.sort)||999,String(x.address||''),String(x.phone||''),String(x.timezone||TZ),old?old.createdAt||now:now,now,String(x.note||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_BRANCH','BRANCH',code,old,x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
 function adminSaveDepartmentV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.department||{},code=codeV7_(x.code,'แผนก'),now=new Date();upsertMasterV7_(DEPARTMENTS_SHEET,1,code,[code,String(x.name||'').trim(),String(x.shortName||x.name||'').trim(),x.active!==false,Number(x.sort)||999,now,now,String(x.note||''),String(x.color||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_DEPARTMENT','DEPARTMENT',code,'',x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}

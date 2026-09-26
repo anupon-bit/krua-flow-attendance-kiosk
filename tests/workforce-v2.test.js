@@ -1,11 +1,24 @@
 'use strict';
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 const core=require('../apps-script/WorkforceV2.js');
 const performance=require('../apps-script/WorkforcePerformanceV2.js');
 const reports=require('../apps-script/WorkforceReportsV2.js');
 
 assert.equal(core.normalizePhone('+66 81-234-5678'),'0812345678');
 assert.equal(core.normalizePhone('081 234 5678'),'0812345678');
+assert.equal(core.normalizePhone('0812345678'),'0812345678');
+assert.equal(typeof core.normalizePhone('0812345678'),'string');
+assert.equal(core.normalizePhone('0000000001'),'0000000001');
+assert.equal(typeof core.normalizePhone('0000000001'),'string');
+assert.equal(core.phoneText('0000000001'),'0000000001');
+assert.deepEqual(core.personPhoneFields('000-000-0001'),{'Phone':'000-000-0001','Phone Normalized':'0000000001'});
+assert.deepEqual(core.coercePhoneTextValues(
+  ['Person ID','Phone','Phone Normalized'],
+  ['P000003','0000000001','0000000001']
+),['P000003','0000000001','0000000001']);
+assert.equal(typeof core.coercePhoneTextValues(['Phone'],['0000000001'])[0],'string');
 assert.equal(core.canTransition('SUBMITTED','SCREENING'),true);
 assert.equal(core.canTransition('SUBMITTED','HIRED'),false);
 assert.equal(core.canTransition('OFFER_SENT','OFFER_ACCEPTED'),true);
@@ -53,4 +66,24 @@ assert.deepEqual(preview.employees.find(row=>row.employeeId==='E001').plannedReg
 assert.equal(preview.registrations.find(row=>row.registrationId==='R2').plannedEmployeePersonReuse,true);
 const duplicatePreview=core.buildBackfillPreview({employees:[{'Employee ID':'E1','Phone':'0999'},{'Employee ID':'E2','Phone':'0999'}],registrations:[],persons:[]});
 assert.equal(duplicatePreview.duplicateIdentityWarnings[0].type,'DUPLICATE_PHONE');
+
+function functionBody(source,name,nextName){
+  const start=source.indexOf('function '+name+'('),end=source.indexOf('function '+nextName+'(',start+1);
+  assert.ok(start>=0&&end>start,'missing function '+name);
+  return source.slice(start,end);
+}
+function assertFormatsPhoneBeforeWrite(body,label,formatMarker){
+  const format=body.indexOf(formatMarker||"setNumberFormat('@')"),write=body.indexOf('setValues(');
+  assert.ok(format>=0&&write>=0&&format<write,label+' must format phone as text before writing');
+}
+const workforceSource=fs.readFileSync(path.join(__dirname,'../apps-script/WorkforceV2.js'),'utf8');
+const legacySource=fs.readFileSync(path.join(__dirname,'../apps-script/รหัส.js'),'utf8');
+assertFormatsPhoneBeforeWrite(functionBody(workforceSource,'wf2Append_','wf2UpdateRow_'),'Workforce append','wf2FormatPhoneTextColumns_');
+assertFormatsPhoneBeforeWrite(functionBody(workforceSource,'wf2UpdateRow_','wf2PhoneText_'),'Workforce update','wf2FormatPhoneTextColumns_');
+assert.match(functionBody(workforceSource,'wf2BackfillLegacyPeople_','wf2DuplicateCandidates_'),/wf2PersonPhoneFields_/,'backfill must use string-safe Person phone fields');
+assertFormatsPhoneBeforeWrite(functionBody(legacySource,'adminApproveRegistrationFast_','adminGetDashboard'),'fast approval');
+assertFormatsPhoneBeforeWrite(functionBody(legacySource,'adminAddEmployee','adminSetEmployeeActive'),'employee create');
+assertFormatsPhoneBeforeWrite(functionBody(legacySource,'submitEmployeeRegistration_','getEmployeeRegistrationsAdmin_'),'registration create');
+assertFormatsPhoneBeforeWrite(functionBody(legacySource,'adminUpdateRegistration','adminApproveRegistration'),'registration update');
+assertFormatsPhoneBeforeWrite(functionBody(legacySource,'adminApproveRegistration','adminRejectRegistration'),'registration approval');
 console.log('workforce-v2 tests: pass');
