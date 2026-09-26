@@ -19,6 +19,7 @@
 .overlay{position:fixed;inset:0;background:rgba(255,255,255,.88);display:none;align-items:center;justify-content:center;z-index:10;text-align:center;padding:20px}.overlay.show{display:flex}.overlay strong{font-size:24px}
 .success{display:none;text-align:center;padding:32px 18px}.success.show{display:block}.success .icon{font-size:68px;color:var(--green);font-weight:950}.success h2{font-size:30px;margin:6px 0}.rid{font-weight:900;color:var(--muted)}
 .consent{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.45}.consent input{margin-top:4px;transform:scale(1.25)}
+.docHead{display:flex;gap:10px;align-items:center;justify-content:space-between}.docStatus{font-size:13px;font-weight:900;border-radius:999px;padding:5px 9px;background:#f1f2f5;color:#666}.docStatus.ready{background:#eaf8ef;color:#086b38}.docStatus.problem{background:#fff0ee;color:#93241d}
 @media(max-width:620px){.grid2{grid-template-columns:1fr}.brand{font-size:29px}.wrap{padding:13px 10px 34px}}
 </style>
 </head>
@@ -26,7 +27,7 @@
 <div class="overlay" id="busy"><div><strong>กำลังส่งข้อมูล...</strong><div class="help">กรุณารอสักครู่</div></div></div>
 <main class="wrap">
   <div class="brand">Krua Flow</div><div class="sub">แบบลงทะเบียนข้อมูลพนักงาน</div>
-  <form id="form">
+  <form id="form" novalidate>
     <section class="card">
       <h2>ข้อมูลการทำงาน</h2>
       <div class="grid2">
@@ -102,16 +103,16 @@
     <section class="card">
       <h2>เอกสารสำคัญ</h2>
       <div class="help" style="margin-bottom:12px">รองรับรูปภาพหรือ PDF ระบบจะส่งให้ Admin ตรวจสอบพร้อมใบลงทะเบียน</div>
-      <div class="field"><label>บัตรประชาชน</label><input class="input docFile" id="docIdCard" type="file" accept="image/*,.pdf,application/pdf"></div>
-      <div class="field" style="margin-top:10px"><label>ทะเบียนบ้าน</label><input class="input docFile" id="docHouse" type="file" accept="image/*,.pdf,application/pdf"></div>
+      <div class="field"><div class="docHead"><label class="req">บัตรประชาชน</label><span class="docStatus" id="docIdCardStatus">ยังไม่แนบ</span></div><input class="input docFile" id="docIdCard" type="file" accept="image/*,.pdf,application/pdf" required></div>
+      <div class="field" style="margin-top:10px"><div class="docHead"><label class="req">ทะเบียนบ้าน</label><span class="docStatus" id="docHouseStatus">ยังไม่แนบ</span></div><input class="input docFile" id="docHouse" type="file" accept="image/*,.pdf,application/pdf" required></div>
       <div class="field" style="margin-top:10px"><label>วุฒิการศึกษา</label><input class="input docFile" id="docEducation" type="file" accept="image/*,.pdf,application/pdf"></div>
       <div class="field" style="margin-top:10px"><label>เอกสารอื่น ๆ</label><input class="input docFile" id="docOther" type="file" accept="image/*,.pdf,application/pdf" multiple></div>
       <div class="help" style="margin-top:10px">แนะนำไฟล์ละไม่เกิน 6 MB หากเป็นรูปจากโทรศัพท์ ระบบจะย่อขนาดให้อัตโนมัติก่อนส่ง</div>
     </section>
     <section class="card">
-      <h2>รูปถ่ายพนักงาน</h2>
+      <div class="docHead"><h2>รูปถ่ายพนักงาน</h2><span class="docStatus" id="photoStatus">ยังไม่แนบ</span></div>
       <div class="photoBox">
-        <input id="photo" type="file" accept="image/*" capture="user">
+        <input id="photo" type="file" accept="image/*" capture="user" required>
         <div class="help">ใช้รูปหน้าตรง เห็นใบหน้าชัดเจน</div>
         <img class="preview" id="preview" alt="รูปตัวอย่าง">
       </div>
@@ -133,7 +134,7 @@
 <script>
 (()=>{
 const $=id=>document.getElementById(id);
-const state={api:(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'',photoData:'',documents:[],orgReady:false};
+const state={api:(window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'',photoData:'',registrationId:'',uploadedTypes:new Set(),uploadedFileKeys:new Set(),orgReady:false};
 function uid(){return crypto.randomUUID?crypto.randomUUID():'r-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
 function showErr(m){$('error').textContent=m||'';$('error').classList.toggle('show',!!m)}
 function busy(v){$('busy').classList.toggle('show',!!v)}
@@ -166,25 +167,29 @@ async function fileToDataUrl(file){
 }
 function collectDocumentFiles(){
   const out=[],push=(id,type,label)=>{const el=$(id);Array.from((el&&el.files)||[]).forEach(f=>out.push({file:f,type:type,label:label}))};
-  push('docIdCard','ID_CARD','บัตรประชาชน');push('docHouse','HOUSE_REGISTRATION','ทะเบียนบ้าน');push('docEducation','EDUCATION','วุฒิการศึกษา');push('docOther','OTHER','เอกสารอื่น ๆ');return out
+  push('docIdCard','ID_CARD','บัตรประชาชน');push('docHouse','HOUSE_REGISTRATION','ทะเบียนบ้าน');push('photo','EMPLOYEE_PHOTO','รูปถ่ายพนักงาน');push('docEducation','EDUCATION','วุฒิการศึกษา');push('docOther','OTHER','เอกสารอื่น ๆ');return out
 }
+function documentFileKey(d){const f=d.file||{};return [d.type,f.name||'',f.size||0,f.lastModified||0].join('|')}
 async function uploadDocuments(registrationId){
-  const docs=collectDocumentFiles();if(!docs.length)return {uploaded:0,failed:[]};
+  const docs=collectDocumentFiles().filter(d=>!state.uploadedFileKeys.has(documentFileKey(d)));if(!docs.length)return {uploaded:0,failed:[]};
   const failed=[];let uploaded=0;
   for(let i=0;i<docs.length;i++){
     const d=docs[i];$('busy').querySelector('strong').textContent='กำลังส่งเอกสาร '+(i+1)+'/'+docs.length;
     try{
-      const dataUrl=await fileToDataUrl(d.file);
+      const dataUrl=d.type==='EMPLOYEE_PHOTO'&&state.photoData?state.photoData:await fileToDataUrl(d.file);
       await postBridge({op:'employeeRegistrationUploadDocument',registrationId:registrationId,document:{type:d.type,label:d.label,fileName:d.file.name,mimeType:d.file.type||'',dataUrl:dataUrl}});
-      uploaded++;
-    }catch(err){failed.push(d.file.name)}
+      state.uploadedFileKeys.add(documentFileKey(d));state.uploadedTypes.add(d.type);setDocumentStatus(d.type,'แนบแล้ว','ready');uploaded++;
+    }catch(err){failed.push({type:d.type,name:d.file.name,message:err.message||String(err)});setDocumentStatus(d.type,'ต้องลองใหม่','problem')}
   }
   return {uploaded,failed}
 }
-$('photo').addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f){state.photoData='';$('preview').style.display='none';return}state.photoData=await makePhoto(f);$('preview').src=state.photoData;$('preview').style.display='block'});
+function setDocumentStatus(type,text,kind){const id={ID_CARD:'docIdCardStatus',HOUSE_REGISTRATION:'docHouseStatus',EMPLOYEE_PHOTO:'photoStatus'}[type],el=id&&$(id);if(!el)return;el.textContent=text;el.className='docStatus '+(kind||'')}
+function requiredDocumentMissing(){const checks=[['docIdCard','ID_CARD','บัตรประชาชน'],['docHouse','HOUSE_REGISTRATION','ทะเบียนบ้าน'],['photo','EMPLOYEE_PHOTO','รูปถ่ายพนักงาน']];return checks.filter(x=>!($(x[0]).files&&$(x[0]).files[0])&&!state.uploadedTypes.has(x[1])).map(x=>x[2])}
+[['docIdCard','ID_CARD'],['docHouse','HOUSE_REGISTRATION']].forEach(x=>$(x[0]).addEventListener('change',e=>{state.uploadedTypes.delete(x[1]);Array.from(state.uploadedFileKeys).forEach(k=>{if(k.indexOf(x[1]+'|')===0)state.uploadedFileKeys.delete(k)});setDocumentStatus(x[1],e.target.files&&e.target.files[0]?'แนบแล้ว':'ยังไม่แนบ',e.target.files&&e.target.files[0]?'ready':'')}));
+$('photo').addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];state.uploadedTypes.delete('EMPLOYEE_PHOTO');Array.from(state.uploadedFileKeys).forEach(k=>{if(k.indexOf('EMPLOYEE_PHOTO|')===0)state.uploadedFileKeys.delete(k)});setDocumentStatus('EMPLOYEE_PHOTO',f?'แนบแล้ว':'ยังไม่แนบ',f?'ready':'');if(!f){state.photoData='';$('preview').style.display='none';return}try{state.photoData=await makePhoto(f);$('preview').src=state.photoData;$('preview').style.display='block'}catch(err){state.photoData='';e.target.value='';$('preview').style.display='none';setDocumentStatus('EMPLOYEE_PHOTO','ต้องลองใหม่','problem');showErr('อ่านรูปถ่ายพนักงานไม่สำเร็จ กรุณาเลือกไฟล์ใหม่')}});
 $('sameAddress').addEventListener('change',()=>{if($('sameAddress').checked){$('currentAddress').value=$('registeredAddress').value;$('currentAddress').readOnly=true}else{$('currentAddress').readOnly=false}});
 $('registeredAddress').addEventListener('input',()=>{if($('sameAddress').checked)$('currentAddress').value=$('registeredAddress').value});$('birthDate').addEventListener('change',refreshDerived);$('startDate').addEventListener('change',refreshDerived);['employeePin','employeePinConfirm'].forEach(id=>$(id).addEventListener('input',e=>{e.target.value=String(e.target.value||'').replace(/\D/g,'').slice(0,4)}));$('bankAccountNo').addEventListener('input',e=>{e.target.value=String(e.target.value||'').replace(/\D/g,'')});$('bankName').addEventListener('change',e=>{const o=e.target.options[e.target.selectedIndex];$('bankCode').value=(o&&o.dataset.code)||''});refreshDerived();loadOrgMasters();
-$('form').addEventListener('submit',async e=>{e.preventDefault();showErr('');if(!state.api){showErr('ระบบยังไม่พร้อม กรุณาติดต่อ Admin');return}const pin=$('employeePin').value,confirmPin=$('employeePinConfirm').value;if(!/^\d{4}$/.test(pin)){showErr('กรุณาตั้ง PIN เป็นตัวเลข 4 หลัก');$('employeePin').focus();return}if(pin!==confirmPin){showErr('PIN 4 หลักทั้งสองช่องไม่ตรงกัน');$('employeePinConfirm').focus();return}const r={branch:$('branch').value,department:$('department').value,position:$('position').value,startDate:$('startDate').value,firstName:$('firstName').value.trim(),lastName:$('lastName').value.trim(),nickname:$('nickname').value.trim(),phone:$('phone').value.trim(),contact:$('contact').value.trim(),birthDate:$('birthDate').value,registeredAddress:$('registeredAddress').value.trim(),currentAddress:$('currentAddress').value.trim(),emergencyName:$('emergencyName').value.trim(),emergencyPhone:$('emergencyPhone').value.trim(),emergencyRelationship:$('emergencyRelationship').value.trim(),bankName:$('bankName').value.trim(),bankCode:$('bankCode').value.trim(),bankAccountNo:$('bankAccountNo').value.trim(),bankAccountName:$('bankAccountName').value.trim(),employeePin:pin,photoData:state.photoData,consent:$('consent').checked};try{busy(1);$('busy').querySelector('strong').textContent='กำลังส่งข้อมูลลงทะเบียน...';const res=await postBridge({op:'employeeRegistrationSubmit',registration:r});const docs=await uploadDocuments(res.registrationId||'');$('form').style.display='none';$('rid').textContent='เลขอ้างอิง: '+(res.registrationId||'')+(docs.uploaded?' • แนบเอกสาร '+docs.uploaded+' ไฟล์':'')+(docs.failed.length?' • เอกสารที่ส่งไม่สำเร็จ: '+docs.failed.join(', '):'');$('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'})}catch(err){showErr(err.message||String(err))}finally{$('busy').querySelector('strong').textContent='กำลังส่งข้อมูล...';busy(0)}});
+$('form').addEventListener('submit',async e=>{e.preventDefault();showErr('');if(!state.api){showErr('ระบบยังไม่พร้อม กรุณาติดต่อ Admin');return}const missing=requiredDocumentMissing();if(missing.length){showErr('กรุณาแนบเอกสารบังคับให้ครบ: '+missing.join(', '));const first=missing[0]==='บัตรประชาชน'?'docIdCard':missing[0]==='ทะเบียนบ้าน'?'docHouse':'photo';$(first).focus();return}if(!$('form').checkValidity()){$('form').reportValidity();return}const pin=$('employeePin').value,confirmPin=$('employeePinConfirm').value;if(!/^\d{4}$/.test(pin)){showErr('กรุณาตั้ง PIN เป็นตัวเลข 4 หลัก');$('employeePin').focus();return}if(pin!==confirmPin){showErr('PIN 4 หลักทั้งสองช่องไม่ตรงกัน');$('employeePinConfirm').focus();return}const r={branch:$('branch').value,department:$('department').value,position:$('position').value,startDate:$('startDate').value,firstName:$('firstName').value.trim(),lastName:$('lastName').value.trim(),nickname:$('nickname').value.trim(),phone:$('phone').value.trim(),contact:$('contact').value.trim(),birthDate:$('birthDate').value,registeredAddress:$('registeredAddress').value.trim(),currentAddress:$('currentAddress').value.trim(),emergencyName:$('emergencyName').value.trim(),emergencyPhone:$('emergencyPhone').value.trim(),emergencyRelationship:$('emergencyRelationship').value.trim(),bankName:$('bankName').value.trim(),bankCode:$('bankCode').value.trim(),bankAccountNo:$('bankAccountNo').value.trim(),bankAccountName:$('bankAccountName').value.trim(),employeePin:pin,photoData:'',consent:$('consent').checked,draft:true};try{busy(1);if(!state.registrationId){$('busy').querySelector('strong').textContent='กำลังบันทึกข้อมูล...';const res=await postBridge({op:'employeeRegistrationSubmit',registration:r});state.registrationId=res.registrationId||''}const docs=await uploadDocuments(state.registrationId);const requiredFailed=docs.failed.filter(x=>['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO'].includes(x.type));if(requiredFailed.length){showErr('เอกสารบังคับยังส่งไม่สำเร็จ: '+requiredFailed.map(x=>x.name).join(', ')+' กรุณากดส่งอีกครั้ง');return}$('busy').querySelector('strong').textContent='กำลังส่งให้ Admin ตรวจสอบ...';await postBridge({op:'employeeRegistrationFinalize',registrationId:state.registrationId});$('form').style.display='none';$('rid').textContent='เลขอ้างอิง: '+state.registrationId+(docs.failed.length?' • เอกสารเสริมที่ส่งไม่สำเร็จ: '+docs.failed.map(x=>x.name).join(', '):' • เอกสารบังคับครบแล้ว');$('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'})}catch(err){showErr(err.message||String(err))}finally{$('busy').querySelector('strong').textContent='กำลังส่งข้อมูล...';busy(0)}});
 })();
 </script>
 </body>

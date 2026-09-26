@@ -35,7 +35,7 @@
   }
   seedSchedule();
   const payroll=[{snapshotId:'PAY-001',periodKey:'2026-W39',startDate:iso(plus(today,-7)),endDate:iso(plus(today,-1)),payDate:iso(plus(today,5)),status:'REVIEW',gross:4580,deductions:200,net:4380,detail:{baseWage:3900,nightAllowance:130,otHours:4,otAmount:450,recurringEarnings:100,lateDeduction:100,adjustmentDeductions:100}}];
-  const profileDocs=[{label:'บัตรประชาชน',status:'VERIFIED',expiryDate:''},{label:'ทะเบียนบ้าน',status:'UPLOADED',expiryDate:''},{label:'วุฒิการศึกษา',status:'UPLOADED',expiryDate:''}];
+  let profileDocs=[{documentId:'DOC-MOCK-1',type:'ID_CARD',label:'บัตรประชาชน',fileName:'id-card.pdf',fileId:'MOCK_FILE_ID_001',uploadedAt:'25/09/2569 10:00',status:'VERIFIED',required:true,verifiedAt:'25/09/2569 11:00',verifiedBy:'ADMIN',expiryDate:''},{documentId:'DOC-MOCK-2',type:'HOUSE_REGISTRATION',label:'ทะเบียนบ้าน',fileName:'house.pdf',fileId:'MOCK_FILE_ID_002',uploadedAt:'25/09/2569 10:01',status:'ACTIVE',required:true,verifiedAt:'',verifiedBy:'',expiryDate:''},{documentId:'DOC-MOCK-3',type:'EMPLOYEE_PHOTO',label:'รูปถ่ายพนักงาน',fileName:'employee.jpg',fileId:'MOCK_FILE_ID_003',uploadedAt:'25/09/2569 10:02',status:'VERIFIED',required:true,verifiedAt:'25/09/2569 11:01',verifiedBy:'ADMIN',expiryDate:''}];
   function employee(){return employees[0]}
   function scheduleFor(empId,start,end){return scheduleItems.filter(x=>x.employeeId===empId&&(!start||x.date>=start)&&(!end||x.date<=end)).map(x=>Object.assign({},x,{effectiveWorkStatus:leaveRows.some(l=>l.employeeId===empId&&l.status==='APPROVED'&&x.date>=l.startDate&&x.date<=l.endDate)?'LEAVE':x.workStatus}))}
   function availability(d,shiftCode){
@@ -81,6 +81,12 @@
     if(op==='managerPublishSchedule') return {ok:true};
     if(op==='adminGetOrgMasters'||op==='orgBootstrap') return {branches,departments,shifts,devices:[{deviceId:'STORE-01',branchCode:'KORAT',label:'เครื่องลงเวลาหลัก',active:true}]};
     if(op==='adminSummary') return {employees};
+    if(op==='adminGetPermissionUsers') return {rows:employees.map(x=>({id:x.id,name:x.name,nickname:x.nickname||'',active:x.active!==false,branch:x.branch||'',department:x.department||'',position:x.position||'',employmentStatus:x.employmentStatus||'ACTIVE',accessRole:x.accessRole||'EMPLOYEE'}))};
+    if(op==='adminGetEmployee') return Object.assign({},employees.find(x=>x.id===p.employeeId)||employees[0],{startDate:'2025-01-15',employmentStatus:'ACTIVE',accessRole:(employees.find(x=>x.id===p.employeeId)||employees[0]).accessRole||'EMPLOYEE'});
+    if(op==='adminGetRegistrationDocuments') return {rows:profileDocs.map(x=>Object.assign({},x))};
+    if(op==='adminGetDocument') return {fileName:'mock-document.txt',mimeType:'text/plain',dataUrl:'data:text/plain;base64,S3J1YUZsb3cgbW9jayBkb2N1bWVudA=='};
+    if(op==='adminUpdateDocumentMeta'){const x=profileDocs.find(x=>x.documentId===p.documentId);if(x){x.status=p.status||x.status;x.expiryDate=p.expiryDate||'';x.required=Boolean(p.required);x.note=p.note||'';if(x.status==='VERIFIED'){x.verifiedAt='วันนี้';x.verifiedBy='ADMIN'}}return{ok:true,status:x&&x.status}};
+    if(op==='adminUploadEmployeeDocument'){const d=p.document||{},x={documentId:'DOC-MOCK-'+Date.now(),type:d.type,label:d.label,fileName:d.fileName,fileId:'MOCK_FILE_'+Date.now(),uploadedAt:'วันนี้',status:'ACTIVE',required:['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO'].includes(d.type),verifiedAt:'',verifiedBy:'',expiryDate:''};if(p.replaceDocumentId)profileDocs=profileDocs.filter(y=>y.documentId!==p.replaceDocumentId);if(x.required)profileDocs=profileDocs.filter(y=>y.type!==x.type);profileDocs.unshift(x);return Object.assign({ok:true},x)};
     if(op==='adminGetManagerScopes') return {rows:scopes};
     if(op==='adminGetLeaveQuotaRules') return {rows:quotas};
     if(op==='adminGetAuditLog') return {rows:[{auditId:'AUD-001',timestamp:'25/09/2569 09:30',actorType:'MANAGER',actorId:'E001',action:'PUBLISH_SCHEDULE',entityType:'SCHEDULE_VERSION',entityId:'VER-1',reason:'ประกาศตารางสัปดาห์หน้า'},{auditId:'AUD-002',timestamp:'25/09/2569 08:45',actorType:'MANAGER',actorId:'E001',action:'APPROVE_LEAVE',entityType:'LEAVE',entityId:'LEV-002',reason:'อนุมัติวันหยุด'}]};
