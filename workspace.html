@@ -34,11 +34,11 @@ button{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:250px
     <nav class="nav">
       <div class="group">
         <div class="groupTitle">ภาพรวม</div>
-        <button class="navBtn active" data-view="overview" data-url="./dashboard.html" data-title="ภาพรวมระบบ"><span class="ico">⌂</span><span class="navLabel">ภาพรวมระบบ</span></button>
+        <button class="navBtn active" data-view="overview" data-url="./dashboard.html?embed=1" data-title="ภาพรวมระบบ"><span class="ico">⌂</span><span class="navLabel">ภาพรวมระบบ</span></button>
       </div>
       <div class="group">
         <div class="groupTitle">พนักงาน</div>
-        <button class="navBtn" data-view="employees" data-url="./admin.html" data-title="ภาพรวมพนักงาน"><span class="ico">👥</span><span class="navLabel">ภาพรวมพนักงาน</span></button>
+        <button class="navBtn" data-view="employees" data-url="./admin.html?embed=1" data-title="ภาพรวมพนักงาน"><span class="ico">👥</span><span class="navLabel">ภาพรวมพนักงาน</span></button>
         <button class="navBtn" data-view="register" data-url="./register.html" data-title="รับพนักงานใหม่"><span class="ico">＋</span><span class="navLabel">รับพนักงานใหม่</span></button>
       </div>
       <div class="group">
@@ -50,7 +50,7 @@ button{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:250px
       </div>
       <div class="group">
         <div class="groupTitle">ระบบ</div>
-        <button class="navBtn" data-view="settings" data-url="./admin-settings.html" data-title="ตั้งค่าระบบ"><span class="ico">⚙</span><span class="navLabel">ตั้งค่าระบบ</span></button>
+        <button class="navBtn" data-view="settings" data-url="./admin-settings.html?embed=1" data-title="ตั้งค่าระบบ"><span class="ico">⚙</span><span class="navLabel">ตั้งค่าระบบ</span></button>
         <button class="navBtn" data-view="readiness" data-url="./readiness.html" data-title="เครื่องมือระบบ"><span class="ico">⚒</span><span class="navLabel">เครื่องมือระบบ</span></button>
       </div>
     </nav>
@@ -63,7 +63,7 @@ button{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:250px
       <button class="topBtn" id="reloadBtn">รีเฟรชหน้านี้</button>
       <button class="topBtn" id="openBtn">เปิดเต็มหน้า</button>
     </header>
-    <div class="frameWrap"><iframe id="contentFrame" title="KruaFlow Content" src="./dashboard.html"></iframe></div>
+    <div id="fileWarning" style="display:none;background:#fff4d9;color:#835d00;padding:9px 14px;font-weight:850;border-bottom:1px solid #ead59a">กำลังเปิดแบบไฟล์ในเครื่อง การเข้าสู่ระบบอาจไม่แชร์กันทุกหน้า กรุณาทดสอบผ่าน localhost</div><div class="frameWrap"><iframe id="contentFrame" title="KruaFlow Content" src="./dashboard.html"></iframe></div>
   </main>
 </div>
 <script>
@@ -88,6 +88,7 @@ button{font:inherit}.shell{height:100vh;display:grid;grid-template-columns:250px
   document.getElementById('reloadBtn').onclick=()=>{try{frame.contentWindow.location.reload()}catch(e){frame.src=frame.src}};
   document.getElementById('openBtn').onclick=()=>window.open(frame.src,'_blank','noopener');
   if(localStorage.getItem(KEY_COLLAPSE)==='1')shell.classList.add('collapsed');
+  if(location.protocol==='file:'){const x=document.getElementById('fileWarning');if(x)x.style.display='block'}
   const q=new URLSearchParams(location.search).get('view');
   const saved=q||localStorage.getItem(KEY_VIEW)||'overview';
   const start=buttons.find(x=>x.dataset.view===saved)||buttons[0];
