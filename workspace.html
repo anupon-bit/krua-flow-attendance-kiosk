@@ -21,7 +21,7 @@
   <div class="auth" id="auth">
     <div class="authCard">
       <div class="authTop">
-        <div><div class="authTitle" data-i18n="auth.title">เข้าสู่ระบบผู้ดูแล</div><div class="uatTag" data-i18n="app.uat">ระบบทดสอบ</div></div>
+        <div><div class="authTitle" data-i18n="auth.title">เข้าสู่ระบบผู้ดูแล</div><div class="uatTag" id="authEnvironmentBadge">ระบบทดสอบ</div></div>
         <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา"><button type="button" data-language="th" data-i18n="language.th">ไทย</button><button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button></div>
       </div>
       <div class="authSub" data-i18n="auth.subtitle">ใช้รหัสผู้ดูแลเดิมเพื่อเปิดพื้นที่ทำงาน</div>
@@ -92,7 +92,7 @@
     <main class="main">
       <header class="topbar">
         <button class="topBtn mobileMenu" id="mobileMenu" type="button" data-i18n-title="workspace.menu">☰</button>
-        <div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><span class="uatTag" data-i18n="environment.staging">ระบบทดสอบ</span>
+        <div class="pageTitle" id="pageTitle">ภาพรวมระบบ</div><span class="uatTag" id="environmentBadge">ระบบทดสอบ</span>
         <div class="spacer"></div>
         <div class="languageSwitch" data-i18n-aria-label="language.label" aria-label="เลือกภาษา"><button type="button" data-language="th" data-i18n="language.th">ไทย</button><button type="button" data-language="en" data-i18n="language.en">อังกฤษ</button></div>
         <button class="topBtn" id="openBtn" type="button"><span data-i18n="workspace.openFull">เปิดเต็มหน้า</span> ↗</button>
@@ -109,9 +109,9 @@
   const SESSION = window.KruaFlowAdminSession;
   const pageParams = new URLSearchParams(location.search);
   const isStaging = pageParams.get('staging') === '1';
-  const stagingApiUrl = String((window.KRUA_FLOW_CONFIG || {}).STAGING_API_URL || '').split('?')[0];
-  const stagingBackendReady = isStaging && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(stagingApiUrl);
-  const api = stagingBackendReady ? new KruaFlowApi.Client({ url: stagingApiUrl, timeout: 30000 }) : null;
+  const configuredApiUrl = String((window.KRUA_FLOW_CONFIG || {})[isStaging ? 'STAGING_API_URL' : 'API_URL'] || '').split('?')[0];
+  const backendReady = /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(configuredApiUrl);
+  const api = backendReady ? new KruaFlowApi.Client({ url: configuredApiUrl, timeout: 30000 }) : null;
   const shell = document.getElementById('shell');
   const frame = document.getElementById('contentFrame');
   const title = document.getElementById('pageTitle');
@@ -166,13 +166,16 @@
 
   function refreshLanguage() {
     I18N.apply(document);
+    const environmentLabel = I18N.t(isStaging ? 'environment.staging' : 'environment.production');
+    document.getElementById('authEnvironmentBadge').textContent = environmentLabel;
+    document.getElementById('environmentBadge').textContent = environmentLabel;
     const active = document.querySelector('.navBtn.active');
     if (active) title.textContent = I18N.t(active.dataset.titleKey || 'app.name');
     document.title = I18N.t('app.name');
   }
 
   function startWorkspace() {
-    if (!stagingBackendReady) { showLogin('error.stagingOnly'); return; }
+    if (!backendReady) { showLogin('error.invalidUrl'); return; }
     auth.classList.add('hidden');
     const requested = new URLSearchParams(location.search).get('view');
     const selected = requested || localStorage.getItem(KEY_VIEW) || 'overview';
@@ -181,7 +184,7 @@
 
   async function login() {
     errorBox.classList.remove('show');
-    if (!stagingBackendReady || !api) { showLogin('error.stagingOnly'); return; }
+    if (!backendReady || !api) { showLogin('error.invalidUrl'); return; }
     const pin = document.getElementById('adminPin').value.replace(/\D/g, '').slice(0, 6);
     if (pin.length !== 6) { errorBox.textContent = I18N.t('auth.missingPin'); errorBox.classList.add('show'); return; }
     const button = document.getElementById('loginBtn');
@@ -250,7 +253,7 @@
   I18N.bindLanguageSwitchers(document);
   refreshLanguage();
   if (localStorage.getItem(KEY_COLLAPSE) === '1') shell.classList.add('collapsed');
-  if (!stagingBackendReady) showLogin('error.stagingOnly');
+  if (!backendReady) showLogin('error.invalidUrl');
   else if (getToken()) startWorkspace();
 })();
 </script>

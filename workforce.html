@@ -46,10 +46,10 @@
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
   const isStaging = params.get('staging') === '1';
-  const stagingApiUrl = String((window.KRUA_FLOW_CONFIG || {}).STAGING_API_URL || '').split('?')[0];
-  const stagingBackendReady = isStaging && /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(stagingApiUrl);
+  const configuredApiUrl = String((window.KRUA_FLOW_CONFIG || {})[isStaging ? 'STAGING_API_URL' : 'API_URL'] || '').split('?')[0];
+  const backendReady = /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(configuredApiUrl);
   const app = document.getElementById('app');
-  const api = stagingBackendReady ? new KruaFlowApi.Client({ url: stagingApiUrl, timeout: 30000 }) : null;
+  const api = backendReady ? new KruaFlowApi.Client({ url: configuredApiUrl, timeout: 30000 }) : null;
   let token = '';
   let bootstrap = null;
   let renderSequence = 0;
@@ -508,8 +508,8 @@
   async function start() {
     updateHeading();
     I18N.bindLanguageSwitchers(document);
-    if (!stagingBackendReady || !api) {
-      app.innerHTML = '<div class="error"><strong>' + esc(t('error.stagingOnly')) + '</strong></div>';
+    if (!backendReady || !api) {
+      app.innerHTML = '<div class="error"><strong>' + esc(t('error.invalidUrl')) + '</strong></div>';
       return;
     }
     token = getToken();
