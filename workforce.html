@@ -44,7 +44,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-registration-v2-2';
+  const FRONTEND_VERSION = 'prod-registration-v2-3';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
@@ -464,7 +464,7 @@
     registrationDetailSequence += 1;
     loading();
     try {
-      const result = initialResult || await call('adminListRegistrationsV2', { limit:100 });
+      const result = initialResult || await call('adminListRegistrationsV2', { limit:25 });
       const rows = rowsOf(result);
       const complete = rows.filter(function (row) { return row.documentState && row.documentState.status === 'COMPLETE'; }).length;
       const pending = rows.filter(function (row) { return String(row.status || '').toUpperCase() === 'PENDING'; }).length;
@@ -775,7 +775,7 @@
     loading();
     try {
       if (view === 'registrations' || view === 'employee-documents') {
-        const registrationResult = await call('adminListRegistrationsV2', { limit:100 });
+        const registrationResult = await call('adminListRegistrationsV2', { limit:25 });
         bootstrap = { ready:true, environment:isStaging ? 'STAGING' : 'PRODUCTION', flags:{ WORKFORCE_V2_ENABLED:true } };
         await renderRegistrationsV2(registrationResult);
         return;

@@ -53,9 +53,9 @@ function apiAllowedClientOrigin_(origin) {
 function apiPostMessageResponse_(requestId, result, clientOrigin, allowEmbeddedChunk) {
   const message = { type:'KruaFlowApiResult', requestId:String(requestId || ''), result:result || {ready:true,ok:false,error:'ไม่พบผลลัพธ์'} };
   const json = JSON.stringify(message).replace(/</g, '\\u003c');
-  const target=allowEmbeddedChunk&&clientOrigin?JSON.stringify(clientOrigin):'"*"';
+  const target=clientOrigin?JSON.stringify(clientOrigin):'"*"';
   const output=HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ','+target+')}catch(e){}<\/script>');
-  return allowEmbeddedChunk&&clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
+  return clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
 }
 
 function apiHandlePost_(payload) {
