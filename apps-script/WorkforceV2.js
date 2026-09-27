@@ -552,7 +552,7 @@ function wf2DocumentRowForAdmin_(r){return{documentId:String(r['Document ID']||'
 function wf2DocumentRowsForAdminAll_(registrationId,employeeId){return wf2DocumentRowsForOwner_(registrationId,employeeId).map(wf2DocumentRowForAdmin_).reverse()}
 function wf2DocumentRowsForAdmin_(registrationId,employeeId){return wf2DocumentRowsForOwner_(registrationId,employeeId).filter(r=>['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0).map(wf2DocumentRowForAdmin_).reverse()}
 function wf2FileServiceRequest_(path,body) {
-  const props=PropertiesService.getScriptProperties(),base=String(props.getProperty('FILE_SERVICE_URL')||'').replace(/\/$/,''),token=String(props.getProperty('FILE_SERVICE_AUTH_TOKEN')||'');
+  const props=PropertiesService.getScriptProperties(),base=String(props.getProperty('FILE_SERVICE_URL')||'').trim().replace(/\/$/,''),token=String(props.getProperty('FILE_SERVICE_AUTH_TOKEN')||'').trim();
   if(!base||!token)throw new Error('ยังไม่ได้ตั้งค่า GCS File Service ใน STAGING');
   const response=UrlFetchApp.fetch(base+path,{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+token},payload:JSON.stringify(body),muteHttpExceptions:true});
   const code=response.getResponseCode();let data={};try{data=JSON.parse(response.getContentText()||'{}')}catch(e){}
