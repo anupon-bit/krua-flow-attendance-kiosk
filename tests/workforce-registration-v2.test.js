@@ -20,7 +20,7 @@ assert.doesNotMatch(workforce, /adminListRegistrationsV2', \{ limit:100 \}/);
 assert.match(workforce, /adminGetRegistrationV2/);
 assert.match(workforce, /data-approve-registration/);
 assert.match(workforce, /call\('adminApproveRegistrationFast'/);
-assert.match(workforce, /currentDocumentState\.complete/);
+assert.match(workforce, /currentDocumentState\.status !== 'COMPLETE'/);
 assert.match(workforce, /wageType:\s*wageType\.value,\s*wageAmount:\s*Number\(wageAmount\.value\)/);
 assert.match(workforce, /documentGetViewUrl/);
 assert.match(workforce, /result\.url/);

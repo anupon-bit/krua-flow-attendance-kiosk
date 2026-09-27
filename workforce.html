@@ -467,7 +467,7 @@
         function updateApprovalState() {
           const missing = [];
           const pin = pinInput ? pinInput.value.replace(/\D/g, '').slice(0, 4) : '';
-          if (!currentDocumentState.complete) missing.push('ตรวจเอกสารบังคับให้ครบ');
+          if (currentDocumentState.status !== 'COMPLETE') missing.push('ตรวจเอกสารบังคับให้ครบ');
           if (!row.pinSet && pin.length !== 4) missing.push('กำหนด PIN 4 หลัก');
           if (!wageType.value) missing.push('เลือกประเภทค่าแรง');
           if (!(Number(wageAmount.value) > 0)) missing.push('ระบุค่าแรงมากกว่า 0');
