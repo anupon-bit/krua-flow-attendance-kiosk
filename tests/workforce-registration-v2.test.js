@@ -13,6 +13,7 @@ const config = fs.readFileSync('config.js', 'utf8');
 assert.match(workspace, /data-view="employee-registration" data-url="\.\/workforce\.html\?embed=1&amp;view=registrations"|data-view="employee-registration" data-url="\.\/workforce\.html\?embed=1&view=registrations"/);
 assert.match(workspace, /data-view="employee-documents" data-url="\.\/workforce\.html\?embed=1&amp;view=employee-documents"|data-view="employee-documents" data-url="\.\/workforce\.html\?embed=1&view=employee-documents"/);
 assert.doesNotMatch(workspace, /data-view="employee-(?:registration|documents)"[^>]+admin\.html/);
+assert.equal(workspace.match(/const FRONTEND_VERSION = '([^']+)'/)[1], workforce.match(/const FRONTEND_VERSION = '([^']+)'/)[1]);
 
 assert.match(workforce, /adminListRegistrationsV2/);
 assert.equal((workforce.match(/adminListRegistrationsV2', \{ limit:25 \}/g) || []).length, 2);
