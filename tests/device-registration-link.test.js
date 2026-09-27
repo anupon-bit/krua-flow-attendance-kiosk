@@ -13,11 +13,11 @@ assert.match(settings, /id="lineDeviceRegistrationLink"/);
 assert.match(settings, /id="shareDeviceRegistrationLink"/);
 assert.match(settings, /id="openDeviceRegistrationLink"/);
 assert.match(settings, /new URL\('\.\/index\.html',location\.href\)/);
-assert.match(settings, /url\.search=''/);
+assert.match(settings, /url\.searchParams\.set\('v','prod-device-activation-transport-1'\)/);
 assert.match(settings, /line\.me\/R\/msg\/text/);
 assert.match(settings, /navigator\.share/);
 assert.doesNotMatch(settings.match(/function getDeviceRegistrationUrl\(\)[^\n]+/)[0], /adminPin|adminToken|deviceToken/i);
-assert.match(workspace, /const FRONTEND_VERSION = 'prod-device-registration-link-1'/);
+assert.match(workspace, /const FRONTEND_VERSION = 'prod-device-activation-transport-1'/);
 
 let index = 0;
 for (const match of settings.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {

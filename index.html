@@ -91,7 +91,8 @@
   const $ = id => document.getElementById(id);
   const state = {apiUrl:'',deviceToken:'',deviceId:'STORE-01',employees:[],employee:null,pin:'',pinVerified:false,action:'',stream:null,photoData:'',serverOffset:0};
   const actionLabels={IN:'เข้างาน',BREAK_OUT:'เริ่มพัก',BREAK_IN:'กลับจากพัก',OUT:'เลิกงาน'};
-  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4', LS_CACHE='kruaFlowKioskCacheV6Nickname';
+  const LS_API='kruaFlowApiUrlV4', LS_TOKEN='kruaFlowDeviceTokenV4', LS_PENDING_TOKEN='kruaFlowPendingDeviceTokenV1', LS_CACHE='kruaFlowKioskCacheV6Nickname';
+  const bridgePending={};
 
   function uid(){return (crypto.randomUUID?crypto.randomUUID():('r-'+Date.now()+'-'+Math.random().toString(16).slice(2)));}
   function digitsOnly(v,n){return String(v||'').replace(/\D/g,'').slice(0,n)}
@@ -108,27 +109,33 @@
   function sanitizeApiUrl(url){url=String(url||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(url))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return url.split('?')[0]}
   function randomDeviceToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 
+  function finishBridge(requestId,ok,value){const pending=bridgePending[requestId];if(!pending)return;clearTimeout(pending.fallback);clearTimeout(pending.timeout);delete bridgePending[requestId];ok?pending.resolve(value):pending.reject(value)}
+  window.addEventListener('message',event=>{const sink=$('apiSink'),message=event.data||{};if(!sink||event.source!==sink.contentWindow||message.type!=='KruaFlowApiResult'||!bridgePending[message.requestId])return;const result=message.result||{};finishBridge(message.requestId,Boolean(result.ok),result.ok?(result.data||{}):new Error(result.error||'ทำรายการไม่สำเร็จ'))});
+
   function postBridge(payload){
     return new Promise((resolve,reject)=>{
-      const requestId=uid();payload.requestId=requestId;
+      const requestId=uid();payload=Object.assign({},payload,{requestId:requestId,clientOrigin:location.origin});
       const form=document.createElement('form');form.method='POST';form.action=state.apiUrl;form.target='apiSink';form.style.display='none';
       const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=JSON.stringify(payload);form.appendChild(input);document.body.appendChild(form);
-      try{form.submit()}catch(e){form.remove();reject(e);return}
+      bridgePending[requestId]={resolve:resolve,reject:reject,fallback:null,timeout:null};
+      try{form.submit()}catch(e){form.remove();finishBridge(requestId,false,e);return}
       setTimeout(()=>form.remove(),5000);
-      pollStatus(requestId,resolve,reject,0);
+      bridgePending[requestId].fallback=setTimeout(()=>pollStatus(requestId,0),700);
+      bridgePending[requestId].timeout=setTimeout(()=>finishBridge(requestId,false,new Error('เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่')),30000);
     });
   }
 
-  function pollStatus(requestId,resolve,reject,attempt){
-    if(attempt>12){reject(new Error('เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'));return}
+  function pollStatus(requestId,attempt){
+    if(!bridgePending[requestId])return;
+    if(attempt>12){finishBridge(requestId,false,new Error('เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'));return}
     const cb='__kfcb_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt;
     const script=document.createElement('script');
     let done=false;const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};script.remove()};
-    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),700);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
-    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)};
+    window[cb]=(res)=>{cleanup();if(!bridgePending[requestId])return;if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,attempt+1),700);return}finishBridge(requestId,Boolean(res.ok),res.ok?(res.data||{}):new Error(res.error||'ทำรายการไม่สำเร็จ'))};
+    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,attempt+1),900)};
     script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
     document.head.appendChild(script);
-    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)}},3500);
+    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,attempt+1),900)}},3500);
   }
 
   function saveKioskCache(){
@@ -157,9 +164,9 @@
   async function activate(){
     try{
       state.apiUrl=sanitizeApiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');const adminPin=digitsOnly($('adminPin').value,6);if(adminPin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');
-      const token=randomDeviceToken();showBusy('กำลังลงทะเบียนเครื่องร้าน...');const sent=Date.now();
+      const token=localStorage.getItem(LS_PENDING_TOKEN)||randomDeviceToken();localStorage.setItem(LS_PENDING_TOKEN,token);showBusy('กำลังลงทะเบียนเครื่องร้าน...');const sent=Date.now();
       const res=await postBridge({op:'activate',adminPin,deviceToken:token});updateServerOffset(res.serverEpochMs,sent);
-      state.deviceToken=token;localStorage.setItem(LS_API,state.apiUrl);localStorage.setItem(LS_TOKEN,token);$('adminPin').value='';setSetupError('');await bootstrap(false);
+      state.deviceToken=token;localStorage.setItem(LS_API,state.apiUrl);localStorage.setItem(LS_TOKEN,token);localStorage.removeItem(LS_PENDING_TOKEN);$('adminPin').value='';setSetupError('');await bootstrap(false);
     }catch(e){setSetupError(e.message||String(e))}finally{hideBusy()}
   }
 
@@ -235,7 +242,7 @@
   let pinTimer;$('employeePin').addEventListener('input',e=>{e.target.value=digitsOnly(e.target.value,4);clearTimeout(pinTimer);if(e.target.value.length===4){e.target.blur();pinTimer=setTimeout(validatePin,80)}else{state.pinVerified=false;document.querySelectorAll('.action').forEach(b=>b.disabled=true)}});
   document.querySelectorAll('.action').forEach(b=>b.addEventListener('click',()=>startCamera(b.dataset.action)));
   $('captureBtn').addEventListener('click',capture);$('retakeBtn').addEventListener('click',retake);$('saveBtn').addEventListener('click',saveAttendance);$('cancelBtn').addEventListener('click',()=>{stopCamera();$('cameraSection').classList.remove('show');state.action='';state.photoData=''});
-  $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);localStorage.removeItem(LS_CACHE);location.reload()}});
+  $('resetSetupBtn').addEventListener('click',()=>{if(confirm('ตั้งค่าเครื่องใหม่? ต้องใช้ PIN Admin 6 หลัก')){stopCamera();localStorage.removeItem(LS_API);localStorage.removeItem(LS_TOKEN);localStorage.removeItem(LS_PENDING_TOKEN);localStorage.removeItem(LS_CACHE);location.reload()}});
   window.addEventListener('pagehide',stopCamera);
   if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update()}catch(e){}})}
 
