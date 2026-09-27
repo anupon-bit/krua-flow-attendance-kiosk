@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
-  <title>Krua Flow ลงเวลางาน</title>
+  <title>KruaFlow Workforce V2 — ลงเวลางาน</title>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#15171a;--muted:#6b7280;--line:#d8dee8;--accent:#2563eb;--ok:#0a7b3e;--bad:#b42318;--green:#eafaf1;--yellow:#fff8e6;--blue:#eef6ff;--red:#fff0ef}
     *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif}
@@ -78,7 +78,7 @@
     </section>
   </div>
 
-  <div class="footer">Krua Flow Attendance V4<br>กล้องหน้า • PIN 4 หลัก • เครื่องร้านเท่านั้น<br><button id="resetSetupBtn" class="adminReset" type="button">ตั้งค่าเครื่องใหม่</button></div>
+  <div class="footer">KruaFlow Workforce V2<br>กล้องหน้า • PIN 4 หลัก • เครื่องร้านเท่านั้น<br><button id="resetSetupBtn" class="adminReset" type="button">ตั้งค่าเครื่องใหม่</button></div>
 </main>
 
 <div id="busy" class="overlay"><div><div class="loader" id="busyText">กำลังประมวลผล...</div><div class="small">กรุณารอสักครู่</div></div></div>
@@ -224,7 +224,7 @@
     const v=$('video');if(!state.stream||!v.videoWidth){setCamError('กล้องยังไม่พร้อม กรุณารอสักครู่');return}
     const maxDim=800;let sw=v.videoWidth,sh=v.videoHeight,scale=Math.min(1,maxDim/Math.max(sw,sh));let w=Math.round(sw*scale),h=Math.round(sh*scale);
     const c=$('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.save();ctx.translate(w,0);ctx.scale(-1,1);ctx.drawImage(v,0,0,w,h);ctx.restore();
-    const bar=Math.max(150,Math.round(h*.22));ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(0,h-bar,w,bar);ctx.fillStyle='#fff';const p=Math.max(16,Math.round(w*.035));ctx.font=`900 ${Math.round(p*1.12)}px sans-serif`;ctx.fillText('Krua Flow Attendance',p,h-bar+p*1.45);ctx.font=`800 ${p}px sans-serif`;ctx.fillText(`${state.employee.name} • ${state.employee.id}`,p,h-bar+p*2.75);ctx.fillText(`${actionLabels[state.action]} • ${thaiDateTime(serverNow())}`,p,h-bar+p*4.05);ctx.font=`700 ${Math.round(p*.82)}px sans-serif`;ctx.fillText(`DEVICE ${state.deviceId}`,p,h-bar+p*5.18);
+    const bar=Math.max(150,Math.round(h*.22));ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(0,h-bar,w,bar);ctx.fillStyle='#fff';const p=Math.max(16,Math.round(w*.035));ctx.font=`900 ${Math.round(p*1.12)}px sans-serif`;ctx.fillText('KruaFlow Workforce V2',p,h-bar+p*1.45);ctx.font=`800 ${p}px sans-serif`;ctx.fillText(`${state.employee.name} • ${state.employee.id}`,p,h-bar+p*2.75);ctx.fillText(`${actionLabels[state.action]} • ${thaiDateTime(serverNow())}`,p,h-bar+p*4.05);ctx.font=`700 ${Math.round(p*.82)}px sans-serif`;ctx.fillText(`DEVICE ${state.deviceId}`,p,h-bar+p*5.18);
     state.photoData=c.toDataURL('image/jpeg',.68);$('preview').src=state.photoData;$('preview').style.display='block';$('video').style.display='none';stopCamera();$('captureBtn').style.display='none';$('retakeBtn').style.display='';$('saveBtn').style.display='';$('camStatus').textContent='ตรวจรูปแล้วกด “บันทึกเวลา”';$('camStatus').className='camStatus ok';
   }
 

@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'kruaflow.language.v1';
   const dictionaries = {
     th: {
-      'app.name': 'KruaFlow ระบบบุคลากร',
+      'app.name': 'KruaFlow Workforce V2',
       'app.uat': 'ระบบทดสอบ',
       'environment.staging': 'ระบบทดสอบ',
       'environment.production': 'ระบบใช้งานจริง',
@@ -196,7 +196,7 @@
       'schema.disabled': 'ระบบบุคลากรรุ่นใหม่ยังไม่เปิดในสภาพแวดล้อมนี้'
     },
     en: {
-      'app.name': 'KruaFlow Workforce',
+      'app.name': 'KruaFlow Workforce V2',
       'app.uat': 'UAT environment',
       'environment.staging': 'STAGING',
       'environment.production': 'PRODUCTION',
