@@ -38,6 +38,28 @@
     `;document.head.appendChild(st);
   }
   window.KF_STATUS={classFor:statusClass,typeFor:v=>(statusClass(v).replace('kf-','')),labelFor:statusLabel,apply:(el,v)=>{if(!el)return;['kf-success','kf-danger','kf-warning','kf-info','kf-neutral'].forEach(x=>el.classList.remove(x));el.classList.add(statusClass(v))},applyText:(el,v)=>{if(!el)return;el.textContent=statusLabel(v)}};
+  function environmentUrl(path,params){
+    const url=new URL(path,location.href),staging=new URLSearchParams(location.search).get('staging')==='1';
+    if(staging)url.searchParams.set('staging','1');else url.searchParams.delete('staging');
+    Object.keys(params||{}).forEach(key=>{const value=params[key];if(value==null||value==='')url.searchParams.delete(key);else url.searchParams.set(key,String(value))});
+    return url.href;
+  }
+  window.KF_ENVIRONMENT_URL=environmentUrl;
+  document.addEventListener('click',event=>{
+    const target=event.target,button=target&&typeof target.closest==='function'?target.closest('#employeeBtn,#managerBtn,#scheduleBtn'):null;
+    if(!button)return;
+    let destination='';
+    if(button.id==='employeeBtn')destination=environmentUrl('./portal.html');
+    else if(button.id==='managerBtn')destination=environmentUrl('./manager.html');
+    else if(button.id==='scheduleBtn')destination=environmentUrl('./schedule.html',{branch:document.getElementById('branch')&&document.getElementById('branch').value,department:document.getElementById('department')&&document.getElementById('department').value});
+    if(!destination)return;
+    event.preventDefault();event.stopImmediatePropagation();location.assign(destination);
+  },true);
+  addEventListener('pageshow',event=>{
+    if(!event.persisted)return;
+    if(location.pathname.endsWith('/manager.html')){const refresh=document.getElementById('refresh');if(refresh)refresh.click()}
+    if(location.pathname.endsWith('/portal.html')){const active=document.querySelector('#nav button.active');if(active)active.click()}
+  });
   function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)}
   let deferred=null;
   function ensureBanner(){

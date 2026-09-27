@@ -7,8 +7,11 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'js/admin-session.js'), 'utf8');
+const uxSource = fs.readFileSync(path.join(root, 'ux.js'), 'utf8');
 const workspace = fs.readFileSync(path.join(root, 'workspace.html'), 'utf8');
 const workforce = fs.readFileSync(path.join(root, 'workforce.html'), 'utf8');
+const manager = fs.readFileSync(path.join(root, 'manager.html'), 'utf8');
+const portal = fs.readFileSync(path.join(root, 'portal.html'), 'utf8');
 
 function storage() {
   const values = new Map();
@@ -72,5 +75,53 @@ assert(!workforce.includes('class="headActions"'), 'embedded workforce content m
 assert(workforce.includes('<h1 id="title">') && workforce.includes('<p class="subtitle"'), 'content must begin with page title and description');
 
 assert(workspace.includes('function loadGroupState()') && workspace.includes('function openView('), 'existing sidebar behavior must remain intact');
+assert(workspace.includes("frameUrl.pathname.endsWith('/portal.html')"), 'fullscreen Portal must use the Admin bridge');
+assert(workspace.includes("popup.sessionStorage.setItem(PORTAL_VIEW_TOKEN, viewToken)"), 'fullscreen Admin view must carry only its read-only token');
+assert(manager.includes("id=\"employeeBtn\"") && portal.includes("id=\"managerBtn\""), 'Manager and Portal navigation controls must remain available');
+assert(manager.includes('./ux.js?v=env-nav-1') && portal.includes('./ux.js?v=env-nav-1'), 'Manager and Portal must refresh the shared navigation helper');
+
+function loadUxPage(href, fields) {
+  const documentEvents = {}, windowEvents = {}, elements = fields || {};
+  const address = new URL(href);
+  const location = { href:address.href, search:address.search, pathname:address.pathname, assigned:'', assign(value) { this.assigned = value; } };
+  const document = {
+    head:{ appendChild(){} }, body:{ appendChild(){} },
+    addEventListener(type, handler) { documentEvents[type] = handler; },
+    getElementById(id) { return elements[id] || null; },
+    createElement() { return {}; },
+    querySelectorAll() { return []; }
+  };
+  const window = {};
+  vm.runInNewContext(uxSource, {
+    window, document, location, URL, URLSearchParams,
+    navigator:{ userAgent:'test', onLine:true },
+    addEventListener(type, handler) { windowEvents[type] = handler; },
+    alert(){}
+  }, { filename:'ux.js' });
+  return { window, documentEvents, windowEvents, location };
+}
+
+let refreshCount = 0;
+const stagingPage = loadUxPage('https://example.test/manager.html?staging=1', {
+  branch:{ value:'KORAT' }, department:{ value:'OFFICE' }, refresh:{ click(){ refreshCount += 1; } }
+});
+assert.strictEqual(stagingPage.window.KF_ENVIRONMENT_URL('./portal.html'), 'https://example.test/portal.html?staging=1');
+let prevented = false, propagationStopped = false;
+stagingPage.documentEvents.click({
+  target:{ closest(){ return { id:'scheduleBtn' }; } },
+  preventDefault(){ prevented = true; },
+  stopImmediatePropagation(){ propagationStopped = true; }
+});
+assert.strictEqual(stagingPage.location.assigned, 'https://example.test/schedule.html?staging=1&branch=KORAT&department=OFFICE');
+assert(prevented && propagationStopped, 'shared routing must replace legacy direct navigation');
+stagingPage.documentEvents.click({
+  target:{ closest(){ return { id:'employeeBtn' }; } },
+  preventDefault(){}, stopImmediatePropagation(){}
+});
+assert.strictEqual(stagingPage.location.assigned, 'https://example.test/portal.html?staging=1');
+stagingPage.windowEvents.pageshow({ persisted:true });
+assert.strictEqual(refreshCount, 1, 'restored Manager page must refresh team data');
+const productionPage = loadUxPage('https://example.test/manager.html');
+assert.strictEqual(productionPage.window.KF_ENVIRONMENT_URL('./portal.html?staging=1'), 'https://example.test/portal.html');
 
 console.log('uat session and top bar: pass');

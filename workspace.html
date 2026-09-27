@@ -109,7 +109,7 @@
   'use strict';
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-registration-approval-2';
+  const FRONTEND_VERSION = 'prod-navigation-refresh-3';
   const pageParams = new URLSearchParams(location.search);
   const isStaging = pageParams.get('staging') === '1';
   const configuredApiUrl = String((window.KRUA_FLOW_CONFIG || {})[isStaging ? 'STAGING_API_URL' : 'API_URL'] || '').split('?')[0];
@@ -124,6 +124,9 @@
   const KEY_VIEW = 'kfOwnerWorkspaceViewV1';
   const KEY_COLLAPSE = 'kfOwnerWorkspaceCollapsedV1';
   const KEY_GROUPS = 'kfOwnerWorkspaceGroupsV2';
+  const PORTAL_VIEW_TOKEN = 'kfAdminPortalViewTokenV1';
+  const PORTAL_VIEW_BOOT = 'kfAdminPortalViewBootV1';
+  let fullScreenWindow = null;
   function getToken() { return SESSION.get(); }
   function saveToken(value, expiresIn) { return SESSION.save(value, expiresIn); }
   function clearToken() { SESSION.clear(); }
@@ -149,10 +152,10 @@
     return url.href;
   }
 
-  function sendAdminSession() {
+  function sendAdminSession(targetWindow) {
     const value = getToken();
     if (!value) { showLogin('error.unauthorized'); return; }
-    try { frame.contentWindow.postMessage({ type: 'KruaFlowAdminSession', token: value, expiresIn: SESSION.remainingSeconds() }, location.origin); } catch (_) {}
+    try { (targetWindow || frame.contentWindow).postMessage({ type: 'KruaFlowAdminSession', token: value, expiresIn: SESSION.remainingSeconds() }, location.origin); } catch (_) {}
   }
 
   function sendLanguage() {
@@ -236,8 +239,10 @@
   buttons.forEach(function (button) { button.onclick = function () { openView(button); }; });
   frame.addEventListener('load', function () { setTimeout(sendAdminSession, 30); setTimeout(sendLanguage, 35); try { frame.contentWindow.scrollTo(0, 0); } catch (_) {} });
   window.addEventListener('message', function (event) {
-    if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
-    if ((event.data || {}).type === 'KruaFlowAdminSessionRequest') sendAdminSession();
+    const fromFrame = event.source === frame.contentWindow;
+    const fromFullScreen = event.source === fullScreenWindow;
+    if (event.origin !== location.origin || (!fromFrame && !fromFullScreen)) return;
+    if ((event.data || {}).type === 'KruaFlowAdminSessionRequest') sendAdminSession(event.source);
     if ((event.data || {}).type === 'KruaFlowAdminSessionActive') SESSION.touch();
     if ((event.data || {}).type === 'KruaFlowAdminSessionExpired') showLogin('error.unauthorized');
     if ((event.data || {}).type === 'KruaFlowLanguageChange' && event.data.language !== I18N.getLanguage()) I18N.setLanguage(event.data.language);
@@ -250,7 +255,25 @@
   document.getElementById('adminPin').onkeydown = function (event) { if (event.key === 'Enter') login(); };
   document.getElementById('collapseBtn').onclick = function () { shell.classList.toggle('collapsed'); localStorage.setItem(KEY_COLLAPSE, shell.classList.contains('collapsed') ? '1' : '0'); };
   document.getElementById('mobileMenu').onclick = function () { shell.classList.toggle('menuOpen'); };
-  document.getElementById('openBtn').onclick = function () { window.open(frame.src, '_blank', 'noopener'); };
+  document.getElementById('openBtn').onclick = function () {
+    const frameUrl = new URL(frame.src, location.href);
+    if (!frameUrl.pathname.endsWith('/portal.html')) {
+      window.open(frameUrl.href, '_blank', 'noopener');
+      return;
+    }
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) return;
+    fullScreenWindow = popup;
+    try {
+      const viewToken = frame.contentWindow.sessionStorage.getItem(PORTAL_VIEW_TOKEN);
+      if (viewToken) {
+        popup.sessionStorage.setItem(PORTAL_VIEW_TOKEN, viewToken);
+        popup.sessionStorage.setItem(PORTAL_VIEW_BOOT, '1');
+        popup.opener = null;
+      }
+    } catch (_) {}
+    popup.location.replace(frameUrl.href);
+  };
   document.getElementById('logoutBtn').onclick = function () { showLogin(); };
 
   loadGroupState();

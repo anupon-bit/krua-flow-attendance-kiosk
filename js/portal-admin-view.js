@@ -1,14 +1,18 @@
 (function () {
   'use strict';
 
-  if (window.parent === window) return;
-
   const TOKEN_KEY = 'kruaFlowPortalTokenV7';
   const EXPIRY_KEY = 'kruaFlowPortalTokenV7Exp';
   const EMPLOYEE_ID_KEY = 'kfPortalSessionEmployeeV73';
   const EMPLOYEE_PIN_KEY = 'kfPortalSessionPinV73';
   const VIEW_TOKEN_KEY = 'kfAdminPortalViewTokenV1';
   const VIEW_BOOT_KEY = 'kfAdminPortalViewBootV1';
+  const isEmbedded = window.parent !== window;
+  let adminHost = isEmbedded ? window.parent : window.opener;
+  let hasFullscreenView = false;
+  try { hasFullscreenView = !isEmbedded && Boolean(sessionStorage.getItem(VIEW_TOKEN_KEY)); } catch (error) {}
+  if (!adminHost && !hasFullscreenView) return;
+
   const originalLocalGet = localStorage.getItem.bind(localStorage);
   const originalLocalRemove = localStorage.removeItem.bind(localStorage);
   const originalSessionGet = sessionStorage.getItem.bind(sessionStorage);
@@ -17,7 +21,7 @@
   const isViewBoot = originalSessionGet(VIEW_BOOT_KEY) === '1';
 
   if (isViewBoot) originalSessionRemove(VIEW_BOOT_KEY);
-  else originalSessionRemove(VIEW_TOKEN_KEY);
+  else if (adminHost) originalSessionRemove(VIEW_TOKEN_KEY);
 
   const viewToken = originalSessionGet(VIEW_TOKEN_KEY) || '';
   let adminToken = '';
@@ -70,7 +74,7 @@
 
   function notifyAdminExpired() {
     try {
-      window.parent.postMessage({ type: 'KruaFlowAdminSessionExpired' }, location.origin);
+      adminHost.postMessage({ type: 'KruaFlowAdminSessionExpired' }, location.origin);
     } catch (error) {}
   }
 
@@ -172,6 +176,10 @@
       });
       originalSessionSet(VIEW_TOKEN_KEY, result.token);
       originalSessionSet(VIEW_BOOT_KEY, '1');
+      if (!isEmbedded && window.opener) {
+        try { window.opener = null; } catch (error) {}
+        adminHost = null;
+      }
       location.reload();
     } catch (requestError) {
       if (error) {
@@ -204,7 +212,7 @@
   }
 
   function onAdminMessage(event) {
-    if (event.origin !== location.origin || event.source !== window.parent) return;
+    if (event.origin !== location.origin || event.source !== adminHost) return;
     const message = event.data || {};
     if (message.type !== 'KruaFlowAdminSession' || !message.token) return;
     adminToken = String(message.token);
@@ -234,6 +242,9 @@
       hideEmployeeLogin();
       const subtitle = document.querySelector('#login .sub');
       if (subtitle) subtitle.textContent = 'กำลังตรวจสอบสิทธิ์ผู้ดูแล...';
+      if (!isEmbedded && adminHost) {
+        try { adminHost.postMessage({ type: 'KruaFlowAdminSessionRequest' }, location.origin); } catch (error) {}
+      }
       return;
     }
     const app = document.getElementById('app');
