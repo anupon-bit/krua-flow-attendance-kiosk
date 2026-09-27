@@ -60,6 +60,7 @@ function apiPostMessageResponse_(requestId, result, clientOrigin, allowEmbeddedC
 
 function apiHandlePost_(payload) {
   const op = String(payload.op || '');
+  wf2GuardAdminPortalView_(payload);
   if (op === 'activate') return apiActivate_(payload);
   if (op === 'bootstrap') return apiBootstrap_(payload);
   if (op === 'validatePin') return apiValidatePin_(payload);
@@ -2190,7 +2191,8 @@ function requirePortalV7_(token, roles) {
   let data={}; try{data=JSON.parse(raw)}catch(e){}
   const emp=employeeRecordV7_(data.employeeId); if(!emp||!emp.active||String(emp.employmentStatus||'ACTIVE').toUpperCase()==='RESIGNED')throw new Error('บัญชีพนักงานถูกปิดใช้งาน');
   const allowed=roles&&roles.length?roles.map(r=>String(r||'').toUpperCase()):null; if(allowed&&allowed.indexOf(String(emp.accessRole||'').toUpperCase())<0)throw new Error('ไม่มีสิทธิ์ใช้งานเมนูนี้');
-  CacheService.getScriptCache().put(PORTAL_TOKEN_PREFIX_+t,JSON.stringify({employeeId:emp.id}),PORTAL_TOKEN_TTL_SECONDS_);
+  const renewedSession={employeeId:emp.id};if(data.adminViewToken)renewedSession.adminViewToken=String(data.adminViewToken);
+  CacheService.getScriptCache().put(PORTAL_TOKEN_PREFIX_+t,JSON.stringify(renewedSession),PORTAL_TOKEN_TTL_SECONDS_);
   return emp;
 }
 function portalEmployeeSafeV7_(e) { return {id:e.id,name:e.name,nickname:e.nickname,phone:e.phone,branch:e.branch,department:e.department,position:e.position,accessRole:e.accessRole,startDate:formatDateInputForClient_(e.startDate),employmentStatus:e.employmentStatus,bankName:e.bankName,bankAccountMasked:maskBankAccountV7_(e.bankAccountNo),bankAccountName:e.bankAccountName}; }

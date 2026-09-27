@@ -17,6 +17,22 @@ function wf2ClientRow_(row){const out={};Object.keys(row).forEach(k=>{if(k==='_r
 
 function wf2AdminSearchEmployees_(payload){requireAdmin_(String(payload.adminToken||''));const query=String(payload.query||'').trim().toLowerCase(),limit=Math.min(100,Math.max(1,Number(payload.limit)||30));let rows=getEmployeesAdmin_().filter(e=>!query||(e.id+' '+e.name+' '+e.nickname).toLowerCase().indexOf(query)>=0);return{rows:rows.slice(0,limit).map(e=>({employeeId:e.id,name:e.name,nickname:e.nickname,branchCode:e.branch,departmentCode:e.department,positionCode:e.position,employmentStatus:e.employmentStatus,active:e.active})),total:rows.length}}
 
+function wf2AdminGetEmployeePortalChoices_(payload){
+  requireAdmin_(String(payload.adminToken||''));
+  const rows=getEmployeesAdmin_().filter(e=>e.active!==false&&['INACTIVE','RESIGNED','EXITED'].indexOf(String(e.employmentStatus||'').toUpperCase())<0);
+  return{rows:rows.map(e=>({employeeId:e.id,name:e.name,nickname:e.nickname,branchCode:e.branch,departmentCode:e.department})),serverEpochMs:Date.now()};
+}
+
+function wf2AdminCreateEmployeePortalView_(payload){
+  const adminToken=String(payload.adminToken||'');requireAdmin_(adminToken);
+  const employeeId=String(payload.employeeId||'').trim(),employee=employeeRecordV7_(employeeId);
+  if(!employee||!employee.active||['INACTIVE','RESIGNED','EXITED'].indexOf(String(employee.employmentStatus||'').toUpperCase())>=0)throw new Error('ไม่พบพนักงานที่กำลังใช้งาน');
+  const token=Utilities.getUuid();
+  CacheService.getScriptCache().put(PORTAL_TOKEN_PREFIX_+token,JSON.stringify({employeeId:employee.id,adminViewToken:adminToken}),PORTAL_TOKEN_TTL_SECONDS_);
+  auditLogV7_('ADMIN','ADMIN','ADMIN_PORTAL_VIEW_AS','EMPLOYEE',employee.id,'',{accessMode:'READ_ONLY'},'เปิด Portal เพื่อดูข้อมูลพนักงาน',String(payload.requestId||''));
+  return{ok:true,token:token,expiresIn:PORTAL_TOKEN_TTL_SECONDS_,employee:portalEmployeeSafeV7_(employee),readOnly:true,serverEpochMs:Date.now()};
+}
+
 function wf2AdminGetInterviews_(payload){requireAdmin_(String(payload.adminToken||''));const persons={};wf2Rows_('Persons').forEach(p=>persons[String(p['Person ID'])]=p);let rows=wf2Rows_('Applicant_Interviews').reverse();if(payload.status)rows=rows.filter(r=>String(r['Status'])===String(payload.status));return{rows:rows.slice(0,200).map(r=>{const p=persons[String(r['Person ID'])]||{};return{interviewId:String(r['Interview ID']),applicantId:String(r['Applicant ID']),personId:String(r['Person ID']),name:(String(p['First Name']||'')+' '+String(p['Last Name']||'')).trim(),nickname:String(p['Nickname']||''),date:formatDateInputForClient_(r['Interview Date']),time:String(r['Interview Time']||''),branchCode:String(r['Branch Code']||''),location:String(r['Location']||''),interviewerId:String(r['Interviewer ID']||''),positionCode:String(r['Position Code']||''),status:String(r['Status']||''),result:String(r['Result']||'')}})}}
 
 function wf2AdminRecordEmployeeMovement_(payload) {
