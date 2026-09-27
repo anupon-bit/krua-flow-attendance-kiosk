@@ -40,6 +40,25 @@ const WF2_FLAGS_ = Object.freeze([
 ]);
 
 const WF2_PHONE_TEXT_HEADERS_ = Object.freeze(['Phone','Phone Normalized','Emergency Contact Phone']);
+const WF2_PORTAL_VIEW_READ_OPS_ = Object.freeze([
+  'portalLogout','portalBootstrap','portalHomeBootstrap','portalGetProfile',
+  'portalGetAttendance','portalGetSchedule','portalGetLeaveAvailability',
+  'portalGetLeaveRequests','portalGetChangeRequests','portalGetAttendanceCorrections',
+  'portalGetPayroll','portalGetPayrollDisputes','portalGetNotifications','portalGetLeaveBalances'
+]);
+
+function wf2PortalViewReadOperation_(op){return WF2_PORTAL_VIEW_READ_OPS_.indexOf(String(op||''))>=0}
+
+function wf2GuardAdminPortalView_(payload){
+  const token=String(payload.portalToken||'');if(!token)return;
+  const raw=CacheService.getScriptCache().get(PORTAL_TOKEN_PREFIX_+token);if(!raw)return;
+  let session={};try{session=JSON.parse(raw)}catch(e){}
+  const adminToken=String(session.adminViewToken||'');if(!adminToken)return;
+  const op=String(payload.op||'');
+  if(op==='portalLogout')return;
+  requireAdmin_(adminToken);
+  if(!wf2PortalViewReadOperation_(op))throw new Error('มุมมอง Portal จาก Admin อ่านข้อมูลได้อย่างเดียว');
+}
 
 const WF2_APPLICANT_TRANSITIONS_ = Object.freeze({
   STARTED:['SUBMITTED'], SUBMITTED:['SCREENING','REJECTED'],
@@ -74,6 +93,8 @@ function apiWorkforceV2HandlePost_(payload) {
   if(op==='adminWorkforceDiagnostics') return wf2AdminDiagnostics_(payload);
   if(op==='adminGetEmployeeLifecycleProfile') return wf2AdminEmployeeLifecycleProfile_(payload);
   if(op==='adminSearchEmployees') return wf2AdminSearchEmployees_(payload);
+  if(op==='adminGetEmployeePortalChoices') return wf2AdminGetEmployeePortalChoices_(payload);
+  if(op==='adminCreateEmployeePortalView') return wf2AdminCreateEmployeePortalView_(payload);
   if(op==='adminGetInterviews') return wf2AdminGetInterviews_(payload);
   if(op==='adminRecordEmployeeMovement') return wf2AdminRecordEmployeeMovement_(payload);
   if(op==='adminApplyDueEmployeeMovements') return wf2AdminApplyDueMovements_(payload);
@@ -638,4 +659,4 @@ function wf2KpiDictionary_(){return[
 function wf2SeedKpis_(){const existing=wf2Rows_('KPI_Definitions');if(existing.length)return 0;const seeds=wf2KpiDictionary_();seeds.forEach(k=>wf2Append_('KPI_Definitions',{'KPI Key':k.key,'Name':k.name,'Description':k.formula,'Source':k.source,'Formula Type':'RATIO','Formula':k.formula,'Numerator':k.formula.split(' / ')[0],'Denominator':k.formula.split(' / ')[1]||'','Unit':k.unit,'Period':'CONFIGURABLE','Direction':'HIGHER_IS_BETTER','Weight':0,'Owner':'HR','Data Quality Status':'NOT_EVALUATED','Active':true,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 function wf2SeedPositions_(){if(wf2Rows_('Positions').length)return 0;const seeds=[['MANAGER','ผู้จัดการ',''],['SUPERVISOR','หัวหน้างาน',''],['STAFF','พนักงาน','']];seeds.forEach((p,i)=>wf2Append_('Positions',{'Position Code':p[0],'Position Name':p[1],'Department Code':p[2],'Active':true,'Sort Order':i+1,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
 
-if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,phoneText:wf2PhoneText_,personPhoneFields:wf2PersonPhoneFields_,coercePhoneTextValues:wf2CoercePhoneTextValues_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_,buildBackfillPreview:wf2BuildBackfillPreview_}}
+if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,phoneText:wf2PhoneText_,personPhoneFields:wf2PersonPhoneFields_,coercePhoneTextValues:wf2CoercePhoneTextValues_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_,buildBackfillPreview:wf2BuildBackfillPreview_,isPortalViewReadOperation:wf2PortalViewReadOperation_}}

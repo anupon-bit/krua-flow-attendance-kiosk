@@ -22,6 +22,12 @@ assert.equal(typeof core.coercePhoneTextValues(['Phone'],['0000000001'])[0],'str
 assert.equal(core.canTransition('SUBMITTED','SCREENING'),true);
 assert.equal(core.canTransition('SUBMITTED','HIRED'),false);
 assert.equal(core.canTransition('OFFER_SENT','OFFER_ACCEPTED'),true);
+assert.equal(core.isPortalViewReadOperation('portalHomeBootstrap'),true);
+assert.equal(core.isPortalViewReadOperation('portalGetProfile'),true);
+assert.equal(core.isPortalViewReadOperation('portalLogout'),true);
+assert.equal(core.isPortalViewReadOperation('portalSubmitLeave'),false);
+assert.equal(core.isPortalViewReadOperation('portalRespondPayroll'),false);
+assert.equal(core.isPortalViewReadOperation('portalMarkNotificationRead'),false);
 assert.equal(core.ratio(8,10),80);
 assert.equal(core.ratio(1,0),null);
 assert.equal(core.safeFileName(' สำเนา บัตรประชาชน.pdf '),'pdf');
@@ -77,7 +83,18 @@ function assertFormatsPhoneBeforeWrite(body,label,formatMarker){
   assert.ok(format>=0&&write>=0&&format<write,label+' must format phone as text before writing');
 }
 const workforceSource=fs.readFileSync(path.join(__dirname,'../apps-script/WorkforceV2.js'),'utf8');
+const operationsSource=fs.readFileSync(path.join(__dirname,'../apps-script/WorkforceOperationsV2.js'),'utf8');
 const legacySource=fs.readFileSync(path.join(__dirname,'../apps-script/รหัส.js'),'utf8');
+const portalSource=fs.readFileSync(path.join(__dirname,'../portal.html'),'utf8');
+const portalAdminViewSource=fs.readFileSync(path.join(__dirname,'../js/portal-admin-view.js'),'utf8');
+assert(portalSource.includes('./js/portal-admin-view.js'),'employee portal must load the admin view bridge');
+assert.match(portalSource,/id="employeeId"[\s\S]*?id="pin"[\s\S]*?id="loginBtn"/,'standalone employee portal must retain employee ID and PIN login');
+assert.match(portalAdminViewSource,/if \(window\.parent === window\) return;/,'admin portal bridge must not alter standalone employee login');
+assert.match(portalAdminViewSource,/event\.source !== window\.parent/,'admin session messages must come from the parent frame');
+assert.match(portalAdminViewSource,/event\.origin !== location\.origin/,'admin session messages must match the portal origin');
+assert.match(operationsSource,/requireAdmin_\(adminToken\)/,'admin view endpoints must validate the admin session');
+assert.match(operationsSource,/ADMIN_PORTAL_VIEW_AS/,'admin view session creation must be audited');
+assert.match(legacySource,/wf2GuardAdminPortalView_\(payload\)/,'portal requests must pass the server-side read-only guard');
 assertFormatsPhoneBeforeWrite(functionBody(workforceSource,'wf2Append_','wf2UpdateRow_'),'Workforce append','wf2FormatPhoneTextColumns_');
 assertFormatsPhoneBeforeWrite(functionBody(workforceSource,'wf2UpdateRow_','wf2PhoneText_'),'Workforce update','wf2FormatPhoneTextColumns_');
 assert.match(functionBody(workforceSource,'wf2BackfillLegacyPeople_','wf2DuplicateCandidates_'),/wf2PersonPhoneFields_/,'backfill must use string-safe Person phone fields');
