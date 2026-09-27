@@ -1,0 +1,19 @@
+[
+  {
+    "origin": [
+      "https://anupon-bit.github.io",
+      "http://localhost:8081",
+      "http://127.0.0.1:8081"
+    ],
+    "method": ["GET", "PUT", "HEAD"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "ETag",
+      "x-goog-generation",
+      "x-goog-hash",
+      "x-goog-if-generation-match"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

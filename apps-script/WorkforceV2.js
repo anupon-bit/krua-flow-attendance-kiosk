@@ -1,0 +1,641 @@
+// KruaFlow Workforce V2 — additive employee lifecycle foundation.
+// This file intentionally does not replace V7 APIs. New modules are enabled per feature flag.
+
+const WF2_SCHEMA_VERSION_ = '2.0.0';
+const WF2_SHEETS_ = Object.freeze({
+  Persons:['Person ID','First Name','Last Name','Nickname','Birth Date','Phone','Phone Normalized','LINE','Email','Email Normalized','Address','Photo Document ID','Lifecycle Stage','Identity Status','Duplicate Review Required','Created At','Updated At','Created By','Source'],
+  Recruitment_Leads:['Lead ID','Person ID','Source','Campaign','Interested Position','Interested Branch','Status','Owner ID','Cost','Note','Created At','Updated At'],
+  Applicants:['Applicant ID','Person ID','Lead ID','Position Code','Branch Code','Department Code','Experience','Expected Wage','Available Start Date','Source','Status','Consent','Submitted At','Screened At','Screened By','Rejection Reason','Created At','Updated At'],
+  Applicant_Interviews:['Interview ID','Applicant ID','Person ID','Interview Date','Interview Time','Branch Code','Location','Interviewer ID','Position Code','Status','Evaluation JSON','Notes','Strengths','Concerns','Relevant Experience','Expected Pay','Negotiated Pay','Available Start Date','Result','Created At','Updated At'],
+  Offers:['Offer ID','Applicant ID','Person ID','Position Code','Branch Code','Department Code','Wage Type','Wage Amount','Start Date','Offer Date','Accepted Date','Status','Note','Created At','Updated At'],
+  Staffing_Targets:['Staffing Target ID','Branch Code','Department Code','Position Code','Target Headcount','Effective Start','Effective End','Active','Updated At','Updated By'],
+  Positions:['Position Code','Position Name','Department Code','Active','Sort Order','Created At','Updated At','Admin Note'],
+  Employee_Movements:['Movement ID','Employee ID','Person ID','Movement Type','Effective Date','Field Name','Old Value','New Value','Reason','Approved By','Status','Applied At','Created At'],
+  Probation_Reviews:['Probation Review ID','Employee ID','Person ID','Start Date','Planned End Date','Actual End Date','Status','Review Date','Reviewer ID','KPI Result JSON','Supervisor Rating','Notes','Created At','Updated At'],
+  KPI_Definitions:['KPI Key','Name','Description','Source','Formula Type','Formula','Numerator','Denominator','Unit','Period','Dimension','Target','Direction','Weight','Applicable Position','Applicable Department','Applicable Branch','Lifecycle Stage','Owner','Data Quality Status','Active','Created At','Updated At'],
+  KPI_Targets:['KPI Target ID','KPI Key','Position Code','Department Code','Branch Code','Lifecycle Stage','Period','Target','Weight','Active','Effective Start','Effective End','Updated At'],
+  Employee_KPI_Results:['KPI Result ID','Employee ID','KPI Key','Period Start','Period End','Numerator','Denominator','Raw Value','Score','Target','Source Reference JSON','Data Quality Status','Calculated At'],
+  Performance_Reviews:['Performance Review ID','Employee ID','Reviewer ID','Review Type','Period Start','Period End','Criteria JSON','Numeric Rating','Notes','Status','Submitted At','Created At','Updated At'],
+  Training_Catalog:['Training ID','Name','Description','Required Position','Validity Days','Active','Created At','Updated At'],
+  Employee_Training:['Employee Training ID','Employee ID','Training ID','Status','Assigned At','Due At','Completed At','Expires At','Evidence Document ID','Result','Updated At'],
+  Employee_Incidents:['Incident ID','Employee ID','Person ID','Date','Category','Severity','Description','Evidence Document ID','Reported By','Reviewed By','Action','Status','Resolved At','Created At','Updated At'],
+  Documents:['Document ID','Person ID','Applicant ID','Registration ID','Employee ID','Owner Type','Owner ID','Type','Label','Original File Name','MIME Type','Size','Storage Provider','Bucket','Object Key','Checksum','Uploaded At','Uploaded By','Status','Required','Verified At','Verified By','Expiry Date','Version','Replaced Document ID','Created At','Updated At'],
+  Activity_Categories:['Activity Category ID','Name','Department Code','Active','Sort Order','Created At','Updated At'],
+  Activity_Templates:['Activity Template ID','Category ID','Branch Code','Department Code','Position Code','Shift Code','Task','Target','Unit','Due Offset Minutes','Required','Active','Created At','Updated At'],
+  Activity_Reports:['Activity Report ID','Employee ID','Date','Branch Code','Department Code','Position Code','Shift Code','Status','Submitted At','Created At','Updated At'],
+  Activity_Items:['Activity Item ID','Report ID','Template ID','Category ID','Task','Target','Actual','Unit','Status','Started At','Completed At','Due At','Issue Flag','Note','Evidence Document ID','Created At','Updated At'],
+  Activity_Issues:['Activity Issue ID','Activity Item ID','Employee ID','Description','Severity','Created At','Assigned To','Action','Status','Resolved At','Updated At'],
+  Payroll_Periods:['Period ID','Start Date','End Date','Cutoff','Pay Date','Period Type','Employee Count','Total Amount','Status','Created At','Updated At'],
+  Work_Queue:['Work Item ID','Entity Type','Entity ID','Title','Assigned Role','Assigned User','Due At','Priority','Status','Branch Code','Department Code','Created At','Updated At','Completed At'],
+  Employee_Exits:['Exit ID','Employee ID','Person ID','Exit Type','Reason Category','Reason Detail','Notice Date','Last Working Date','Notice Days','Status','Approved By','Handover Status','Asset Return Status','Document Status','Final Payroll Status','Exit Interview Status','Access Closed Status','Rehire Eligible','Completed At','Created At','Updated At'],
+  Exit_Checklist:['Exit Checklist ID','Exit ID','Task Key','Task Label','Owner Role','Status','Completed At','Completed By','Note','Created At','Updated At'],
+  Exit_Interviews:['Exit Interview ID','Exit ID','Employee ID','Reason','Manager Rating','Work Condition Rating','Pay Rating','Schedule Rating','Career Rating','Other Rating','Notes','Submitted At'],
+  Lifecycle_Events:['Event ID','Person ID','Employee ID','Entity Type','Entity ID','Event Type','Event Date','Summary','Metadata JSON','Created By','Created At'],
+  User_Permissions:['Permission ID','Employee ID','Capability','Scope Type','Scope ID','Allowed','Active','Created At','Updated At','Updated By']
+});
+
+const WF2_FLAGS_ = Object.freeze([
+  'WORKFORCE_V2_ENABLED','RECRUITMENT_ENABLED','ACTIVITY_ENABLED',
+  'GCS_DOCUMENTS_ENABLED','PERFORMANCE_ENABLED','OFFBOARDING_ENABLED'
+]);
+
+const WF2_PHONE_TEXT_HEADERS_ = Object.freeze(['Phone','Phone Normalized','Emergency Contact Phone']);
+
+const WF2_APPLICANT_TRANSITIONS_ = Object.freeze({
+  STARTED:['SUBMITTED'], SUBMITTED:['SCREENING','REJECTED'],
+  SCREENING:['INTERVIEW_SCHEDULED','REJECTED'],
+  INTERVIEW_SCHEDULED:['INTERVIEW_ATTENDED','NO_SHOW','CANCELLED'],
+  NO_SHOW:['INTERVIEW_SCHEDULED','REJECTED'], CANCELLED:['INTERVIEW_SCHEDULED','REJECTED'],
+  INTERVIEW_ATTENDED:['PASSED','RESERVE','REJECTED'], RESERVE:['INTERVIEW_SCHEDULED','REJECTED'],
+  PASSED:['OFFER_DRAFT','REJECTED'], OFFER_DRAFT:['OFFER_SENT','REJECTED'],
+  OFFER_SENT:['OFFER_ACCEPTED','OFFER_DECLINED'], OFFER_ACCEPTED:['HIRED'],
+  OFFER_DECLINED:['REJECTED'], HIRED:['PRE_ONBOARDING']
+});
+
+function apiWorkforceV2HandlePost_(payload) {
+  const op=String(payload.op||'');
+  if(op==='workforcePublicBootstrap') return wf2PublicBootstrap_();
+  if(op==='applicantSubmit') return wf2SubmitApplicant_(payload);
+  if(op==='adminWorkforceMigrate') return wf2AdminMigrate_(payload);
+  if(op==='adminWorkforceBackfillPreview') return wf2AdminBackfillPreview_(payload);
+  if(op==='adminSetWorkforceFeatureFlag') return wf2AdminSetFeatureFlag_(payload);
+  if(op==='workforceBootstrap') return wf2AdminBootstrap_(payload);
+  if(op==='adminWorkforceDashboard') return wf2AdminDashboard_(payload);
+  if(op==='adminRecruitmentList') return wf2AdminRecruitmentList_(payload);
+  if(op==='adminCreateRecruitmentLead') return wf2AdminCreateLead_(payload);
+  if(op==='adminTransitionApplicant') return wf2AdminTransitionApplicant_(payload);
+  if(op==='adminSaveInterview') return wf2AdminSaveInterview_(payload);
+  if(op==='adminSaveOffer') return wf2AdminSaveOffer_(payload);
+  if(op==='adminGetStaffingTargets') return wf2AdminGetStaffingTargets_(payload);
+  if(op==='adminSaveStaffingTarget') return wf2AdminSaveStaffingTarget_(payload);
+  if(op==='adminStartOnboarding') return wf2AdminStartOnboarding_(payload);
+  if(op==='adminGetWorkQueue') return wf2AdminGetWorkQueue_(payload);
+  if(op==='adminCompleteWorkItem') return wf2AdminCompleteWorkItem_(payload);
+  if(op==='adminWorkforceDiagnostics') return wf2AdminDiagnostics_(payload);
+  if(op==='adminGetEmployeeLifecycleProfile') return wf2AdminEmployeeLifecycleProfile_(payload);
+  if(op==='adminSearchEmployees') return wf2AdminSearchEmployees_(payload);
+  if(op==='adminGetInterviews') return wf2AdminGetInterviews_(payload);
+  if(op==='adminRecordEmployeeMovement') return wf2AdminRecordEmployeeMovement_(payload);
+  if(op==='adminApplyDueEmployeeMovements') return wf2AdminApplyDueMovements_(payload);
+  if(op==='adminSaveProbationReview') return wf2AdminSaveProbationReview_(payload);
+  if(op==='portalGetDailyActivities') return wf2PortalGetDailyActivities_(payload);
+  if(op==='portalAddActivityItem') return wf2PortalAddActivityItem_(payload);
+  if(op==='portalUpdateActivityItem') return wf2PortalUpdateActivityItem_(payload);
+  if(op==='portalSubmitActivityReport') return wf2PortalSubmitActivityReport_(payload);
+  if(op==='managerGetActivityIssues') return wf2ManagerGetActivityIssues_(payload);
+  if(op==='managerResolveActivityIssue') return wf2ManagerResolveActivityIssue_(payload);
+  if(op==='adminGetActivityTemplates') return wf2AdminGetActivityTemplates_(payload);
+  if(op==='adminSaveActivityTemplate') return wf2AdminSaveActivityTemplate_(payload);
+  if(op==='adminActivityDashboard') return wf2AdminActivityDashboard_(payload);
+  if(op==='adminCreateEmployeeExit') return wf2AdminCreateEmployeeExit_(payload);
+  if(op==='adminUpdateExitChecklist') return wf2AdminUpdateExitChecklist_(payload);
+  if(op==='adminCompleteEmployeeExit') return wf2AdminCompleteEmployeeExit_(payload);
+  if(op==='adminGetKpiDefinitions') return wf2AdminGetKpiDefinitions_(payload);
+  if(op==='adminSaveKpiDefinition') return wf2AdminSaveKpiDefinition_(payload);
+  if(op==='adminCalculateEmployeePerformance') return wf2AdminCalculatePerformance_(payload);
+  if(op==='adminSavePerformanceReview') return wf2AdminSavePerformanceReview_(payload);
+  if(op==='adminSaveTrainingCatalog') return wf2AdminSaveTrainingCatalog_(payload);
+  if(op==='adminAssignEmployeeTraining') return wf2AdminAssignTraining_(payload);
+  if(op==='adminCompleteEmployeeTraining') return wf2AdminCompleteTraining_(payload);
+  if(op==='adminRecordEmployeeIncident') return wf2AdminRecordIncident_(payload);
+  if(op==='adminSetUserCapability') return wf2AdminSetCapability_(payload);
+  if(op==='adminAttendanceControl') return wf2AdminAttendanceControl_(payload);
+  if(op==='adminRecruitmentReport') return wf2AdminRecruitmentReport_(payload);
+  if(op==='adminRetentionReport') return wf2AdminRetentionReport_(payload);
+  if(op==='adminGetPayrollPeriods') return wf2AdminGetPayrollPeriods_(payload);
+  if(op==='adminSavePayrollPeriod') return wf2AdminSavePayrollPeriod_(payload);
+  if(op==='adminTransitionPayrollPeriod') return wf2AdminTransitionPayrollPeriod_(payload);
+  if(op==='adminGetNotificationCenter') return wf2AdminNotificationCenter_(payload);
+  if(op==='adminMarkNotificationRead') return wf2AdminMarkNotificationRead_(payload);
+  if(op==='adminGetEmployeeExits') return wf2AdminGetEmployeeExits_(payload);
+  if(op==='adminSaveExitInterview') return wf2AdminSaveExitInterview_(payload);
+  if(op==='adminListRegistrationsV2') return wf2AdminListRegistrationsV2_(payload);
+  if(op==='adminGetRegistrationV2') return wf2AdminGetRegistrationV2_(payload);
+  if(op==='documentCreateUploadSession') return wf2DocumentCreateUploadSession_(payload);
+  if(op==='documentFinalizeUpload') return wf2DocumentFinalizeUpload_(payload);
+  if(op==='documentGetViewUrl') return wf2DocumentGetViewUrl_(payload);
+  return null;
+}
+
+function wf2AdminMigrate_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const apply=payload.apply===true;
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID);
+  const backfillRequested=payload.backfillLegacy===true;
+  const settingSpecs=WF2_FLAGS_.map(key=>({key:key,value:'FALSE',description:'Workforce V2 feature flag — enable in STAGING after UAT'})).concat([
+    {key:'WORKFORCE_SCHEMA_VERSION',value:WF2_SCHEMA_VERSION_,description:'Additive workforce schema version'},
+    {key:'DOCUMENT_MAX_BYTES',value:'10485760',description:'Maximum document size (10 MB)'}
+  ]);
+  const settingRows=wf2MigrationSettings_(ss);
+  const settings=settingSpecs.map(spec=>({
+    key:spec.key,
+    exists:Object.prototype.hasOwnProperty.call(settingRows,spec.key),
+    currentValue:Object.prototype.hasOwnProperty.call(settingRows,spec.key)?String(settingRows[spec.key]):'',
+    plannedValue:spec.value,
+    action:Object.prototype.hasOwnProperty.call(settingRows,spec.key)?'PRESERVE':'CREATE'
+  }));
+  const runtimeProps=PropertiesService.getScriptProperties();
+  const enabledFlags=WF2_FLAGS_.filter(key=>resolveEffectiveFeatureFlagFor_(ScriptApp.getScriptId(),key,runtimeProps.getProperty(key),settingRows[key]));
+  const schemaSetting=settings.find(item=>item.key==='WORKFORCE_SCHEMA_VERSION');
+  const legacyBefore=wf2MigrationLegacyCounts_(ss);
+  const plan={
+    schemaVersion:WF2_SCHEMA_VERSION_,mode:apply?'APPLY':'DRY_RUN',sheets:[],columns:[],settings:settings,
+    seeds:wf2MigrationSeedPlan_(ss),backfillRequested:backfillRequested,backfillPreview:backfillRequested?wf2LegacyBackfillPreview_():null,backfill:null,
+    safeguards:{deleteOperations:0,reorderOperations:0,legacyRowOverwriteOperations:0,backfillAllowed:backfillRequested},
+    legacyRowCounts:{before:legacyBefore,after:null,unchanged:null},
+    rowsModified:{legacyExistingRows:0,legacyCellsUpdated:0,employeesLinked:0,registrationsLinked:0,personsCreated:0,settingsInserted:0,kpiSeedsInserted:0,positionSeedsInserted:0,auditRowsAppended:apply?1:0}
+  };
+  if(apply&&enabledFlags.length)throw new Error('หยุด migration: feature flags ต้องเป็น FALSE ก่อน apply ('+enabledFlags.join(', ')+')');
+  if(apply&&schemaSetting&&schemaSetting.exists&&schemaSetting.currentValue&&schemaSetting.currentValue!==WF2_SCHEMA_VERSION_)throw new Error('หยุด migration: WORKFORCE_SCHEMA_VERSION ปัจจุบันไม่ตรงกับ '+WF2_SCHEMA_VERSION_);
+  Object.keys(WF2_SHEETS_).forEach(name=>{
+    const existing=ss.getSheetByName(name);
+    const current=existing&&existing.getLastColumn()>0?existing.getRange(1,1,1,existing.getLastColumn()).getDisplayValues()[0].filter(String):[];
+    const missing=WF2_SHEETS_[name].filter(h=>current.indexOf(h)<0);
+    plan.sheets.push({name:name,exists:Boolean(existing),missingColumns:missing});
+    if(apply) wf2EnsureSheet_(ss,name,WF2_SHEETS_[name]);
+  });
+  [['Employees','Person ID'],['Employee_Registrations','Person ID'],['Employee_Registrations','Applicant ID']].forEach(item=>{
+    const sh=ss.getSheetByName(item[0]);
+    const headers=sh&&sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0]:[];
+    const missing=Boolean(sh)&&headers.indexOf(item[1])<0;
+    plan.columns.push({sheet:item[0],column:item[1],missing:missing});
+    if(apply&&missing) sh.getRange(1,sh.getLastColumn()+1).setValue(item[1]);
+  });
+  if(apply){
+    WF2_FLAGS_.forEach(flag=>ensureSettingV7_(flag,'FALSE','Workforce V2 feature flag — enable in STAGING after UAT'));
+    ensureSettingV7_('WORKFORCE_SCHEMA_VERSION',WF2_SCHEMA_VERSION_,'Additive workforce schema version');
+    ensureSettingV7_('DOCUMENT_MAX_BYTES','10485760','Maximum document size (10 MB)');
+    plan.rowsModified.settingsInserted=settings.filter(item=>item.action==='CREATE').length;
+    plan.rowsModified.kpiSeedsInserted=wf2SeedKpis_();
+    plan.rowsModified.positionSeedsInserted=wf2SeedPositions_();
+    if(backfillRequested){
+      plan.backfill=wf2BackfillLegacyPeople_();
+      plan.rowsModified.employeesLinked=plan.backfill.employeesLinked;
+      plan.rowsModified.registrationsLinked=plan.backfill.registrationsLinked;
+      plan.rowsModified.personsCreated=plan.backfill.personsCreated;
+      plan.rowsModified.legacyCellsUpdated=plan.backfill.employeesLinked+plan.backfill.registrationsLinked;
+      plan.rowsModified.legacyExistingRows=plan.rowsModified.legacyCellsUpdated;
+    }
+    auditLogV7_('ADMIN','ADMIN','MIGRATE_WORKFORCE_SCHEMA','SYSTEM','WORKFORCE_V2','',{version:WF2_SCHEMA_VERSION_,backfill:plan.backfill||null},'',String(payload.requestId||''));
+    const legacyAfter=wf2MigrationLegacyCounts_(ss);
+    plan.legacyRowCounts.after=legacyAfter;
+    plan.legacyRowCounts.unchanged=Object.keys(legacyBefore).every(name=>legacyBefore[name]===legacyAfter[name]);
+  }
+  return {ok:true,plan:plan,serverEpochMs:Date.now()};
+}
+
+function wf2AdminBackfillPreview_(payload){
+  requireAdmin_(String(payload.adminToken||''));
+  return{ok:true,preview:wf2LegacyBackfillPreview_(),serverEpochMs:Date.now()};
+}
+
+function wf2MigrationSettings_(ss){
+  const sh=ss.getSheetByName(SETTINGS_SHEET),out={};
+  if(!sh||sh.getLastRow()<2)return out;
+  sh.getRange(2,1,sh.getLastRow()-1,2).getValues().forEach(row=>{const key=String(row[0]||'');if(key)out[key]=row[1]});
+  return out;
+}
+
+function wf2MigrationLegacyCounts_(ss){
+  const out={};
+  [EMPLOYEE_SHEET,ATTENDANCE_SHEET,LEAVE_SHEET,'Payroll_Snapshots',REGISTRATION_SHEET].forEach(name=>{const sh=ss.getSheetByName(name);out[name]=sh?Math.max(0,sh.getLastRow()-1):null});
+  return out;
+}
+
+function wf2MigrationSeedPlan_(ss){
+  const kpi=ss.getSheetByName('KPI_Definitions'),positions=ss.getSheetByName('Positions');
+  const kpiRows=kpi?Math.max(0,kpi.getLastRow()-1):0,positionRows=positions?Math.max(0,positions.getLastRow()-1):0;
+  return{
+    kpiDefinitions:{existingRows:kpiRows,action:kpiRows?'PRESERVE':'INSERT_DEFAULTS',plannedKeys:kpiRows?[]:wf2KpiDictionary_().map(item=>item.key)},
+    positions:{existingRows:positionRows,action:positionRows?'PRESERVE':'INSERT_DEFAULTS',plannedCodes:positionRows?[]:['MANAGER','SUPERVISOR','STAFF']}
+  };
+}
+
+function wf2AdminSetFeatureFlag_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  if(getRuntimeEnvironment()!=='STAGING')throw new Error('Feature flag changes are allowed only in the STAGING project');
+  const key=String(payload.key||'');
+  if(WF2_FLAGS_.indexOf(key)<0)throw new Error('Feature flag ไม่ถูกต้อง');
+  const value=payload.enabled===true?'TRUE':'FALSE';
+  PropertiesService.getScriptProperties().setProperty(key,value);
+  auditLogV7_('ADMIN','ADMIN','SET_FEATURE_FLAG','SETTING',key,'',{value:value},String(payload.reason||''),String(payload.requestId||''));
+  return {ok:true,key:key,enabled:value==='TRUE'};
+}
+
+function wf2EnsureSheet_(ss,name,headers) {
+  let sh=ss.getSheetByName(name);
+  if(!sh) sh=ss.insertSheet(name);
+  let current=[];
+  if(sh.getLastColumn()>0) current=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  if(!current.some(String)){
+    if(sh.getMaxColumns()<headers.length) sh.insertColumnsAfter(sh.getMaxColumns(),headers.length-sh.getMaxColumns());
+    sh.getRange(1,1,1,headers.length).setValues([headers]);
+  } else {
+    const missing=headers.filter(h=>current.indexOf(h)<0);
+    if(missing.length){
+      const start=sh.getLastColumn()+1;
+      if(sh.getMaxColumns()<start+missing.length-1) sh.insertColumnsAfter(sh.getMaxColumns(),start+missing.length-1-sh.getMaxColumns());
+      sh.getRange(1,start,1,missing.length).setValues([missing]);
+    }
+  }
+  sh.setFrozenRows(1);
+  wf2FormatPhoneTextColumns_(sh,wf2Headers_(sh),2,Math.max(0,sh.getMaxRows()-1));
+  return sh;
+}
+
+function wf2Sheet_(name) {
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name);
+  if(!sh) throw new Error('Workforce V2 ยังไม่พร้อม: กรุณารัน migration แบบ additive ก่อน ('+name+')');
+  return sh;
+}
+
+function wf2Headers_(sh){return sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(String)}
+function wf2Rows_(name) {
+  const sh=wf2Sheet_(name),last=sh.getLastRow(),headers=wf2Headers_(sh);
+  if(last<2)return[];
+  return sh.getRange(2,1,last-1,headers.length).getValues().map((row,index)=>{
+    const out={_row:index+2};headers.forEach((h,i)=>out[h]=row[i]);return out;
+  });
+}
+function wf2Append_(name,obj) {
+  const sh=wf2Sheet_(name),headers=wf2Headers_(sh);
+  const rowNumber=sh.getLastRow()+1;
+  if(rowNumber>sh.getMaxRows())sh.insertRowsAfter(sh.getMaxRows(),1);
+  const values=wf2CoercePhoneTextValues_(headers,headers.map(h=>Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:''));
+  wf2FormatPhoneTextColumns_(sh,headers,rowNumber,1);
+  sh.getRange(rowNumber,1,1,headers.length).setValues([values]);
+  return rowNumber;
+}
+function wf2UpdateRow_(name,rowNumber,changes) {
+  const sh=wf2Sheet_(name),headers=wf2Headers_(sh),row=sh.getRange(rowNumber,1,1,headers.length).getValues()[0];
+  Object.keys(changes).forEach(key=>{const i=headers.indexOf(key);if(i>=0)row[i]=changes[key]});
+  wf2FormatPhoneTextColumns_(sh,headers,rowNumber,1);
+  sh.getRange(rowNumber,1,1,headers.length).setValues([wf2CoercePhoneTextValues_(headers,row)]);
+}
+
+function wf2PhoneText_(value){return value===null||value===undefined?'':String(value).trim()}
+function wf2PersonPhoneFields_(value){const raw=wf2PhoneText_(value);return{'Phone':raw,'Phone Normalized':wf2NormalizePhone_(raw)}}
+function wf2CoercePhoneTextValues_(headers,values){return values.map((value,index)=>WF2_PHONE_TEXT_HEADERS_.indexOf(String(headers[index]||''))>=0?wf2PhoneText_(value):value)}
+function wf2FormatPhoneTextColumns_(sh,headers,startRow,numRows){
+  if(!sh||numRows<=0)return;
+  WF2_PHONE_TEXT_HEADERS_.forEach(header=>{const column=headers.indexOf(header)+1;if(column>0)sh.getRange(startRow,column,numRows,1).setNumberFormat('@')});
+}
+function wf2Setting_(key) {
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID),sh=ss.getSheetByName(SETTINGS_SHEET);
+  if(!sh||sh.getLastRow()<2)return'';
+  const values=sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+  for(let i=0;i<values.length;i++)if(String(values[i][0])===String(key))return values[i][1];
+  return'';
+}
+function wf2SetSetting_(key,value,description) {
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID);let sh=ss.getSheetByName(SETTINGS_SHEET);
+  if(!sh)sh=ss.insertSheet(SETTINGS_SHEET);
+  if(sh.getLastRow()<1)sh.getRange(1,1,1,3).setValues([['Setting','Value','Description']]);
+  if(sh.getLastRow()>=2){const values=sh.getRange(2,1,sh.getLastRow()-1,1).getValues();for(let i=0;i<values.length;i++)if(String(values[i][0])===String(key)){sh.getRange(i+2,2,1,2).setValues([[String(value),String(description||'')]]);return}}
+  sh.appendRow([String(key),String(value),String(description||'')]);
+}
+function wf2Flag_(key){
+  const propertyValue=PropertiesService.getScriptProperties().getProperty(String(key));
+  return resolveEffectiveFeatureFlagFor_(ScriptApp.getScriptId(),key,propertyValue,wf2Setting_(key));
+}
+function wf2RequireFlag_(key){if(!wf2Flag_(key))throw new Error('ฟีเจอร์นี้ยังไม่เปิดใช้งานใน environment นี้: '+key)}
+
+function wf2PublicBootstrap_() {
+  const ready=Boolean(SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName('Applicants'));
+  const flags={};WF2_FLAGS_.forEach(key=>flags[key]=wf2Flag_(key));
+  return {ready:ready,environment:getRuntimeEnvironment(),flags:flags,recruitmentEnabled:ready&&flags.RECRUITMENT_ENABLED,gcsDocumentsEnabled:ready&&flags.GCS_DOCUMENTS_ENABLED,documentMaxBytes:Number(wf2Setting_('DOCUMENT_MAX_BYTES'))||10485760,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),positions:ready?wf2ActivePositions_():[],serverEpochMs:Date.now()};
+}
+
+function wf2AdminBootstrap_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID),ready=Boolean(ss.getSheetByName('Persons'));
+  const flags={};WF2_FLAGS_.forEach(key=>flags[key]=wf2Flag_(key));
+  return {ready:ready,environment:getRuntimeEnvironment(),schemaVersion:String(wf2Setting_('WORKFORCE_SCHEMA_VERSION')||''),flags:flags,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),positions:ready?wf2ActivePositions_():[],kpiDictionary:wf2KpiDictionary_(),serverEpochMs:Date.now()};
+}
+
+function wf2ActivePositions_(){return wf2Rows_('Positions').filter(r=>r['Active']!==false&&String(r['Position Code']||'')).map(r=>({code:String(r['Position Code']),name:String(r['Position Name']),departmentCode:String(r['Department Code']||'')}))}
+
+function wf2SubmitApplicant_(payload) {
+  wf2RequireFlag_('RECRUITMENT_ENABLED');
+  const input=payload.applicant||{};
+  const firstName=String(input.firstName||'').trim(),lastName=String(input.lastName||'').trim(),phone=wf2NormalizePhone_(input.phone),email=String(input.email||'').trim().toLowerCase();
+  if(!firstName||!lastName||!phone)throw new Error('กรุณากรอกชื่อ นามสกุล และเบอร์โทร');
+  if(input.consent!==true)throw new Error('กรุณายอมรับการเก็บข้อมูลเพื่อสมัครงาน');
+  const position=String(input.positionCode||'').trim(),branch=validateBranchV7_(input.branchCode,false);
+  if(!position)throw new Error('กรุณาเลือกตำแหน่งที่สมัคร');
+  const candidates=wf2DuplicateCandidates_(phone,email),now=new Date();
+  const personId=wf2NextPersonId_();
+  wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':firstName,'Last Name':lastName,'Nickname':String(input.nickname||''),'Birth Date':parseIsoDate_(input.birthDate)||''},wf2PersonPhoneFields_(input.phone),{'LINE':String(input.line||''),'Email':String(input.email||''),'Email Normalized':email,'Address':String(input.address||''),'Lifecycle Stage':'APPLICANT','Identity Status':'ACTIVE','Duplicate Review Required':candidates.length>0,'Created At':now,'Updated At':now,'Created By':'PUBLIC','Source':String(input.source||'Other')}));
+  const applicantId=wf2EntityId_('APP');
+  wf2Append_('Applicants',{'Applicant ID':applicantId,'Person ID':personId,'Position Code':position,'Branch Code':branch,'Department Code':String(input.departmentCode||''),'Experience':String(input.experience||''),'Expected Wage':Number(input.expectedWage)||0,'Available Start Date':parseIsoDate_(input.availableStartDate)||'','Source':String(input.source||'Other'),'Status':'SUBMITTED','Consent':true,'Submitted At':now,'Created At':now,'Updated At':now});
+  wf2AddEvent_(personId,'','APPLICANT',applicantId,'APPLICATION_SUBMITTED','ส่งใบสมัครตำแหน่ง '+position,{source:String(input.source||'Other')},'PUBLIC');
+  wf2AddWorkItem_('APPLICANT',applicantId,'ตรวจใบสมัคร '+firstName+' '+lastName,'ADMIN','',new Date(Date.now()+24*60*60*1000),'NORMAL',branch,String(input.departmentCode||''));
+  if(candidates.length)wf2AddWorkItem_('PERSON_DUPLICATE_REVIEW',personId,'ตรวจบุคคลที่อาจซ้ำ: '+firstName+' '+lastName,'ADMIN','',new Date(Date.now()+24*60*60*1000),'URGENT',branch,'');
+  let documentToken='';
+  if(wf2Flag_('GCS_DOCUMENTS_ENABLED')){documentToken=Utilities.getUuid()+Utilities.getUuid();CacheService.getScriptCache().put('WF2_APPLICANT_UPLOAD_'+documentToken,JSON.stringify({applicantId:applicantId,personId:personId}),1800)}
+  return {ok:true,personId:personId,applicantId:applicantId,status:'SUBMITTED',duplicateReviewRequired:candidates.length>0,documentUploadToken:documentToken,documentUploadExpiresIn:documentToken?1800:0,serverEpochMs:Date.now()};
+}
+
+function wf2AdminCreateLead_(payload) {
+  requireAdmin_(String(payload.adminToken||''));wf2RequireFlag_('RECRUITMENT_ENABLED');
+  const lead=payload.lead||{},now=new Date(),first=String(lead.firstName||'').trim(),last=String(lead.lastName||'').trim();
+  if(!first&&!String(lead.phone||'').trim())throw new Error('กรุณากรอกชื่อหรือเบอร์โทรผู้สนใจ');
+  const phone=wf2NormalizePhone_(lead.phone),email=String(lead.email||'').trim().toLowerCase(),duplicates=wf2DuplicateCandidates_(phone,email),personId=wf2NextPersonId_();
+  wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':first,'Last Name':last,'Nickname':String(lead.nickname||'')},wf2PersonPhoneFields_(lead.phone),{'LINE':String(lead.line||''),'Email':String(lead.email||''),'Email Normalized':email,'Lifecycle Stage':'INTERESTED','Identity Status':'ACTIVE','Duplicate Review Required':duplicates.length>0,'Created At':now,'Updated At':now,'Created By':'ADMIN','Source':String(lead.source||'Other')}));
+  const leadId=wf2EntityId_('LEAD');
+  wf2Append_('Recruitment_Leads',{'Lead ID':leadId,'Person ID':personId,'Source':String(lead.source||'Other'),'Campaign':String(lead.campaign||''),'Interested Position':String(lead.positionCode||''),'Interested Branch':String(lead.branchCode||''),'Status':'INTERESTED','Owner ID':'ADMIN','Cost':Number(lead.cost)||0,'Note':String(lead.note||''),'Created At':now,'Updated At':now});
+  wf2AddEvent_(personId,'','LEAD',leadId,'LEAD_CREATED','สร้างผู้สนใจจาก '+String(lead.source||'Other'),{},'ADMIN');
+  return {ok:true,leadId:leadId,personId:personId,duplicateReviewRequired:duplicates.length>0};
+}
+
+function wf2AdminRecruitmentList_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const limit=Math.min(200,Math.max(1,Number(payload.limit)||50)),status=String(payload.status||''),query=String(payload.query||'').trim().toLowerCase();
+  const persons={};wf2Rows_('Persons').forEach(r=>persons[String(r['Person ID'])]=r);
+  let rows=wf2Rows_('Applicants').reverse().map(a=>{
+    const p=persons[String(a['Person ID'])]||{};
+    return {applicantId:String(a['Applicant ID']),personId:String(a['Person ID']),name:(String(p['First Name']||'')+' '+String(p['Last Name']||'')).trim(),nickname:String(p['Nickname']||''),phone:String(p['Phone']||''),positionCode:String(a['Position Code']||''),branchCode:String(a['Branch Code']||''),departmentCode:String(a['Department Code']||''),source:String(a['Source']||''),status:String(a['Status']||''),submittedAt:formatDateTimeForClient_(a['Submitted At']),duplicateReviewRequired:p['Duplicate Review Required']===true};
+  });
+  if(status)rows=rows.filter(r=>r.status===status);
+  if(query)rows=rows.filter(r=>(r.applicantId+' '+r.personId+' '+r.name+' '+r.nickname+' '+r.phone).toLowerCase().indexOf(query)>=0);
+  return {rows:rows.slice(0,limit),total:rows.length,serverEpochMs:Date.now()};
+}
+
+function wf2AdminTransitionApplicant_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const id=String(payload.applicantId||''),next=String(payload.status||'').toUpperCase(),rows=wf2Rows_('Applicants'),row=rows.find(r=>String(r['Applicant ID'])===id);
+  if(!row)throw new Error('ไม่พบผู้สมัคร');
+  const current=String(row['Status']||'');
+  if(!wf2CanTransition_(current,next))throw new Error('เปลี่ยนสถานะจาก '+current+' เป็น '+next+' ไม่ได้');
+  if(next==='INTERVIEW_SCHEDULED'&&!wf2Rows_('Applicant_Interviews').some(r=>String(r['Applicant ID'])===id&&['SCHEDULED','CONFIRMED'].indexOf(String(r['Status']))>=0))throw new Error('กรุณาสร้างนัดสัมภาษณ์ก่อนเปลี่ยนสถานะ');
+  if(/^OFFER_/.test(next)&&!wf2Rows_('Offers').some(r=>String(r['Applicant ID'])===id&&String(r['Status'])===next))throw new Error('กรุณาบันทึก Offer ก่อนเปลี่ยนสถานะ');
+  if(next==='PRE_ONBOARDING')throw new Error('กรุณาเริ่มผ่าน Onboarding workflow');
+  const changes={'Status':next,'Updated At':new Date()};if(next==='SCREENING'){changes['Screened At']=new Date();changes['Screened By']='ADMIN'}if(next==='REJECTED')changes['Rejection Reason']=String(payload.reason||'');
+  wf2UpdateRow_('Applicants',row._row,changes);
+  wf2AddEvent_(String(row['Person ID']),'','APPLICANT',id,next,'เปลี่ยนสถานะผู้สมัครเป็น '+next,{from:current,reason:String(payload.reason||'')},'ADMIN');
+  auditLogV7_('ADMIN','ADMIN','TRANSITION_APPLICANT','APPLICANT',id,{status:current},{status:next},String(payload.reason||''),String(payload.requestId||''));
+  return {ok:true,applicantId:id,status:next};
+}
+
+function wf2AdminSaveInterview_(payload) {
+  requireAdmin_(String(payload.adminToken||''));const data=payload.interview||{},applicantId=String(data.applicantId||''),app=wf2Rows_('Applicants').find(r=>String(r['Applicant ID'])===applicantId);
+  if(!app)throw new Error('ไม่พบผู้สมัคร');
+  const now=new Date(),id=String(data.interviewId||'')||wf2EntityId_('INT'),existing=wf2Rows_('Applicant_Interviews').find(r=>String(r['Interview ID'])===id);
+  const record={'Interview ID':id,'Applicant ID':applicantId,'Person ID':String(app['Person ID']),'Interview Date':parseIsoDate_(data.date)||'','Interview Time':String(data.time||''),'Branch Code':validateBranchV7_(data.branchCode||app['Branch Code'],false),'Location':String(data.location||''),'Interviewer ID':String(data.interviewerId||''),'Position Code':String(data.positionCode||app['Position Code']),'Status':String(data.status||'SCHEDULED'),'Evaluation JSON':jsonCellV7_(data.evaluation||{}),'Notes':String(data.notes||''),'Strengths':String(data.strengths||''),'Concerns':String(data.concerns||''),'Relevant Experience':String(data.relevantExperience||''),'Expected Pay':Number(data.expectedPay)||0,'Negotiated Pay':Number(data.negotiatedPay)||0,'Available Start Date':parseIsoDate_(data.availableStartDate)||'','Result':String(data.result||''),'Updated At':now};
+  if(existing)wf2UpdateRow_('Applicant_Interviews',existing._row,record);else{record['Created At']=now;wf2Append_('Applicant_Interviews',record)}
+  if(!existing)wf2AdminTransitionApplicant_({adminToken:payload.adminToken,applicantId:applicantId,status:'INTERVIEW_SCHEDULED',requestId:payload.requestId});
+  const statusMap={ATTENDED:'INTERVIEW_ATTENDED',NO_SHOW:'NO_SHOW',CANCELLED:'CANCELLED'};
+  if(existing&&statusMap[record['Status']]&&wf2CanTransition_(String(app['Status']),statusMap[record['Status']]))wf2AdminTransitionApplicant_({adminToken:payload.adminToken,applicantId:applicantId,status:statusMap[record['Status']],requestId:payload.requestId});
+  const result=String(record['Result']||'');if(result&&wf2CanTransition_(statusMap[record['Status']]||String(app['Status']),result))wf2AdminTransitionApplicant_({adminToken:payload.adminToken,applicantId:applicantId,status:result,reason:String(data.notes||''),requestId:payload.requestId});
+  wf2AddEvent_(String(app['Person ID']),'','INTERVIEW',id,'INTERVIEW_'+String(record['Status']),'นัดสัมภาษณ์',{},'ADMIN');
+  return {ok:true,interviewId:id,status:record['Status']};
+}
+
+function wf2AdminSaveOffer_(payload) {
+  requireAdmin_(String(payload.adminToken||''));const data=payload.offer||{},applicantId=String(data.applicantId||''),app=wf2Rows_('Applicants').find(r=>String(r['Applicant ID'])===applicantId);
+  if(!app)throw new Error('ไม่พบผู้สมัคร');
+  const status=String(data.status||'OFFER_DRAFT'),now=new Date(),id=String(data.offerId||'')||wf2EntityId_('OFF'),existing=wf2Rows_('Offers').find(r=>String(r['Offer ID'])===id);
+  const record={'Offer ID':id,'Applicant ID':applicantId,'Person ID':String(app['Person ID']),'Position Code':String(data.positionCode||app['Position Code']),'Branch Code':validateBranchV7_(data.branchCode||app['Branch Code'],false),'Department Code':String(data.departmentCode||app['Department Code']),'Wage Type':String(data.wageType||''),'Wage Amount':Number(data.wageAmount)||0,'Start Date':parseIsoDate_(data.startDate)||'','Offer Date':parseIsoDate_(data.offerDate)||now,'Accepted Date':status==='OFFER_ACCEPTED'?now:'','Status':status,'Note':String(data.note||''),'Updated At':now};
+  if(existing)wf2UpdateRow_('Offers',existing._row,record);else{record['Created At']=now;wf2Append_('Offers',record)}
+  const current=String(app['Status']||'');if(current!==status&&wf2CanTransition_(current,status))wf2AdminTransitionApplicant_({adminToken:payload.adminToken,applicantId:applicantId,status:status,requestId:payload.requestId});
+  wf2AddEvent_(String(app['Person ID']),'','OFFER',id,status,'อัปเดตข้อเสนอเป็น '+status,{},'ADMIN');
+  return {ok:true,offerId:id,status:status};
+}
+
+function wf2AdminStartOnboarding_(payload) {
+  requireAdmin_(String(payload.adminToken||''));const applicantId=String(payload.applicantId||''),app=wf2Rows_('Applicants').find(r=>String(r['Applicant ID'])===applicantId);
+  if(!app||String(app['Status'])!=='OFFER_ACCEPTED')throw new Error('เริ่ม Onboarding ได้หลังผู้สมัครตอบรับข้อเสนอแล้ว');
+  const person=wf2Rows_('Persons').find(r=>String(r['Person ID'])===String(app['Person ID'])),offer=wf2Rows_('Offers').reverse().find(r=>String(r['Applicant ID'])===applicantId&&String(r['Status'])==='OFFER_ACCEPTED');
+  if(!person||!offer)throw new Error('ข้อมูล Person/Offer ไม่ครบ');
+  const regId='REG-'+Utilities.formatDate(new Date(),TZ,'yyyyMMdd-HHmmss')+'-'+Utilities.getUuid().slice(0,6).toUpperCase(),sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
+  if(!sh)throw new Error('ไม่พบ Employee_Registrations');
+  const record={'Registration ID':regId,'Submitted At':new Date(),'Status':'DRAFT','Branch':String(offer['Branch Code']),'First Name':String(person['First Name']),'Last Name':String(person['Last Name']),'Nickname':String(person['Nickname']),'Phone':wf2PhoneText_(person['Phone']),'Position':String(offer['Position Code']),'Birth Date':person['Birth Date'],'Start Date':offer['Start Date'],'Wage Type':String(offer['Wage Type']),'Wage Amount':Number(offer['Wage Amount'])||0,'Department':String(offer['Department Code']),'Person ID':String(app['Person ID']),'Applicant ID':applicantId};
+  wf2Append_(REGISTRATION_SHEET,record);
+  wf2UpdateRow_('Applicants',app._row,{'Status':'PRE_ONBOARDING','Updated At':new Date()});
+  wf2UpdateRow_('Persons',person._row,{'Lifecycle Stage':'PRE_ONBOARDING','Updated At':new Date()});
+  wf2AddWorkItem_('ONBOARDING',regId,'กรอกข้อมูล Onboarding ให้ครบ','ADMIN','',new Date(Date.now()+3*24*60*60*1000),'NORMAL',String(offer['Branch Code']),String(offer['Department Code']));
+  wf2AddEvent_(String(app['Person ID']),'','REGISTRATION',regId,'PRE_ONBOARDING','เริ่ม Onboarding โดยใช้ข้อมูลเดิมจากผู้สมัคร',{},'ADMIN');
+  return {ok:true,registrationId:regId,personId:String(app['Person ID']),applicantId:applicantId,status:'PRE_ONBOARDING'};
+}
+
+function wf2AdminGetStaffingTargets_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const employees=getEmployeesAdmin_().filter(e=>e.active),applicants=wf2Rows_('Applicants').filter(a=>['REJECTED','OFFER_DECLINED','HIRED','PRE_ONBOARDING'].indexOf(String(a['Status']))<0),targets=wf2Rows_('Staffing_Targets').filter(r=>r['Active']!==false);
+  const rows=targets.map(r=>{
+    const branch=String(r['Branch Code']||''),department=String(r['Department Code']||''),position=String(r['Position Code']||''),matches=e=>(!branch||e.branch===branch)&&(!department||e.department===department)&&(!position||e.position===position),active=employees.filter(e=>matches(e)&&e.employmentStatus!=='PROBATION').length,probation=employees.filter(e=>matches(e)&&e.employmentStatus==='PROBATION').length,pipeline=applicants.filter(a=>(!branch||String(a['Branch Code'])===branch)&&(!department||String(a['Department Code'])===department)&&(!position||String(a['Position Code'])===position)).length,target=Number(r['Target Headcount'])||0;
+    return {staffingTargetId:String(r['Staffing Target ID']),branchCode:branch,departmentCode:department,positionCode:position,targetHeadcount:target,activeHeadcount:active,probationHeadcount:probation,openVacancy:Math.max(0,target-active-probation),gap:target-active-probation,pipelineCount:pipeline,effectiveStart:formatDateInputForClient_(r['Effective Start']),effectiveEnd:formatDateInputForClient_(r['Effective End'])};
+  });
+  return {rows:rows,serverEpochMs:Date.now()};
+}
+
+function wf2AdminSaveStaffingTarget_(payload) {
+  requireAdmin_(String(payload.adminToken||''));const data=payload.target||{},branch=validateBranchV7_(data.branchCode,false),department=validateDepartmentV7_(data.departmentCode,false),position=String(data.positionCode||'');
+  if(!wf2ActivePositions_().some(p=>p.code===position))throw new Error('ตำแหน่งไม่ถูกต้อง');
+  const target=Math.max(0,Math.floor(Number(data.targetHeadcount)||0)),id=String(data.staffingTargetId||'')||wf2EntityId_('STF'),existing=wf2Rows_('Staffing_Targets').find(r=>String(r['Staffing Target ID'])===id),record={'Staffing Target ID':id,'Branch Code':branch,'Department Code':department,'Position Code':position,'Target Headcount':target,'Effective Start':parseIsoDate_(data.effectiveStart)||new Date(),'Effective End':parseIsoDate_(data.effectiveEnd)||'','Active':data.active!==false,'Updated At':new Date(),'Updated By':'ADMIN'};
+  if(existing)wf2UpdateRow_('Staffing_Targets',existing._row,record);else wf2Append_('Staffing_Targets',record);
+  auditLogV7_('ADMIN','ADMIN','SAVE_STAFFING_TARGET','STAFFING_TARGET',id,existing||'',record,String(data.reason||''),String(payload.requestId||''));return{ok:true,staffingTargetId:id};
+}
+
+function wf2AdminDashboard_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const applicants=wf2Rows_('Applicants'),interviews=wf2Rows_('Applicant_Interviews'),offers=wf2Rows_('Offers'),work=wf2Rows_('Work_Queue'),employees=getEmployeesAdmin_();
+  const count=(rows,key,value)=>rows.filter(r=>String(r[key])===value).length;
+  const scheduled=count(interviews,'Status','SCHEDULED')+count(interviews,'Status','CONFIRMED'),attended=count(interviews,'Status','ATTENDED');
+  const offerSent=count(offers,'Status','OFFER_SENT')+count(offers,'Status','OFFER_ACCEPTED'),offerAccepted=count(offers,'Status','OFFER_ACCEPTED');
+  const submitted=applicants.length,hires=count(applicants,'Status','HIRED')+count(applicants,'Status','PRE_ONBOARDING');
+  return {workforce:{total:employees.length,active:employees.filter(e=>e.active&&e.employmentStatus!=='PROBATION').length,probation:employees.filter(e=>e.employmentStatus==='PROBATION').length,inactive:employees.filter(e=>!e.active).length},recruitment:{applicants:submitted,screening:count(applicants,'Status','SCREENING'),interviews:scheduled,interviewShowRate:wf2Ratio_(attended,scheduled),passed:count(applicants,'Status','PASSED'),hired:hires,hireConversionRate:wf2Ratio_(hires,submitted),offerAcceptanceRate:wf2Ratio_(offerAccepted,offerSent)},workQueue:{open:work.filter(r=>String(r['Status'])!=='DONE'&&String(r['Status'])!=='CANCELLED').length,urgent:work.filter(r=>String(r['Priority'])==='URGENT'&&String(r['Status'])!=='DONE').length},dataAsOf:new Date().toISOString(),serverEpochMs:Date.now()};
+}
+
+function wf2AdminGetWorkQueue_(payload) {
+  requireAdmin_(String(payload.adminToken||''));const status=String(payload.status||'OPEN'),limit=Math.min(200,Math.max(1,Number(payload.limit)||100));
+  let rows=wf2Rows_('Work_Queue').reverse();if(status==='OPEN')rows=rows.filter(r=>['DONE','CANCELLED'].indexOf(String(r['Status']))<0);else if(status)rows=rows.filter(r=>String(r['Status'])===status);
+  return {rows:rows.slice(0,limit).map(r=>({workItemId:String(r['Work Item ID']),entityType:String(r['Entity Type']),entityId:String(r['Entity ID']),title:String(r['Title']),assignedRole:String(r['Assigned Role']),assignedUser:String(r['Assigned User']),dueAt:formatDateTimeForClient_(r['Due At']),priority:String(r['Priority']),status:String(r['Status']),branchCode:String(r['Branch Code']),departmentCode:String(r['Department Code'])})),total:rows.length};
+}
+
+function wf2RegistrationDocumentState_(rows) {
+  const required=['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO'];
+  const current=(rows||[]).filter(r=>['DELETED','REPLACED'].indexOf(String(r['Status']||'ACTIVE').toUpperCase())<0);
+  const available=current.filter(r=>['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0);
+  const missing=required.filter(type=>!available.some(r=>String(r['Type']||'').toUpperCase()===type));
+  const issue=current.some(r=>['FAILED','ERROR','NEEDS_REVISION'].indexOf(String(r['Status']||'').toUpperCase())>=0);
+  return {status:issue?'ISSUE':missing.length?'INCOMPLETE':'COMPLETE',complete:!issue&&!missing.length,missingTypes:missing,total:available.length};
+}
+
+function wf2RegistrationRowsV2_() {
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName('Employee_Registrations'),last=sh?sh.getLastRow():0;
+  if(!sh||last<2)return[];
+  return sh.getRange(2,1,last-1,Math.max(30,sh.getLastColumn())).getValues().reverse().map(r=>({
+    registrationId:toClientText_(r[0]),submittedAt:formatDateTimeForClient_(r[1]),status:toClientText_(r[2]),branch:toClientText_(r[3]),
+    firstName:toClientText_(r[4]),lastName:toClientText_(r[5]),nickname:toClientText_(r[6]),phone:toClientText_(r[7]),contact:toClientText_(r[8]),
+    position:toClientText_(r[9]),birthDate:formatDateInputForClient_(r[10]),startDate:formatDateInputForClient_(r[11]),registeredAddress:toClientText_(r[12]),
+    currentAddress:toClientText_(r[13]),emergencyName:toClientText_(r[14]),emergencyPhone:toClientText_(r[15]),emergencyRelationship:toClientText_(r[16]),
+    adminNote:toClientText_(r[19]),reviewedAt:formatDateTimeForClient_(r[20]),employeeId:toClientText_(r[21]),wageType:toClientText_(r[22]),wageAmount:Number(r[23])||0,
+    pinSet:Boolean(String(r[24]||'').trim()),bankName:toClientText_(r[25]),bankAccountNo:toClientText_(r[26]),bankAccountName:toClientText_(r[27]),bankCode:toClientText_(r[28]),department:toClientText_(r[29])
+  }));
+}
+
+function wf2AdminListRegistrationsV2_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const limit=Math.min(200,Math.max(1,Number(payload.limit)||100)),status=String(payload.status||'').toUpperCase();
+  const documents=wf2Rows_('Documents'),byRegistration={};
+  documents.forEach(row=>{const id=String(row['Registration ID']||'');if(id)(byRegistration[id]||(byRegistration[id]=[])).push(row)});
+  let registrations=wf2RegistrationRowsV2_();
+  if(status)registrations=registrations.filter(row=>String(row.status||'').toUpperCase()===status);
+  const total=registrations.length;
+  return {rows:registrations.slice(0,limit).map(row=>({
+    registrationId:row.registrationId,submittedAt:row.submittedAt,status:row.status,firstName:row.firstName,lastName:row.lastName,nickname:row.nickname,
+    phone:row.phone,branch:row.branch,department:row.department,position:row.position,employeeId:row.employeeId,
+    documentState:wf2RegistrationDocumentState_(byRegistration[row.registrationId]||[])
+  })),total:total,serverEpochMs:Date.now()};
+}
+
+function wf2AdminGetRegistrationV2_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const id=String(payload.registrationId||'').trim();if(!id)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');
+  const registration=wf2RegistrationRowsV2_().find(row=>String(row.registrationId)===id);if(!registration)throw new Error('ไม่พบข้อมูลลงทะเบียน');
+  const documents=wf2DocumentRowsForAdminAll_(id,''),documentRows=wf2Rows_('Documents').filter(row=>String(row['Registration ID']||'')===id);
+  return {registration:Object.assign({},registration,{consent:true,consentSource:'SUBMISSION_REQUIRED'}),documents:documents,documentState:wf2RegistrationDocumentState_(documentRows),serverEpochMs:Date.now()};
+}
+
+function wf2DocumentCreateUploadSession_(payload) {
+  const actor=wf2RequireDocumentActor_(payload),data=payload.document||payload,max=Number(wf2Setting_('DOCUMENT_MAX_BYTES'))||10485760;
+  wf2RequireFlag_('GCS_DOCUMENTS_ENABLED');
+  const mime=String(data.mimeType||'').toLowerCase(),size=Number(data.size)||0,name=String(data.fileName||'');
+  if(['image/jpeg','image/png','image/webp','application/pdf'].indexOf(mime)<0)throw new Error('รองรับเฉพาะ JPG, PNG, WEBP และ PDF');
+  if(size<=0||size>max)throw new Error('ขนาดไฟล์เกินกำหนด');
+  const registrationActor=actor.type==='REGISTRATION',applicantActor=actor.type==='APPLICANT';
+  const documentId=wf2EntityId_('DOC'),ownerType=registrationActor?'REGISTRATION':applicantActor?'APPLICANT':String(data.ownerType||'').toUpperCase(),ownerId=(registrationActor||applicantActor)?actor.id:String(data.ownerId||'');
+  wf2AssertDocumentOwner_(actor,ownerType,ownerId);
+  const type=String(data.documentType||'').toUpperCase(),allowedTypes=['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO','EDUCATION','OTHER'];if(allowedTypes.indexOf(type)<0)throw new Error('ประเภทเอกสารไม่ถูกต้อง');
+  const required=registrationActor?requiredEmployeeDocumentTypes_().indexOf(type)>=0:data.required===true;
+  const registrationId=registrationActor?actor.id:String(data.registrationId||''),objectKey=wf2BuildObjectKey_(ownerType,ownerId,documentId,name),request={documentId:documentId,objectKey:objectKey,fileName:name,mimeType:mime,size:size};
+  const signed=wf2FileServiceRequest_('/v1/uploads',request);
+  wf2Append_('Documents',{'Document ID':documentId,'Person ID':applicantActor?actor.personId:String(data.personId||''),'Applicant ID':applicantActor?actor.id:String(data.applicantId||''),'Registration ID':registrationId,'Employee ID':String(data.employeeId||''),'Owner Type':ownerType,'Owner ID':ownerId,'Type':type,'Label':String(data.label||''),'Original File Name':name,'MIME Type':mime,'Size':size,'Storage Provider':'GCS','Bucket':String(signed.bucket||''),'Object Key':objectKey,'Uploaded By':actor.id,'Status':'PENDING_UPLOAD','Required':required,'Version':1,'Created At':new Date(),'Updated At':new Date()});
+  return {documentId:documentId,objectKey:objectKey,uploadUrl:signed.uploadUrl,expiresAt:signed.expiresAt,requiredHeaders:signed.requiredHeaders||{}};
+}
+
+function wf2DocumentFinalizeUpload_(payload) {
+  const actor=wf2RequireDocumentActor_(payload);wf2RequireFlag_('GCS_DOCUMENTS_ENABLED');
+  const id=String(payload.documentId||''),row=wf2Rows_('Documents').find(r=>String(r['Document ID'])===id);if(!row)throw new Error('ไม่พบเอกสาร');
+  wf2AssertDocumentOwner_(actor,String(row['Owner Type']),String(row['Owner ID']));
+  const currentStatus=String(row['Status']||'').toUpperCase();
+  if(['ACTIVE','VERIFIED'].indexOf(currentStatus)>=0)return{ok:true,documentId:id,status:currentStatus};
+  if(['DELETED','REPLACED'].indexOf(currentStatus)>=0)throw new Error('รอบอัปโหลดนี้ถูกแทนที่แล้ว กรุณาใช้ไฟล์ล่าสุด');
+  const verified=wf2FileServiceRequest_('/v1/uploads/finalize',{documentId:id,objectKey:String(row['Object Key']),expectedSize:Number(row['Size'])||0,expectedMimeType:String(row['MIME Type'])});
+  const now=new Date();wf2UpdateRow_('Documents',row._row,{'Checksum':String(verified.checksum||''),'Uploaded At':now,'Status':'ACTIVE','Updated At':now});
+  const type=String(row['Type']||'').toUpperCase();
+  if(requiredEmployeeDocumentTypes_().indexOf(type)>=0){
+    wf2Rows_('Documents').filter(old=>old._row<row._row&&String(old['Owner Type']||'')===String(row['Owner Type']||'')&&String(old['Owner ID']||'')===String(row['Owner ID']||'')&&String(old['Type']||'').toUpperCase()===type&&['PENDING_UPLOAD','ACTIVE','VERIFIED'].indexOf(String(old['Status']||'').toUpperCase())>=0).forEach(old=>wf2UpdateRow_('Documents',old._row,{'Status':'REPLACED','Replaced Document ID':id,'Updated At':now}));
+  }
+  return {ok:true,documentId:id,status:'ACTIVE'};
+}
+
+function wf2DocumentGetViewUrl_(payload) {
+  const actor=wf2RequireDocumentActor_(payload);wf2RequireFlag_('GCS_DOCUMENTS_ENABLED');
+  const id=String(payload.documentId||''),row=wf2Rows_('Documents').find(r=>String(r['Document ID'])===id);if(!row||['ACTIVE','VERIFIED'].indexOf(String(row['Status']))<0)throw new Error('ไม่พบเอกสาร');
+  wf2AssertDocumentOwner_(actor,String(row['Owner Type']),String(row['Owner ID']));
+  const signed=wf2FileServiceRequest_('/v1/views',{documentId:id,objectKey:String(row['Object Key'])});
+  return {url:signed.url,expiresAt:signed.expiresAt,mimeType:String(row['MIME Type']),fileName:String(row['Original File Name'])};
+}
+
+function wf2RequireDocumentActor_(payload) {
+  const adminToken=String(payload.adminToken||'');if(adminToken){requireAdmin_(adminToken);return{type:'ADMIN',id:'ADMIN'}}
+  const portalToken=String(payload.portalToken||'');if(portalToken){const e=requirePortalV7_(portalToken);return{type:'EMPLOYEE',id:e.id,role:e.accessRole}}
+  const registrationToken=String(payload.registrationUploadToken||'');if(registrationToken){const raw=CacheService.getScriptCache().get('WF2_REGISTRATION_UPLOAD_'+registrationToken);if(raw){const data=JSON.parse(raw),rid=String(data.registrationId||''),reg=findRegistrationRow_(rid),status=String(reg.sh.getRange(reg.row,3).getValue()||'').toUpperCase();if(status==='DRAFT')return{type:'REGISTRATION',id:rid}}}
+  const applicantToken=String(payload.applicantUploadToken||'');if(applicantToken){const raw=CacheService.getScriptCache().get('WF2_APPLICANT_UPLOAD_'+applicantToken);if(raw){const data=JSON.parse(raw);return{type:'APPLICANT',id:String(data.applicantId),personId:String(data.personId)}}}
+  throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสาร');
+}
+function wf2AssertDocumentOwner_(actor,ownerType,ownerId){if(actor.type==='ADMIN')return;if(actor.type==='EMPLOYEE'&&(ownerType!=='EMPLOYEE'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้');if(actor.type==='APPLICANT'&&(ownerType!=='APPLICANT'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้');if(actor.type==='REGISTRATION'&&(ownerType!=='REGISTRATION'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้')}
+function wf2CreateRegistrationUploadToken_(registrationId){const rid=String(registrationId||'').trim();if(!rid)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');const token=Utilities.getUuid()+Utilities.getUuid();CacheService.getScriptCache().put('WF2_REGISTRATION_UPLOAD_'+token,JSON.stringify({registrationId:rid}),21600);return token}
+function wf2DocumentRowsForOwner_(registrationId,employeeId){const ss=SpreadsheetApp.openById(SPREADSHEET_ID),sh=ss.getSheetByName('Documents');if(!sh||sh.getLastRow()<2)return[];const rid=String(registrationId||''),eid=String(employeeId||'');return wf2Rows_('Documents').filter(r=>((rid&&String(r['Registration ID'])===rid)||(eid&&String(r['Employee ID'])===eid))&&['DELETED','REPLACED'].indexOf(String(r['Status']||'ACTIVE').toUpperCase())<0)}
+function wf2DocumentRowForAdmin_(r){return{documentId:String(r['Document ID']||''),registrationId:String(r['Registration ID']||''),employeeId:String(r['Employee ID']||''),type:String(r['Type']||''),label:String(r['Label']||''),fileName:String(r['Original File Name']||''),mimeType:String(r['MIME Type']||''),size:Number(r['Size'])||0,fileId:'',storageProvider:String(r['Storage Provider']||'GCS'),uploadedAt:formatDateTimeForClient_(r['Uploaded At']),status:String(r['Status']||'PENDING_UPLOAD'),note:'',expiryDate:formatDateInputForClient_(r['Expiry Date']),required:Boolean(r['Required']),verifiedAt:formatDateTimeForClient_(r['Verified At']),verifiedBy:String(r['Verified By']||'')};}
+function wf2DocumentRowsForAdminAll_(registrationId,employeeId){return wf2DocumentRowsForOwner_(registrationId,employeeId).map(wf2DocumentRowForAdmin_).reverse()}
+function wf2DocumentRowsForAdmin_(registrationId,employeeId){return wf2DocumentRowsForOwner_(registrationId,employeeId).filter(r=>['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0).map(wf2DocumentRowForAdmin_).reverse()}
+function wf2FileServiceRequest_(path,body) {
+  const props=PropertiesService.getScriptProperties(),base=String(props.getProperty('FILE_SERVICE_URL')||'').replace(/\/$/,''),token=String(props.getProperty('FILE_SERVICE_AUTH_TOKEN')||'');
+  if(!base||!token)throw new Error('ยังไม่ได้ตั้งค่า GCS File Service ใน STAGING');
+  const response=UrlFetchApp.fetch(base+path,{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+token},payload:JSON.stringify(body),muteHttpExceptions:true});
+  const code=response.getResponseCode();let data={};try{data=JSON.parse(response.getContentText()||'{}')}catch(e){}
+  if(code<200||code>=300)throw new Error(String(data.error||'File Service ไม่พร้อมใช้งาน'));
+  return data;
+}
+
+function wf2LegacyBackfillPreview_(){
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID),emp=ss.getSheetByName(EMPLOYEE_SHEET),reg=ss.getSheetByName(REGISTRATION_SHEET),personSheet=ss.getSheetByName('Persons');
+  function objects(sh){if(!sh||sh.getLastRow()<2)return[];const headers=wf2Headers_(sh);return sh.getRange(2,1,sh.getLastRow()-1,headers.length).getValues().map(row=>{const out={};headers.forEach((header,index)=>out[header]=row[index]);return out})}
+  const employees=objects(emp).filter(row=>String(row['Employee ID']||'')),registrations=objects(reg).filter(row=>String(row['Registration ID']||'')),persons=objects(personSheet).filter(row=>String(row['Person ID']||''));
+  return wf2BuildBackfillPreview_({employees:employees,registrations:registrations,persons:persons});
+}
+
+function wf2BuildBackfillPreview_(input){
+  const employees=(input&&input.employees)||[],registrations=(input&&input.registrations)||[],persons=(input&&input.persons)||[],personIds=new Set(persons.map(row=>String(row['Person ID']||'')).filter(Boolean));
+  const personPlans=new Map(),employeePlans=new Map(),identityRefs={},personOwners={},warnings=[],plannedCells=[];
+  function phone(value){return wf2NormalizePhone_(value)}
+  function addIdentity(ref,value,entity){const key=phone(value);if(!key)return;(identityRefs[key]||(identityRefs[key]=[])).push({ref:ref,entity:entity})}
+  persons.forEach(row=>addIdentity('PERSON:'+String(row['Person ID']),row['Phone Normalized']||row['Phone'],{type:'PERSON',id:String(row['Person ID'])}));
+  const employeeRows=employees.map(row=>{
+    const employeeId=String(row['Employee ID']||''),current=String(row['Person ID']||''),action=current&&personIds.has(current)?'REUSE':'CREATE',ref=current?'PERSON:'+current:'NEW_EMPLOYEE:'+employeeId;
+    if(!personPlans.has(ref))personPlans.set(ref,{action:action,source:'EMPLOYEE',entityId:employeeId});
+    (personOwners[ref]||(personOwners[ref]=[])).push(employeeId);
+    addIdentity(ref,row['Phone'],{type:'EMPLOYEE',id:employeeId});
+    const cells=current?[]:[{sheet:'Employees',rowKey:employeeId,column:'Person ID'}];plannedCells.push.apply(plannedCells,cells);
+    const plan={employeeId:employeeId,currentPersonId:current,plannedPersonAction:action,plannedPersonReference:ref,plannedRegistrationReuse:[],duplicateIdentityWarnings:[],plannedCellsToUpdate:cells};employeePlans.set(employeeId,plan);return plan;
+  });
+  const registrationRows=registrations.map(row=>{
+    const registrationId=String(row['Registration ID']||''),employeeId=String(row['Employee ID']||''),current=String(row['Person ID']||''),employeePlan=employeePlans.get(employeeId);let action='NONE',ref='',reuse=false;
+    if(current){ref='PERSON:'+current;action=personIds.has(current)?'REUSE':'CREATE'}
+    else if(employeePlan){ref=employeePlan.plannedPersonReference;action='REUSE';reuse=true;employeePlan.plannedRegistrationReuse.push(registrationId)}
+    else{ref='NEW_REGISTRATION:'+registrationId;action='CREATE'}
+    if(action==='CREATE'&&!personPlans.has(ref)){personPlans.set(ref,{action:'CREATE',source:'REGISTRATION',entityId:registrationId});addIdentity(ref,row['Phone'],{type:'REGISTRATION',id:registrationId})}
+    const cells=current?[]:[{sheet:'Employee_Registrations',rowKey:registrationId,column:'Person ID'}];plannedCells.push.apply(plannedCells,cells);
+    return{registrationId:registrationId,employeeId:employeeId,currentPersonId:current,plannedPersonAction:action,plannedPersonReference:ref,plannedEmployeePersonReuse:reuse,plannedCellsToUpdate:cells};
+  });
+  Object.keys(identityRefs).forEach(key=>{const refs=[...new Set(identityRefs[key].map(item=>item.ref))];if(refs.length>1)warnings.push({type:'DUPLICATE_PHONE',normalizedValue:key,entities:identityRefs[key].map(item=>item.entity)})});
+  Object.keys(personOwners).forEach(ref=>{if(personOwners[ref].length>1)warnings.push({type:'MULTIPLE_EMPLOYEES_SHARE_PERSON',personReference:ref,employeeIds:personOwners[ref]})});
+  employeeRows.forEach(row=>{row.duplicateIdentityWarnings=warnings.filter(warning=>(warning.entities||[]).some(entity=>entity.type==='EMPLOYEE'&&entity.id===row.employeeId))});
+  const personsExpectedToCreate=[...personPlans.values()].filter(item=>item.action==='CREATE').length,employeesExpectedToLink=employeeRows.filter(row=>row.plannedCellsToUpdate.length).length,registrationsExpectedToLink=registrationRows.filter(row=>row.plannedCellsToUpdate.length).length;
+  return{employees:employeeRows,registrations:registrationRows,duplicateIdentityWarnings:warnings,plannedCellsToUpdate:plannedCells,expected:{personsCreated:personsExpectedToCreate,employeesLinked:employeesExpectedToLink,registrationsLinked:registrationsExpectedToLink,legacyCellsUpdated:employeesExpectedToLink+registrationsExpectedToLink,uniqueEmployeePersonTargets:new Set(employeeRows.map(row=>row.plannedPersonReference)).size,applicantsCreated:0,attendanceModifications:0,leaveModifications:0,payrollModifications:0}};
+}
+
+function wf2BackfillLegacyPeople_() {
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID),emp=ss.getSheetByName(EMPLOYEE_SHEET),reg=ss.getSheetByName(REGISTRATION_SHEET);
+  const existing=wf2Rows_('Persons'),personIds=new Set(existing.map(p=>String(p['Person ID']))),byEmployee={};
+  let max=existing.reduce((m,r)=>Math.max(m,Number(String(r['Person ID']||'').replace(/^P/,''))||0),0),created=0,linkedEmployees=0,linkedRegistrations=0;
+  function next(){max++;return'P'+String(max).padStart(6,'0')}
+  if(emp&&emp.getLastRow()>=2){
+    const headers=wf2Headers_(emp),personCol=headers.indexOf('Person ID')+1,rows=emp.getRange(2,1,emp.getLastRow()-1,headers.length).getValues();
+    rows.forEach((r,i)=>{const employeeId=String(r[0]||'');if(!employeeId)return;let personId=personCol?String(r[personCol-1]||''):'';if(!personId){personId=next();emp.getRange(i+2,personCol).setValue(personId);linkedEmployees++}byEmployee[employeeId]=personId;if(!personIds.has(personId)){const full=String(r[1]||'').trim().split(/\s+/);wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':String(r[11]||full[0]||''),'Last Name':String(r[12]||full.slice(1).join(' ')),'Nickname':String(r[7]||''),'Birth Date':r[16]||''},wf2PersonPhoneFields_(r[8]),{'Lifecycle Stage':r[2]===false?'EXITED':String(r[24]||'ACTIVE_EMPLOYEE'),'Identity Status':'ACTIVE','Duplicate Review Required':false,'Created At':new Date(),'Updated At':new Date(),'Created By':'MIGRATION','Source':'LEGACY_EMPLOYEE'}));personIds.add(personId);created++}});
+  }
+  if(reg&&reg.getLastRow()>=2){
+    const headers=wf2Headers_(reg),personCol=headers.indexOf('Person ID')+1,employeeCol=headers.indexOf('Employee ID')+1,rows=reg.getRange(2,1,reg.getLastRow()-1,headers.length).getValues();
+    rows.forEach((r,i)=>{if(!String(r[0]||''))return;let personId=String(r[personCol-1]||''),employeeId=employeeCol?String(r[employeeCol-1]||''):'';if(!personId&&employeeId&&byEmployee[employeeId])personId=byEmployee[employeeId];if(!personId)personId=next();if(!String(r[personCol-1]||'')){reg.getRange(i+2,personCol).setValue(personId);linkedRegistrations++}if(!personIds.has(personId)){wf2Append_('Persons',Object.assign({'Person ID':personId,'First Name':String(r[4]||''),'Last Name':String(r[5]||''),'Nickname':String(r[6]||''),'Birth Date':r[10]||''},wf2PersonPhoneFields_(r[7]),{'Lifecycle Stage':String(r[2])==='APPROVED'?'ACTIVE_EMPLOYEE':'APPLICANT','Identity Status':'ACTIVE','Duplicate Review Required':false,'Created At':new Date(),'Updated At':new Date(),'Created By':'MIGRATION','Source':'LEGACY_REGISTRATION'}));personIds.add(personId);created++}});
+  }
+  return {personsCreated:created,employeesLinked:linkedEmployees,registrationsLinked:linkedRegistrations};
+}
+
+function wf2DuplicateCandidates_(phone,email){return wf2Rows_('Persons').filter(r=>(phone&&String(r['Phone Normalized'])===phone)||(email&&String(r['Email Normalized']).toLowerCase()===email)).map(r=>String(r['Person ID']))}
+function wf2NextPersonId_(){const lock=LockService.getScriptLock();lock.waitLock(10000);try{const props=PropertiesService.getScriptProperties(),sheetMax=wf2Rows_('Persons').reduce((m,r)=>Math.max(m,Number(String(r['Person ID']||'').replace(/^P/,''))||0),0),reserved=Number(props.getProperty('WF2_PERSON_COUNTER'))||0,next=Math.max(sheetMax,reserved)+1;props.setProperty('WF2_PERSON_COUNTER',String(next));return'P'+String(next).padStart(6,'0')}finally{try{lock.releaseLock()}catch(e){}}}
+function wf2EntityId_(prefix){return prefix+'-'+Utilities.formatDate(new Date(),TZ,'yyyyMMddHHmmss')+'-'+Utilities.getUuid().slice(0,6).toUpperCase()}
+function wf2NormalizePhone_(value){let s=wf2PhoneText_(value).replace(/\D/g,'');if(s.indexOf('66')===0)s='0'+s.slice(2);return s}
+function wf2CanTransition_(from,to){const allowed=WF2_APPLICANT_TRANSITIONS_[String(from||'')]||[];return allowed.indexOf(String(to||''))>=0}
+function wf2Ratio_(numerator,denominator){const n=Number(numerator)||0,d=Number(denominator)||0;return d>0?Math.round(n/d*1000)/10:null}
+function wf2SafeFileName_(name){const clean=String(name||'file').normalize('NFKD').replace(/[^A-Za-z0-9._-]+/g,'-').replace(/-+/g,'-').replace(/^[-.]+|[-.]+$/g,'').slice(0,120);return clean||'file'}
+function wf2BuildObjectKey_(ownerType,ownerId,documentId,fileName){const map={PERSON:'persons',APPLICANT:'applicants',EMPLOYEE:'employees',LEAVE:'leave',REGISTRATION:'registrations'},root=map[String(ownerType||'').toUpperCase()];if(!root||!/^[A-Za-z0-9_-]+$/.test(String(ownerId))||!/^[A-Za-z0-9_-]+$/.test(String(documentId)))throw new Error('Document owner ไม่ถูกต้อง');return root+'/'+ownerId+'/documents/'+documentId+'/'+wf2SafeFileName_(fileName)}
+function wf2ValidateWeights_(definitions){const active=(definitions||[]).filter(x=>x&&x.active!==false&&Number(x.weight)>0),total=active.reduce((s,x)=>s+Number(x.weight||0),0);return{valid:Math.abs(total-100)<0.0001,total:total}}
+
+function wf2AddEvent_(personId,employeeId,entityType,entityId,eventType,summary,metadata,actor){wf2Append_('Lifecycle_Events',{'Event ID':wf2EntityId_('EVT'),'Person ID':personId,'Employee ID':employeeId,'Entity Type':entityType,'Entity ID':entityId,'Event Type':eventType,'Event Date':new Date(),'Summary':summary,'Metadata JSON':jsonCellV7_(metadata||{}),'Created By':actor,'Created At':new Date()})}
+function wf2AddWorkItem_(entityType,entityId,title,role,user,dueAt,priority,branch,department){wf2Append_('Work_Queue',{'Work Item ID':wf2EntityId_('WRK'),'Entity Type':entityType,'Entity ID':entityId,'Title':title,'Assigned Role':role,'Assigned User':user,'Due At':dueAt,'Priority':priority,'Status':'OPEN','Branch Code':branch,'Department Code':department,'Created At':new Date(),'Updated At':new Date()})}
+
+function wf2KpiDictionary_(){return[
+  {key:'attendance_rate',name:'Attendance Rate',source:'Schedules + Attendance',formula:'present scheduled shifts / required scheduled shifts',unit:'PERCENT'},
+  {key:'on_time_rate',name:'On-time Rate',source:'Schedules + Attendance',formula:'on-time check-ins / valid required check-ins',unit:'PERCENT'},
+  {key:'activity_submission_rate',name:'Activity Submission Rate',source:'Activity_Reports',formula:'submitted daily reports / required reports',unit:'PERCENT'},
+  {key:'activity_completion_rate',name:'Activity Completion Rate',source:'Activity_Items',formula:'completed activity items / assigned activity items',unit:'PERCENT'},
+  {key:'interview_show_rate',name:'Interview Show Rate',source:'Applicant_Interviews',formula:'attended interviews / scheduled interviews',unit:'PERCENT'},
+  {key:'offer_acceptance_rate',name:'Offer Acceptance Rate',source:'Offers',formula:'accepted offers / sent offers',unit:'PERCENT'},
+  {key:'retention_90_day',name:'90-day Retention',source:'Employees + Employee_Exits',formula:'employees active after 90 days / employees started 90+ days ago',unit:'PERCENT'}
+]}
+function wf2SeedKpis_(){const existing=wf2Rows_('KPI_Definitions');if(existing.length)return 0;const seeds=wf2KpiDictionary_();seeds.forEach(k=>wf2Append_('KPI_Definitions',{'KPI Key':k.key,'Name':k.name,'Description':k.formula,'Source':k.source,'Formula Type':'RATIO','Formula':k.formula,'Numerator':k.formula.split(' / ')[0],'Denominator':k.formula.split(' / ')[1]||'','Unit':k.unit,'Period':'CONFIGURABLE','Direction':'HIGHER_IS_BETTER','Weight':0,'Owner':'HR','Data Quality Status':'NOT_EVALUATED','Active':true,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
+function wf2SeedPositions_(){if(wf2Rows_('Positions').length)return 0;const seeds=[['MANAGER','ผู้จัดการ',''],['SUPERVISOR','หัวหน้างาน',''],['STAFF','พนักงาน','']];seeds.forEach((p,i)=>wf2Append_('Positions',{'Position Code':p[0],'Position Name':p[1],'Department Code':p[2],'Active':true,'Sort Order':i+1,'Created At':new Date(),'Updated At':new Date()}));return seeds.length}
+
+if(typeof module!=='undefined'&&module.exports){module.exports={normalizePhone:wf2NormalizePhone_,phoneText:wf2PhoneText_,personPhoneFields:wf2PersonPhoneFields_,coercePhoneTextValues:wf2CoercePhoneTextValues_,canTransition:wf2CanTransition_,ratio:wf2Ratio_,safeFileName:wf2SafeFileName_,buildObjectKey:wf2BuildObjectKey_,validateWeights:wf2ValidateWeights_,buildBackfillPreview:wf2BuildBackfillPreview_}}

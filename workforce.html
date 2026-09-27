@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
   <title>KruaFlow ระบบบุคลากร</title>
-  <script src="./config.js?v=prod-v2-core-2"></script>
-  <script src="./mock-data.js?v=prod-v2-core-2"></script>
-  <script src="./js/api-client.js?v=prod-v2-core-2"></script>
-  <script src="./js/admin-session.js?v=prod-v2-core-2"></script>
-  <script src="./js/i18n.js?v=prod-v2-core-2"></script>
-  <link rel="stylesheet" href="./css/workforce.css?v=prod-v2-core-2">
+  <script src="./config.js?v=prod-registration-v2-1"></script>
+  <script src="./mock-data.js?v=prod-registration-v2-1"></script>
+  <script src="./js/api-client.js?v=prod-registration-v2-1"></script>
+  <script src="./js/admin-session.js?v=prod-registration-v2-1"></script>
+  <script src="./js/i18n.js?v=prod-registration-v2-1"></script>
+  <script src="./js/registration-ui.js?v=prod-registration-v2-1"></script>
+  <link rel="stylesheet" href="./css/workforce.css?v=prod-registration-v2-1">
+  <link rel="stylesheet" href="./css/registration-mobile.css?v=prod-registration-v2-1">
 </head>
 <body>
   <main class="page">
@@ -42,7 +44,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-v2-core-2';
+  const FRONTEND_VERSION = 'prod-registration-v2-1';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
@@ -55,11 +57,14 @@
   let bootstrap = null;
   let renderSequence = 0;
   let dashboardCache = null;
+  let selectedRegistrationId = '';
+  let registrationDetailSequence = 0;
 
   const VIEW_META = {
     dashboard: ['view.overview', 'subtitle.dashboardLive'],
     'work-queue': ['view.review', 'subtitle.queue'],
     notifications: ['view.notifications', 'subtitle.notifications'],
+    registrations: ['view.employeeRegistration', 'subtitle.dashboardLive'],
     applicants: ['view.applicants', 'subtitle.preview'],
     interviews: ['view.interviews', 'subtitle.preview'],
     staffing: ['view.staffing', 'subtitle.preview'],
@@ -103,8 +108,7 @@
     'report-performance': 'PERFORMANCE_ENABLED',
     offboarding: 'OFFBOARDING_ENABLED',
     retention: 'OFFBOARDING_ENABLED',
-    'report-retention': 'OFFBOARDING_ENABLED',
-    'employee-documents': 'GCS_DOCUMENTS_ENABLED'
+    'report-retention': 'OFFBOARDING_ENABLED'
   };
 
   const ALWAYS_PREVIEW = new Set([
@@ -242,6 +246,250 @@
     }).join('');
     document.getElementById('drawerBackdrop').hidden = false;
     document.getElementById('drawerClose').focus();
+  }
+
+  function registrationDocumentBadge(state) {
+    const status = String(state && state.status || 'INCOMPLETE').toUpperCase();
+    if (status === 'COMPLETE') return '<span class="badge ok">ครบ</span>';
+    if (status === 'ISSUE') return '<span class="badge bad">มีปัญหา</span>';
+    return '<span class="badge warn">ไม่ครบ</span>';
+  }
+
+  function registrationMetric(kind, label, value, meta) {
+    return '<div class="card registrationMetric ' + esc(kind) + '"><div class="registrationMetricLabel">' + esc(label) + '</div><div class="registrationMetricNumber">' + esc(value) + '</div><div class="registrationMetricMeta">' + esc(meta) + '</div></div>';
+  }
+
+  function registrationStatusBadge(status) {
+    const value = String(status || 'DRAFT').toUpperCase();
+    if (['APPROVED','ACTIVE','COMPLETED'].indexOf(value) >= 0) return '<span class="badge registrationStatus complete">✓ ' + esc(value === 'APPROVED' ? 'อนุมัติแล้ว' : 'เสร็จสมบูรณ์') + '</span>';
+    if (value === 'PENDING') return '<span class="badge registrationStatus pending">รอตรวจ</span>';
+    if (value === 'DRAFT') return '<span class="badge registrationStatus draft">แบบร่าง</span>';
+    if (/ERROR|REJECT|ISSUE|FAILED/.test(value)) return '<span class="badge registrationStatus error">มีปัญหา</span>';
+    return '<span class="badge registrationStatus active">' + esc(value || '—') + '</span>';
+  }
+
+  function registrationDocumentStatusBadge(status) {
+    const value = String(status || '').toUpperCase();
+    if (['ACTIVE','VERIFIED'].indexOf(value) >= 0) return '<span class="badge registrationStatus complete">✓ พร้อมใช้งาน</span>';
+    if (value === 'PENDING_UPLOAD') return '<span class="badge registrationStatus pending">อัปโหลดไม่สมบูรณ์</span>';
+    if (value === 'REPLACED') return '<span class="badge registrationStatus replaced">ถูกแทนที่</span>';
+    if (/ERROR|REJECT|ISSUE|FAILED/.test(value)) return '<span class="badge registrationStatus error">มีปัญหา</span>';
+    return '<span class="badge registrationStatus draft">' + esc(value || 'ไม่มีข้อมูล') + '</span>';
+  }
+
+  function employeeRegistrationUrl() {
+    const url = new URL('./register.html', location.href);
+    url.search = '';
+    if (isStaging) url.searchParams.set('staging', '1');
+    url.hash = '';
+    return url.href;
+  }
+
+  function registrationSharePanel() {
+    const url = employeeRegistrationUrl();
+    return '<section class="registrationShare" aria-labelledby="registrationShareTitle"><div class="registrationShareHead"><div><h2 id="registrationShareTitle">ส่งลิงก์ลงทะเบียนให้พนักงาน</h2><p>พนักงานเปิดลิงก์นี้บนโทรศัพท์เพื่อกรอกข้อมูลและแนบเอกสารด้วยตนเอง</p></div></div><div class="registrationShareBody"><div><input class="registrationShareUrl" id="registrationShareUrl" readonly value="' + esc(url) + '" aria-label="ลิงก์ลงทะเบียนพนักงาน"><div class="registrationShareActions"><button class="btn small primary" id="registrationCopyLink" type="button">คัดลอกลิงก์</button><button class="btn small lineShare" id="registrationLineShare" type="button">ส่งผ่าน LINE</button><button class="btn small" id="registrationNativeShare" type="button">แชร์</button></div><div class="registrationShareFeedback" id="registrationShareFeedback" role="status" aria-live="polite"></div></div><div class="registrationQr"><canvas id="registrationQrCanvas"></canvas></div></div></section>';
+  }
+
+  function bindRegistrationShare() {
+    const url = employeeRegistrationUrl();
+    const feedback = document.getElementById('registrationShareFeedback');
+    const tools = window.KruaFlowRegistrationUI || {};
+    try {
+      if (!tools.renderQr || !tools.renderQr(document.getElementById('registrationQrCanvas'), url)) throw new Error('QR unavailable');
+    } catch (_) {
+      const holder = document.querySelector('.registrationQr');
+      if (holder) holder.innerHTML = '<span class="metricMeta">สร้าง QR ไม่สำเร็จ</span>';
+    }
+    document.getElementById('registrationCopyLink').onclick = async function () {
+      try { await tools.copyText(url); feedback.textContent = 'คัดลอกลิงก์แล้ว'; }
+      catch (_) { feedback.textContent = 'คัดลอกไม่สำเร็จ กรุณาเลือกลิงก์ด้านบนแล้วคัดลอก'; }
+    };
+    document.getElementById('registrationLineShare').onclick = function () {
+      const message = 'กรุณาเปิดลิงก์นี้เพื่อลงทะเบียนพนักงาน KruaFlow\n' + url;
+      window.open('https://line.me/R/msg/text/?' + encodeURIComponent(message), '_blank', 'noopener');
+    };
+    document.getElementById('registrationNativeShare').onclick = async function () {
+      try {
+        if (navigator.share) await navigator.share({ title:'แบบลงทะเบียนพนักงาน KruaFlow', text:'กรุณาเปิดลิงก์นี้เพื่อลงทะเบียนพนักงาน', url:url });
+        else { await tools.copyText(url); feedback.textContent = 'อุปกรณ์นี้ไม่มีเมนูแชร์ จึงคัดลอกลิงก์ให้แล้ว'; }
+      } catch (error) {
+        if (!error || error.name !== 'AbortError') feedback.textContent = 'ยังแชร์ไม่ได้ กรุณาใช้ปุ่มคัดลอกลิงก์';
+      }
+    };
+  }
+
+  function formatFileSize(value) {
+    const bytes = Number(value) || 0;
+    if (!bytes) return '—';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function registrationDocumentPriority(document) {
+    const status = String(document && document.status || '').toUpperCase();
+    if (status === 'VERIFIED') return 3;
+    if (status === 'ACTIVE') return 2;
+    return 1;
+  }
+
+  function registrationDocumentTime(document) {
+    const raw = document && (document.verifiedAt || document.uploadedAt || document.updatedAt || document.createdAt) || '';
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function groupRegistrationDocuments(documents, types) {
+    return types.map(function (spec) {
+      const matches = documents.map(function (document, index) { return { document:document, index:index }; }).filter(function (item) {
+        return String(item.document.type || '').toUpperCase() === spec.type;
+      });
+      const ranked = matches.slice().sort(function (left, right) {
+        return registrationDocumentPriority(right.document) - registrationDocumentPriority(left.document) ||
+          registrationDocumentTime(right.document) - registrationDocumentTime(left.document) || left.index - right.index;
+      });
+      const selected = ranked[0] || null;
+      return {
+        spec:spec,
+        current:selected && selected.document || null,
+        history:matches.filter(function (item) { return !selected || item.index !== selected.index; }).map(function (item) { return item.document; })
+      };
+    });
+  }
+
+  function registrationDocumentStateFromCurrent(groups) {
+    const required = groups.filter(function (group) { return group.spec.required; });
+    const ready = function (group) { return group.current && ['ACTIVE','VERIFIED'].indexOf(String(group.current.status || '').toUpperCase()) >= 0; };
+    if (required.every(ready)) return { status:'COMPLETE' };
+    const issue = required.some(function (group) { return group.current && /ERROR|REJECT|ISSUE|FAILED/.test(String(group.current.status || '').toUpperCase()); });
+    return { status:issue ? 'ISSUE' : 'INCOMPLETE' };
+  }
+
+  function registrationHistoryStatusBadge(status) {
+    const value = String(status || 'UNKNOWN').toUpperCase();
+    const tone = ['ACTIVE','VERIFIED'].indexOf(value) >= 0 ? 'complete' : value === 'PENDING_UPLOAD' ? 'pending' : value === 'REPLACED' ? 'replaced' : /ERROR|REJECT|ISSUE|FAILED/.test(value) ? 'error' : 'draft';
+    return '<span class="badge registrationStatus ' + tone + '">' + esc(value) + '</span>';
+  }
+
+  function registrationDetailSection(title, fields, tone) {
+    return '<section class="section registrationDetailCard ' + esc(tone || '') + '"><div class="sectionHead"><h2>' + esc(title) + '</h2></div><div class="sectionBody"><dl class="drawerGrid">' +
+      fields.map(function (field) { return '<dt>' + esc(field[0]) + '</dt><dd>' + esc(valueOf(field[1], '—')) + '</dd>'; }).join('') +
+      '</dl></div></section>';
+  }
+
+  async function openRegistrationV2Document(doc, button) {
+    const popup = window.open('', '_blank');
+    if (!popup) { alert('Browser บล็อกหน้าต่างใหม่'); return; }
+    popup.document.write('<meta charset="utf-8"><title>กำลังเปิดเอกสาร</title><p style="font:16px sans-serif;padding:24px">กำลังขอสิทธิ์เปิดเอกสาร...</p>');
+    popup.document.close();
+    const old = button.textContent;
+    try {
+      button.disabled = true;
+      button.textContent = 'กำลังเปิด...';
+      const result = await call('documentGetViewUrl', { documentId: doc.documentId });
+      if (!/^https:\/\//.test(String(result.url || ''))) throw new Error('ไม่ได้รับ signed URL');
+      popup.location.replace(result.url);
+    } catch (error) {
+      try { popup.document.body.textContent = I18N.errorText(error); } catch (_) {}
+      throw error;
+    } finally {
+      button.disabled = false;
+      button.textContent = old;
+    }
+  }
+
+  async function renderRegistrationV2Detail(registrationId) {
+    const target = document.getElementById('registrationDetail');
+    if (!target) return;
+    const requestId = ++registrationDetailSequence;
+    target.innerHTML = '<section class="section"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></section>';
+    try {
+      const result = await call('adminGetRegistrationV2', { registrationId: registrationId });
+      if (requestId !== registrationDetailSequence || registrationId !== selectedRegistrationId) return;
+      const row = result.registration || {}, documents = rowsOf({ rows: result.documents });
+      const types = [
+        { type:'ID_CARD', label:'บัตรประชาชน', required:true },
+        { type:'HOUSE_REGISTRATION', label:'ทะเบียนบ้าน', required:true },
+        { type:'EDUCATION', label:'วุฒิการศึกษา', required:false },
+        { type:'OTHER', label:'เอกสารอื่น', required:false },
+        { type:'EMPLOYEE_PHOTO', label:'รูปถ่ายพนักงาน', required:true }
+      ];
+      const documentGroups = groupRegistrationDocuments(documents, types), documentRows = [];
+      documentGroups.forEach(function (group) {
+        const spec = group.spec, doc = group.current;
+        if (!doc) {
+          documentRows.push('<tr><td><strong>' + esc(spec.label) + '</strong><div class="metricMeta">' + (spec.required ? 'เอกสารบังคับ' : 'เอกสารเสริม') + '</div></td><td>—</td><td>—</td><td>—</td><td><span class="badge registrationStatus ' + (spec.required ? 'error' : 'draft') + '">' + (spec.required ? 'ขาด' : 'ไม่มีข้อมูล') + '</span></td><td>—</td></tr>');
+          return;
+        }
+        const ready = ['ACTIVE','VERIFIED'].indexOf(String(doc.status || '').toUpperCase()) >= 0;
+        documentRows.push('<tr class="registrationDocumentRow current"><td><strong>' + esc(spec.label) + '</strong><div class="metricMeta">Current document · ' + (spec.required ? 'เอกสารบังคับ' : 'เอกสารเสริม') + '</div></td><td><span class="registrationFileName ' + (ready ? 'current' : '') + '">' + esc(doc.fileName || '—') + '</span></td><td>' + esc(doc.mimeType || '—') + '</td><td>' + esc(formatFileSize(doc.size)) + '</td><td>' + registrationDocumentStatusBadge(doc.status) + '</td><td>' + (ready ? '<button class="btn small registrationOpenFile" type="button" data-document-id="' + esc(doc.documentId) + '">เปิดไฟล์</button>' : '<span class="metricMeta">ยังเปิดไม่ได้</span>') + '</td></tr>');
+        if (group.history.length) {
+          const history = group.history.map(function (old) {
+            const time = old.verifiedAt || old.uploadedAt || old.updatedAt || old.createdAt || 'ไม่พบเวลา';
+            return '<div class="registrationHistoryItem"><div><div class="registrationHistoryName">' + esc(old.fileName || '—') + '</div><div class="metricMeta">' + esc(time) + '</div></div><div>' + registrationHistoryStatusBadge(old.status) + '</div></div>';
+          }).join('');
+          documentRows.push('<tr class="registrationDocumentHistoryRow"><td colspan="6"><details class="registrationDocumentHistory"><summary>ประวัติการอัปโหลด (' + group.history.length + ')</summary><div class="registrationHistoryList">' + history + '</div></details></td></tr>');
+        }
+      });
+      const currentDocumentState = registrationDocumentStateFromCurrent(documentGroups);
+      target.innerHTML = flowLabel('detail.title') + '<div class="registrationDetailGrid">' +
+        registrationDetailSection('ข้อมูลส่วนตัว', [['เลขอ้างอิง', row.registrationId], ['ชื่อ-นามสกุล', [row.firstName, row.lastName].filter(Boolean).join(' ')], ['ชื่อเล่น', row.nickname], ['วันเกิด', row.birthDate], ['โทรศัพท์', row.phone], ['อีเมล / LINE', row.contact], ['Consent', row.consent ? 'ยืนยันแล้ว' : 'ไม่พบข้อมูล']], 'personal') +
+        registrationDetailSection('ข้อมูลการทำงาน', [['สาขา', row.branch], ['แผนก', row.department], ['ตำแหน่ง', row.position], ['วันที่เริ่มงาน', row.startDate], ['สถานะ', row.status], ['รหัสพนักงาน', row.employeeId]], 'work') +
+        registrationDetailSection('ที่อยู่', [['ที่อยู่ตามทะเบียนบ้าน', row.registeredAddress], ['ที่อยู่ปัจจุบัน', row.currentAddress]], 'address') +
+        registrationDetailSection('ผู้ติดต่อฉุกเฉิน', [['ชื่อ', row.emergencyName], ['โทรศัพท์', row.emergencyPhone], ['ความสัมพันธ์', row.emergencyRelationship]], 'emergency') +
+        registrationDetailSection('ข้อมูลธนาคาร', [['ธนาคาร', row.bankName], ['รหัสธนาคาร', row.bankCode], ['เลขบัญชี', row.bankAccountNo], ['ชื่อบัญชี', row.bankAccountName]], 'bank') +
+        '<section class="section registrationDocuments"><div class="sectionHead"><h2>เอกสาร</h2>' + registrationDocumentBadge(currentDocumentState) + '</div><div class="tableWrap"><table><thead><tr><th>ประเภท</th><th>ชื่อไฟล์</th><th>MIME</th><th>ขนาด</th><th>สถานะ</th><th>เปิดไฟล์</th></tr></thead><tbody>' + documentRows.join('') + '</tbody></table></div></section></div>';
+      target.querySelectorAll('[data-document-id]').forEach(function (button) {
+        button.onclick = function () {
+          const doc = documents.find(function (item) { return item.documentId === button.dataset.documentId; });
+          if (doc) openRegistrationV2Document(doc, button).catch(function (error) { alert(I18N.errorText(error)); });
+        };
+      });
+      target.scrollIntoView({ behavior:'smooth', block:'start' });
+    } catch (error) { if (requestId === registrationDetailSequence) target.innerHTML = '<div class="error"><strong>โหลดรายละเอียดไม่สำเร็จ</strong><div>' + esc(I18N.errorText(error)) + '</div></div>'; }
+  }
+
+  function selectRegistrationV2(registrationId) {
+    selectedRegistrationId = String(registrationId || '');
+    app.querySelectorAll('[data-registration-row]').forEach(function (row) {
+      const selected = row.dataset.registrationRow === selectedRegistrationId;
+      row.classList.toggle('selected', selected);
+      row.setAttribute('aria-pressed', String(selected));
+    });
+    if (selectedRegistrationId) renderRegistrationV2Detail(selectedRegistrationId);
+  }
+
+  async function renderRegistrationsV2() {
+    const restoreRegistrationId = selectedRegistrationId;
+    registrationDetailSequence += 1;
+    loading();
+    try {
+      const result = await call('adminListRegistrationsV2', { limit:100 });
+      const rows = rowsOf(result);
+      const complete = rows.filter(function (row) { return row.documentState && row.documentState.status === 'COMPLETE'; }).length;
+      const pending = rows.filter(function (row) { return String(row.status || '').toUpperCase() === 'PENDING'; }).length;
+      const followUp = rows.filter(function (row) { return String(row.status || '').toUpperCase() === 'DRAFT' || !row.documentState || row.documentState.status !== 'COMPLETE'; }).length;
+      app.innerHTML = registrationSharePanel() + flowLabel('summary.title') + '<div class="registrationSummary">' +
+        registrationMetric('total', 'ทั้งหมด', result.total, 'รายการลงทะเบียน') +
+        registrationMetric('pending', 'รอตรวจ', pending, 'งานที่ต้องดำเนินการ') +
+        registrationMetric('complete', 'เอกสารครบ', complete, 'พร้อมตรวจสอบ') +
+        registrationMetric('followup', 'ต้องติดตาม', followUp, 'ข้อมูลหรือเอกสารยังไม่ครบ') + '</div>' +
+        '<section class="section"><div class="sectionHead"><h2>รายการลงทะเบียนล่าสุด</h2><button class="btn small" id="registrationRefresh" type="button">รีเฟรช</button></div>' +
+        (rows.length ? '<div class="tableWrap registrationTable"><table><thead><tr><th>ผู้ลงทะเบียน</th><th>โทรศัพท์</th><th>สาขา / แผนก</th><th>ตำแหน่ง</th><th>วันที่ลงทะเบียน</th><th>สถานะลงทะเบียน</th><th>สถานะเอกสาร</th><th>รายละเอียด</th></tr></thead><tbody>' + rows.map(function (row) {
+          const name = [row.firstName, row.lastName].filter(Boolean).join(' ');
+          return '<tr data-registration-row="' + esc(row.registrationId) + '" tabindex="0" role="button" aria-pressed="false" aria-label="ดูรายละเอียด ' + esc(name || row.registrationId) + '"><td><strong>' + esc(name) + '</strong><div class="metricMeta">' + esc(row.registrationId) + '</div></td><td>' + esc(row.phone || '—') + '</td><td>' + esc(row.branch || '—') + '<div class="metricMeta">' + esc(row.department || '—') + '</div></td><td>' + esc(row.position || '—') + '</td><td>' + esc(row.submittedAt || '—') + '</td><td>' + registrationStatusBadge(row.status) + '</td><td>' + registrationDocumentBadge(row.documentState) + '</td><td><button class="btn small" type="button" data-registration-id="' + esc(row.registrationId) + '">ดูรายละเอียด</button></td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มีรายการลงทะเบียน</div>') + '</section><div id="registrationDetail"></div>';
+      bindRegistrationShare();
+      document.getElementById('registrationRefresh').onclick = renderRegistrationsV2;
+      app.querySelectorAll('[data-registration-row]').forEach(function (row) {
+        row.onclick = function (event) { if (!event.target.closest('button,a,input,select,textarea')) selectRegistrationV2(row.dataset.registrationRow); };
+        row.onkeydown = function (event) { if (event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectRegistrationV2(row.dataset.registrationRow); } };
+      });
+      app.querySelectorAll('[data-registration-id]').forEach(function (button) { button.onclick = function (event) { event.stopPropagation(); selectRegistrationV2(button.dataset.registrationId); }; });
+      const restoreRow = Array.from(app.querySelectorAll('[data-registration-row]')).find(function (row) { return row.dataset.registrationRow === restoreRegistrationId; });
+      if (restoreRow) selectRegistrationV2(restoreRegistrationId);
+      else selectedRegistrationId = '';
+    } catch (error) { showError(error, renderRegistrationsV2); }
   }
 
   function bindRowDetails(container, rows, fieldMap) {
@@ -501,6 +749,7 @@
     if (view === 'dashboard') return renderDashboard();
     if (view === 'work-queue') return renderQueue();
     if (view === 'notifications') return renderNotifications();
+    if (view === 'registrations' || view === 'employee-documents') return renderRegistrationsV2();
     if (view === 'attendance') return renderAttendance();
     if (view === 'payroll-period') return renderPayrollPeriods();
     return previewView();

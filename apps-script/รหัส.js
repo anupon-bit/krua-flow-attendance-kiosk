@@ -1,5 +1,5 @@
 // Krua Flow Attendance Backend V7.3 - Workforce Management + Employee/Manager Portal + Schedule/Leave/Payroll Batch Control
-const SPREADSHEET_ID = '13Nsy0aSkAm-Qg7vCHj_vtEOArwtghFp-XhlYihyQTgU';
+const SPREADSHEET_ID = getBackendSpreadsheetId_();
 const ATTENDANCE_SHEET = 'Attendance';
 const EMPLOYEE_SHEET = 'Employees';
 const SETTINGS_SHEET = 'Settings';
@@ -22,27 +22,40 @@ function doGet(e) {
 
 function doPost(e) {
   let requestId = '';
+  let op = '';
+  let clientOrigin = '';
   let result = { ready:true, ok:false, error:'ไม่สามารถประมวลผลคำขอได้' };
   try {
     const raw = e && e.parameter ? String(e.parameter.payload || '') : '';
     if (!raw) throw new Error('ไม่พบ payload');
     const payload = JSON.parse(raw);
+    op = String(payload.op || '');
+    clientOrigin = apiAllowedClientOrigin_(payload.clientOrigin);
     requestId = String(payload.requestId || '').trim();
     if (!requestId) throw new Error('ไม่พบ requestId');
     const data = apiHandlePost_(payload);
     result = { ready:true, ok:true, data:data };
-    apiPutResult_(requestId, result); // fallback compatibility for kiosk pages still using polling
+    // Chunk size is bounded to 48 KB raw, so the JSON/base64 response stays below the cache limit.
+    // Cache every response to keep the existing JSONP polling fallback available when iframe postMessage is blocked.
+    apiPutResult_(requestId, result);
   } catch (err) {
     result = { ready:true, ok:false, error:err && err.message ? err.message : String(err) };
     if (requestId) apiPutResult_(requestId, result);
   }
-  return apiPostMessageResponse_(requestId, result);
+  return apiPostMessageResponse_(requestId, result, clientOrigin, op === 'adminGetFileChunk');
 }
 
-function apiPostMessageResponse_(requestId, result) {
+function apiAllowedClientOrigin_(origin) {
+  const value=String(origin||'');
+  return ['http://localhost:8081','http://127.0.0.1:8081','https://anupon-bit.github.io'].indexOf(value)>=0?value:'';
+}
+
+function apiPostMessageResponse_(requestId, result, clientOrigin, allowEmbeddedChunk) {
   const message = { type:'KruaFlowApiResult', requestId:String(requestId || ''), result:result || {ready:true,ok:false,error:'ไม่พบผลลัพธ์'} };
   const json = JSON.stringify(message).replace(/</g, '\\u003c');
-  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ',"*")}catch(e){}<\/script>');
+  const target=allowEmbeddedChunk&&clientOrigin?JSON.stringify(clientOrigin):'"*"';
+  const output=HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ','+target+')}catch(e){}<\/script>');
+  return allowEmbeddedChunk&&clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
 }
 
 function apiHandlePost_(payload) {
@@ -53,6 +66,7 @@ function apiHandlePost_(payload) {
   if (op === 'recordAttendance') return apiRecordAttendance_(payload);
   if (op === 'employeeRegistrationSubmit') return apiEmployeeRegistrationSubmit_(payload);
   if (op === 'employeeRegistrationUploadDocument') return apiEmployeeRegistrationUploadDocument_(payload);
+  if (op === 'employeeRegistrationFinalize') return apiEmployeeRegistrationFinalize_(payload);
   if (op === 'leaveBootstrap') return apiLeaveBootstrap_(payload);
   if (op === 'leaveSubmit') return apiLeaveSubmit_(payload);
 
@@ -63,6 +77,8 @@ function apiHandlePost_(payload) {
   if (op === 'adminGetRegistration') return apiAdminGetRegistration_(payload);
   if (op === 'adminGetRegistrationDocuments') return apiAdminGetRegistrationDocuments_(payload);
   if (op === 'adminGetDocument') return apiAdminGetDocument_(payload);
+  if (op === 'adminGetFileChunk') return apiAdminGetFileChunk_(payload);
+  if (op === 'adminUploadEmployeeDocument') return apiAdminUploadEmployeeDocument_(payload);
   if (op === 'adminGetEmployee') return apiAdminGetEmployee_(payload);
   if (op === 'adminGetAttendance') return apiAdminGetAttendance_(payload);
   if (op === 'adminGetEmployeeAttendanceRange') return apiAdminGetEmployeeAttendanceRange_(payload);
@@ -87,6 +103,11 @@ function apiHandlePost_(payload) {
   if (op === 'adminChangePin') return apiAdminChangePin_(payload);
   if (op === 'adminLogout') return apiAdminLogout_(payload);
 
+  // Workforce V2 is additive and feature-gated. Legacy routes above remain authoritative
+  // until each replacement module passes STAGING UAT.
+  const workforceV2 = apiWorkforceV2HandlePost_(payload);
+  if (workforceV2 !== null) return workforceV2;
+
   const v7 = apiV7HandlePost_(payload);
   if (v7 !== null) return v7;
 
@@ -109,7 +130,12 @@ function apiStatusResponse_(e) {
 }
 
 function apiPutResult_(requestId, value) {
-  CacheService.getScriptCache().put(apiResultKey_(requestId), JSON.stringify(value), 300);
+  const json = JSON.stringify(value);
+  // Apps Script CacheService จำกัดขนาด value ต่อ key; รูป/เอกสาร base64 อาจใหญ่เกินขีดจำกัด
+  // กรณี payload ใหญ่ ให้ส่งกลับผ่าน postMessage โดยตรงและไม่เขียนลง cache
+  if (json.length > 90000) return false;
+  CacheService.getScriptCache().put(apiResultKey_(requestId), json, 300);
+  return true;
 }
 
 function apiResultKey_(requestId) {
@@ -170,13 +196,23 @@ function apiRecordAttendance_(payload) {
 
 
 function apiEmployeeRegistrationSubmit_(payload) {
-  const r = submitEmployeeRegistration_(payload && payload.registration ? payload.registration : {});
-  return { ok:true, registrationId:r.registrationId, serverEpochMs:Date.now() };
+  const registration=payload&&payload.registration?payload.registration:{},submissionKey=String(payload&&payload.submissionKey||'').trim();
+  let r=null;
+  if(/^[A-Za-z0-9_-]{10,120}$/.test(submissionKey)){
+    const cache=CacheService.getScriptCache(),cacheKey='REGISTRATION_SUBMIT_'+submissionKey,lock=LockService.getScriptLock();lock.waitLock(15000);
+    try{const existing=cache.get(cacheKey);if(existing){try{const saved=JSON.parse(existing),found=findRegistrationRow_(String(saved.registrationId||''));r={registrationId:String(saved.registrationId),status:String(found.sh.getRange(found.row,3).getValue()||'DRAFT')}}catch(e){r=null}}if(!r){r=submitEmployeeRegistration_(registration);cache.put(cacheKey,JSON.stringify({registrationId:r.registrationId}),21600)}}finally{try{lock.releaseLock()}catch(e){}}
+  }else r=submitEmployeeRegistration_(registration);
+  const registrationUploadToken=wf2CreateRegistrationUploadToken_(r.registrationId);
+  return { ok:true, registrationId:r.registrationId, status:r.status, registrationUploadToken:registrationUploadToken, registrationUploadExpiresIn:21600, serverEpochMs:Date.now() };
 }
 
 function apiEmployeeRegistrationUploadDocument_(payload) {
   const r = uploadEmployeeRegistrationDocument_(String(payload.registrationId || ''), payload.document || {});
-  return { ok:true, documentId:r.documentId, serverEpochMs:Date.now() };
+  return { ok:true, documentId:r.documentId, type:r.type, serverEpochMs:Date.now() };
+}
+
+function apiEmployeeRegistrationFinalize_(payload) {
+  return finalizeEmployeeRegistration_(String(payload.registrationId || ''));
 }
 
 function apiAdminGetRegistrationDocuments_(payload) {
@@ -185,6 +221,10 @@ function apiAdminGetRegistrationDocuments_(payload) {
 
 function apiAdminGetDocument_(payload) {
   return adminGetDocument_(String(payload.adminToken || ''), String(payload.fileId || ''));
+}
+
+function apiAdminUploadEmployeeDocument_(payload) {
+  return adminUploadEmployeeDocument_(String(payload.adminToken || ''), String(payload.employeeId || ''), payload.document || {}, String(payload.replaceDocumentId || ''), String(payload.requestId || ''), String(payload.registrationId || ''));
 }
 
 
@@ -279,12 +319,30 @@ function apiAdminDashboard_(payload) {
 }
 
 function apiAdminGetPhoto_(payload) {
-  requireAdmin_(String(payload.adminToken || ''));
-  const fileId = String(payload.fileId || '').trim();
-  if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) throw new Error('Photo File ID ไม่ถูกต้อง');
-  const photoData = fileToDataUrl_(fileId);
-  if (!photoData) throw new Error('ไม่สามารถอ่านรูปภาพได้');
-  return { ok:true, photoData:photoData, serverEpochMs:Date.now() };
+  return adminFileMeta_(String(payload.adminToken || ''), String(payload.fileId || ''), true);
+}
+
+function apiAdminGetFileChunk_(payload) {
+  const fileId=String(payload.fileId||'').trim();
+  requireAdmin_(String(payload.adminToken||''));
+  if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) throw new Error('ไม่พบไฟล์');
+  const offset=Math.max(0,Number(payload.offset)||0),length=Math.min(49152,Math.max(1,Number(payload.length)||49152));
+  try {
+    const response=UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media',{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken(),Range:'bytes='+offset+'-'+(offset+length-1)},muteHttpExceptions:true});
+    const code=response.getResponseCode();
+    if(code===404)throw new Error('ไม่พบไฟล์');
+    if(code===401||code===403)throw new Error('ไม่มีสิทธิ์เข้าถึงไฟล์');
+    if(code!==200&&code!==206)throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    let bytes=response.getContent();
+    if(code===200&&offset)bytes=bytes.slice(offset,offset+length);
+    else if(bytes.length>length)bytes=bytes.slice(0,length);
+    return {ok:true,offset:offset,bytes:bytes.length,base64:Utilities.base64Encode(bytes),serverEpochMs:Date.now()};
+  } catch(e) {
+    const message=e&&e.message?String(e.message):'';
+    if(/\b404\b|not found|does not exist/i.test(message)||message==='ไม่พบไฟล์')throw new Error('ไม่พบไฟล์');
+    if(/\b401\b|\b403\b|permission|access denied|forbidden/i.test(message)||message==='ไม่มีสิทธิ์เข้าถึงไฟล์')throw new Error('ไม่มีสิทธิ์เข้าถึงไฟล์');
+    throw new Error('โหลดไฟล์ไม่สำเร็จ');
+  }
 }
 
 function apiAdminAddEmployee_(payload) {
@@ -837,7 +895,7 @@ function adminGetEmployeeDetail_(token, employeeId) {
   const sh = ss.getSheetByName(EMPLOYEE_SHEET);
   const last = sh ? sh.getLastRow() : 0;
   if (!sh || last < 2) throw new Error('Employee not found');
-  const rows = sh.getRange(2,1,last-1,31).getValues();
+  const rows = sh.getRange(2,1,last-1,Math.min(33,sh.getLastColumn())).getValues();
   let r = null;
   for (const row of rows) if (String(row[0]) === String(employeeId)) { r=row; break; }
   if (!r) throw new Error('Employee not found');
@@ -848,7 +906,8 @@ function adminGetEmployeeDetail_(token, employeeId) {
     birthDate:formatDateInputForClient_(r[16]), resignationDate:formatDateInputForClient_(r[17]), registeredAddress:toClientText_(r[18]), currentAddress:toClientText_(r[19]),
     emergencyName:toClientText_(r[20]), emergencyPhone:toClientText_(r[21]), emergencyRelationship:toClientText_(r[22]), photoUrl:toClientText_(r[23]),
     photoFileId:extractDriveFileId_(r[23]), employmentStatus:toClientText_(r[24] || 'ACTIVE'), adminNote:toClientText_(r[25]), dailyWage:Number(r[26])||0,
-      bankName:toClientText_(r[27]), bankAccountNo:toClientText_(r[28]), bankAccountName:toClientText_(r[29]), bankCode:toClientText_(r[30]), serverEpochMs:Date.now()
+      bankName:toClientText_(r[27]), bankAccountNo:toClientText_(r[28]), bankAccountName:toClientText_(r[29]), bankCode:toClientText_(r[30]),
+      department:toClientText_(r[31]), accessRole:normalizeAccessRoleV7_(r[32],String(r[13]||'').toUpperCase()==='MANAGER'?'MANAGER':'EMPLOYEE'), serverEpochMs:Date.now()
   };
 }
 
@@ -1154,16 +1213,18 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
       const birthDate=parseIsoDate_(registration.birthDate), startDate=parseIsoDate_(registration.startDate);
       const photoUrl=String(registration.photoUrl || r[17] || '');
       const photoFileId=String(r[18] || '');
+      regSh.getRange(regRow,8).setNumberFormat('@'); regSh.getRange(regRow,13,1,2).setNumberFormat('@'); regSh.getRange(regRow,16).setNumberFormat('@'); regSh.getRange(regRow,11,1,2).setNumberFormat('dd/mm/yyyy');
       regSh.getRange(regRow,4,1,17).setValues([[
         branch,String(registration.firstName||''),String(registration.lastName||''),String(registration.nickname||''),String(registration.phone||''),String(registration.contact||''),position,
         birthDate,startDate,String(registration.registeredAddress||''),String(registration.currentAddress||''),String(registration.emergencyName||''),String(registration.emergencyPhone||''),
         String(registration.emergencyRelationship||''),photoUrl,photoFileId,String(registration.adminNote||'')
       ]]);
-      regSh.getRange(regRow,8).setNumberFormat('@'); regSh.getRange(regRow,13,1,2).setNumberFormat('@'); regSh.getRange(regRow,16).setNumberFormat('@'); regSh.getRange(regRow,11,1,2).setNumberFormat('dd/mm/yyyy');
       regSh.getRange(regRow,23).setValue(String(registration.wageType||'')); regSh.getRange(regRow,24).setValue(Number(registration.wageAmount)||0).setNumberFormat('#,##0.00');
       regSh.getRange(regRow,26).setNumberFormat('@').setValue(String(registration.bankName||'').trim()); regSh.getRange(regRow,27).setNumberFormat('@').setValue(String(registration.bankAccountNo||'').replace(/[^0-9A-Za-z-]/g,'').trim()); regSh.getRange(regRow,28).setNumberFormat('@').setValue(String(registration.bankAccountName||'').trim()); regSh.getRange(regRow,29).setNumberFormat('@').setValue(String(registration.bankCode||'').trim()); regSh.getRange(regRow,30).setValue(department);
       r = regSh.getRange(regRow,1,1,Math.max(30,regSh.getLastColumn())).getValues()[0];
     }
+
+    assertRegistrationRequiredDocuments_(registrationId);
 
     const empLast = empSh.getLastRow();
     const empRows = empLast >= 2 ? empSh.getRange(2,1,empLast-1,26).getValues() : [];
@@ -1177,9 +1238,9 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
     const wageType=String((employee && employee.wageType)||r[22]||'').trim();
     const wageAmount=Number((employee && employee.wageAmount)||r[23]||0);
     const fullName=(String(r[4])+' '+String(r[5])).trim();
-    empSh.appendRow([id,fullName,true,Number((employee&&employee.sort)||999),'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']);
-    const erow=empSh.getLastRow();
+    const erow=empSh.getLastRow()+1;
     empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,19,1,2).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
+    empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number((employee&&employee.sort)||999),'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
 
     regSh.getRange(regRow,3).setValue('APPROVED'); regSh.getRange(regRow,21).setValue(new Date()); regSh.getRange(regRow,22).setValue(id); regSh.getRange(regRow,23).setValue(wageType); regSh.getRange(regRow,24).setValue(wageAmount).setNumberFormat('#,##0.00');
     attachDocumentsToEmployee_(ss, registrationId, id);
@@ -1312,9 +1373,10 @@ function adminAddEmployee(token, employee) {
   const phone = String(employee.phone || '').trim();
   const startDate = parseIsoDate_(employee.startDate);
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);
-  sh.appendRow([id, String(employee.name).trim(), true, Number(employee.sort)||999, '', new Date(), hashPortablePin_(pin), nickname, phone, startDate, String(employee.branch||''), String(employee.firstName||''), String(employee.lastName||''), String(employee.position||''), String(employee.wageType||''), Number(employee.wageAmount)||0, parseIsoDate_(employee.birthDate), parseIsoDate_(employee.resignationDate), String(employee.registeredAddress||''), String(employee.currentAddress||''), String(employee.emergencyName||''), String(employee.emergencyPhone||''), String(employee.emergencyRelationship||''), String(employee.photoUrl||''), String(employee.employmentStatus||'ACTIVE'), String(employee.adminNote||''), Number(employee.dailyWage)||0, String(employee.bankName||''), String(employee.bankAccountNo||''), String(employee.bankAccountName||''), String(employee.bankCode||''), String(employee.department||''), String(employee.accessRole||'EMPLOYEE')]);
-  const row = sh.getLastRow();
+  const row = sh.getLastRow()+1;
   sh.getRange(row, 9).setNumberFormat('@');
+  sh.getRange(row,22).setNumberFormat('@');
+  sh.getRange(row,1,1,33).setValues([[id, String(employee.name).trim(), true, Number(employee.sort)||999, '', new Date(), hashPortablePin_(pin), nickname, phone, startDate, String(employee.branch||''), String(employee.firstName||''), String(employee.lastName||''), String(employee.position||''), String(employee.wageType||''), Number(employee.wageAmount)||0, parseIsoDate_(employee.birthDate), parseIsoDate_(employee.resignationDate), String(employee.registeredAddress||''), String(employee.currentAddress||''), String(employee.emergencyName||''), String(employee.emergencyPhone||''), String(employee.emergencyRelationship||''), String(employee.photoUrl||''), String(employee.employmentStatus||'ACTIVE'), String(employee.adminNote||''), Number(employee.dailyWage)||0, String(employee.bankName||''), String(employee.bankAccountNo||''), String(employee.bankAccountName||''), String(employee.bankCode||''), String(employee.department||''), String(employee.accessRole||'EMPLOYEE')]]);
   if (startDate) sh.getRange(row, 10).setNumberFormat('dd/mm/yyyy');
   return { ok:true };
 }
@@ -1462,8 +1524,8 @@ function validateRegistrationChoice_(value, allowed, label) {
 
 function submitEmployeeRegistration_(registration) {
   const branch = validateBranchV7_(registration.branch, false);
-  const position = validateRegistrationChoice_(registration.position, ['MANAGER','SUPERVISOR','STAFF'], 'Position');
-  const department = validateDepartmentV7_(registration.department, true);
+  const position = validateRegistrationChoice_(registration.position, ['MANAGER','SUPERVISOR','STAFF'], 'ตำแหน่ง');
+  const department = validateDepartmentV7_(registration.department, false);
   const firstName = String(registration.firstName || '').trim();
   const lastName = String(registration.lastName || '').trim();
   const nickname = String(registration.nickname || '').trim();
@@ -1483,8 +1545,8 @@ function submitEmployeeRegistration_(registration) {
   const employeePin = String(registration.employeePin || '');
   if (!/^\d{4}$/.test(employeePin)) throw new Error('กรุณาตั้ง PIN ลงเวลาเป็นตัวเลข 4 หลัก');
   const registrationPinHash = hashPortablePin_(employeePin);
-  if (!firstName || !lastName || !phone || !registeredAddress || !currentAddress || !emergencyName || !emergencyPhone || !birthDate || !bankName || !bankAccountNo || !bankAccountName) throw new Error('Required fields missing');
-  if (!registration.consent) throw new Error('Consent required');
+  if (!firstName || !lastName || !phone || !registeredAddress || !currentAddress || !emergencyName || !emergencyPhone || !birthDate || !bankName || !bankAccountNo || !bankAccountName) throw new Error('กรุณากรอกข้อมูลที่จำเป็นให้ครบ');
+  if (!registration.consent) throw new Error('กรุณายืนยันว่าข้อมูลถูกต้อง');
   const registrationId = 'REG-' + Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmmss') + '-' + Utilities.getUuid().slice(0,6).toUpperCase();
   let photoUrl='', photoFileId='';
   if (registration.photoData) {
@@ -1495,18 +1557,19 @@ function submitEmployeeRegistration_(registration) {
     photoUrl = file.getUrl(); photoFileId = file.getId();
   }
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
-  sh.appendRow([registrationId,new Date(),'PENDING',branch,firstName,lastName,nickname,phone,contact,position,birthDate,startDate,registeredAddress,currentAddress,emergencyName,emergencyPhone,emergencyRelationship,photoUrl,photoFileId,'','', '', '', 0, registrationPinHash,bankName,bankAccountNo,bankAccountName,bankCode,department]);
-  const row = sh.getLastRow();
+  const initialStatus=registration.draft===true?'DRAFT':'PENDING';
+  const row = sh.getLastRow()+1;
   sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,13,1,2).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@');
   sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy'); sh.getRange(row,26,1,4).setNumberFormat('@');
-  return {ok:true, registrationId:registrationId};
+  sh.getRange(row,1,1,30).setValues([[registrationId,new Date(),initialStatus,branch,firstName,lastName,nickname,phone,contact,position,birthDate,startDate,registeredAddress,currentAddress,emergencyName,emergencyPhone,emergencyRelationship,photoUrl,photoFileId,'','', '', '', 0, registrationPinHash,bankName,bankAccountNo,bankAccountName,bankCode,department]]);
+  return {ok:true, registrationId:registrationId, status:initialStatus};
 }
 
 function getEmployeeRegistrationsAdmin_() {
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(REGISTRATION_SHEET);
   const last = sh ? sh.getLastRow() : 0;
   if (!sh || last < 2) return [];
-  return sh.getRange(2,1,last-1,Math.max(30,sh.getLastColumn())).getValues().reverse().map(r => ({
+  return sh.getRange(2,1,last-1,Math.max(30,sh.getLastColumn())).getValues().reverse().filter(r=>String(r[2]||'').toUpperCase()!=='DRAFT').map(r => ({
     registrationId:toClientText_(r[0]), submittedAt:formatDateTimeForClient_(r[1]), status:toClientText_(r[2]), branch:toClientText_(r[3]),
     firstName:toClientText_(r[4]), lastName:toClientText_(r[5]), nickname:toClientText_(r[6]), phone:toClientText_(r[7]), contact:toClientText_(r[8]),
     position:toClientText_(r[9]), birthDate:formatDateInputForClient_(r[10]), startDate:formatDateInputForClient_(r[11]), registeredAddress:toClientText_(r[12]),
@@ -1533,12 +1596,12 @@ function adminUpdateRegistration(token, registrationId, registration) {
   const position=validateRegistrationChoice_(registration.position,['MANAGER','SUPERVISOR','STAFF'],'Position');
   const department=registration.department!==undefined?validateDepartmentV7_(registration.department,true):String(sh.getRange(row,30).getValue()||'');
   const birthDate=parseIsoDate_(registration.birthDate), startDate=parseIsoDate_(registration.startDate);
+  sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@'); sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy');
   sh.getRange(row,4,1,17).setValues([[
     branch,String(registration.firstName||''),String(registration.lastName||''),String(registration.nickname||''),String(registration.phone||''),String(registration.contact||''),position,
     birthDate,startDate,String(registration.registeredAddress||''),String(registration.currentAddress||''),String(registration.emergencyName||''),String(registration.emergencyPhone||''),
     String(registration.emergencyRelationship||''),String(registration.photoUrl||sh.getRange(row,18).getValue()||''),sh.getRange(row,19).getValue(),String(registration.adminNote||'')
   ]]);
-  sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@'); sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy');
   sh.getRange(row,23).setValue(String(registration.wageType||'')); sh.getRange(row,24).setValue(Number(registration.wageAmount)||0).setNumberFormat('#,##0.00');
   sh.getRange(row,26).setNumberFormat('@').setValue(String(registration.bankName||'').trim()); sh.getRange(row,27).setNumberFormat('@').setValue(String(registration.bankAccountNo||'').replace(/[^0-9A-Za-z-]/g,'').trim()); sh.getRange(row,28).setNumberFormat('@').setValue(String(registration.bankAccountName||'').trim()); sh.getRange(row,29).setNumberFormat('@').setValue(String(registration.bankCode||'').trim());
   sh.getRange(row,30).setValue(department);
@@ -1554,6 +1617,7 @@ function adminApproveRegistration(token, registrationId, employee, registration)
   const x=findRegistrationRow_(registrationId), sh=x.sh, row=x.row;
   const r=sh.getRange(row,1,1,Math.max(30,sh.getLastColumn())).getValues()[0];
   if (String(r[2])==='APPROVED') throw new Error('Registration already approved');
+  assertRegistrationRequiredDocuments_(registrationId);
   const id=nextEmployeeId_(), pin=String(employee.pin||'');
   let employeePinHash = String(r[24]||'').trim();
   if (!employeePinHash) {
@@ -1565,9 +1629,10 @@ function adminApproveRegistration(token, registrationId, employee, registration)
   const wageAmount=Number(employee.wageAmount||r[23]||0);
   const fullName=(String(r[4])+' '+String(r[5])).trim();
   const empSh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);
-  empSh.appendRow([id,fullName,true,Number(employee.sort)||999,'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']);
-  const erow=empSh.getLastRow(); empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
+  const erow=empSh.getLastRow()+1; empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
+  empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number(employee.sort)||999,'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
   sh.getRange(row,3).setValue('APPROVED'); sh.getRange(row,21).setValue(new Date()); sh.getRange(row,22).setValue(id); sh.getRange(row,23).setValue(wageType); sh.getRange(row,24).setValue(wageAmount).setNumberFormat('#,##0.00');
+  attachDocumentsToEmployee_(SpreadsheetApp.openById(SPREADSHEET_ID),registrationId,id);invalidateAdminSummary_();
   return {ok:true,employeeId:id};
 }
 
@@ -1605,57 +1670,125 @@ function genericDataUrlToBlob_(dataUrl, fileName) {
   return Utilities.newBlob(bytes,mime,String(fileName||'document'));
 }
 
-function uploadEmployeeRegistrationDocument_(registrationId, document) {
-  const rid=String(registrationId||'').trim();
-  if (!rid) throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');
-  // Require registration to exist so arbitrary public uploads cannot create unlinked documents.
-  findRegistrationRow_(rid);
-  const type=String(document.type||'OTHER').trim().toUpperCase();
-  const allowed=['ID_CARD','HOUSE_REGISTRATION','EDUCATION','OTHER'];
-  if (!allowed.includes(type)) throw new Error('ประเภทเอกสารไม่ถูกต้อง');
-  const label=String(document.label||'เอกสาร').trim().slice(0,120);
-  const original=String(document.fileName||'document').replace(/[\\/:*?\"<>|]/g,'_').slice(0,180);
-  const blob=genericDataUrlToBlob_(document.dataUrl,original);
-  const folder=ensureEmployeeDocumentFolder_(rid);
-  const docId='DOC-'+Utilities.formatDate(new Date(),TZ,'yyyyMMdd-HHmmss')+'-'+Utilities.getUuid().slice(0,6).toUpperCase();
-  blob.setName(docId+'_'+original);
-  const file=folder.createFile(blob);
-  file.setDescription('Krua Flow employee document '+rid+' '+label);
+function employeeDocumentTypeLabel_(type) {
+  return ({ID_CARD:'บัตรประชาชน',HOUSE_REGISTRATION:'ทะเบียนบ้าน',EMPLOYEE_PHOTO:'รูปถ่ายพนักงาน',EDUCATION:'วุฒิการศึกษา',OTHER:'เอกสารอื่น ๆ'})[String(type||'').toUpperCase()]||'เอกสาร';
+}
+
+function requiredEmployeeDocumentTypes_() { return ['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO']; }
+
+function ensureEmployeeDocumentsSheet_() {
   const ss=SpreadsheetApp.openById(SPREADSHEET_ID);
   let sh=ss.getSheetByName(EMPLOYEE_DOCUMENTS_SHEET);
-  if (!sh) {
-    sh=ss.insertSheet(EMPLOYEE_DOCUMENTS_SHEET);
-    const headers=['Document ID','Registration ID','Employee ID','Document Type','Document Label','File Name','MIME Type','File URL','File ID','Uploaded At','Status','Admin Note'];
-    sh.getRange(1,1,1,headers.length).setValues([headers]);sh.setFrozenRows(1);
-  }
-  sh.appendRow([docId,rid,'',type,label,original,blob.getContentType(),file.getUrl(),file.getId(),new Date(),'ACTIVE','']);
+  const headers=['Document ID','Registration ID','Employee ID','Document Type','Document Label','File Name','MIME Type','File URL','File ID','Uploaded At','Status','Admin Note','Expiry Date','Required','Verified At','Verified By'];
+  if (!sh) { sh=ss.insertSheet(EMPLOYEE_DOCUMENTS_SHEET); sh.setFrozenRows(1); }
+  if (sh.getMaxColumns()<headers.length) sh.insertColumnsAfter(sh.getMaxColumns(),headers.length-sh.getMaxColumns());
+  sh.getRange(1,1,1,headers.length).setValues([headers]);
+  return sh;
+}
+
+function saveEmployeeDocument_(registrationId, employeeId, document, replaceDocumentId) {
+  const rid=String(registrationId||'').trim(),eid=String(employeeId||'').trim();
+  if (!rid&&!eid) throw new Error('ไม่พบเจ้าของเอกสาร');
+  const type=String(document.type||'OTHER').trim().toUpperCase(),allowed=['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO','EDUCATION','OTHER'];
+  if (allowed.indexOf(type)<0) throw new Error('ประเภทเอกสารไม่ถูกต้อง');
+  const label=String(document.label||employeeDocumentTypeLabel_(type)).trim().slice(0,120),original=String(document.fileName||'document').replace(/[\\/:*?\"<>|]/g,'_').slice(0,180);
+  const blob=genericDataUrlToBlob_(document.dataUrl,original),folder=ensureEmployeeDocumentFolder_(rid||('EMP-'+eid)),now=new Date();
+  const docId='DOC-'+Utilities.formatDate(now,TZ,'yyyyMMdd-HHmmss')+'-'+Utilities.getUuid().slice(0,6).toUpperCase();
+  blob.setName(docId+'_'+original);
+  const file=folder.createFile(blob);file.setDescription('Krua Flow employee document '+(rid||eid)+' '+label);
+  const sh=ensureEmployeeDocumentsSheet_(),last=sh.getLastRow(),old=last>=2?sh.getRange(2,1,last-1,16).getValues():[];
+  const required=requiredEmployeeDocumentTypes_().indexOf(type)>=0;
+  sh.appendRow([docId,rid,eid,type,label,original,blob.getContentType(),file.getUrl(),file.getId(),now,'ACTIVE','', '',required,'','']);
   const row=sh.getLastRow();sh.getRange(row,2,1,2).setNumberFormat('@');sh.getRange(row,9).setNumberFormat('@');sh.getRange(row,10).setNumberFormat('dd/mm/yyyy hh:mm:ss');
-  return {ok:true,documentId:docId};
+  const replaceId=String(replaceDocumentId||''),single=required;
+  old.forEach((r,i)=>{const sameOwner=(rid&&String(r[1])===rid)||(eid&&String(r[2])===eid),sameType=String(r[3])===type,status=String(r[10]||'ACTIVE');if(sameOwner&&status!=='DELETED'&&status!=='REPLACED'&&((replaceId&&String(r[0])===replaceId)||(single&&sameType)))sh.getRange(i+2,11).setValue('REPLACED')});
+  if (type==='EMPLOYEE_PHOTO'&&rid) { const reg=findRegistrationRow_(rid);reg.sh.getRange(reg.row,18).setValue(file.getUrl());reg.sh.getRange(reg.row,19).setNumberFormat('@').setValue(file.getId()); }
+  if (type==='EMPLOYEE_PHOTO'&&eid) { const emp=employeeRecordV7_(eid);if(emp){const empSh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);empSh.getRange(emp.row,24).setValue(file.getUrl());empSh.getRange(emp.row,6).setValue(now);invalidateAdminSummary_();} }
+  return {ok:true,documentId:docId,type:type,label:label,fileId:file.getId(),uploadedAt:formatDateTimeForClient_(now),status:'ACTIVE',required:required};
+}
+
+function uploadEmployeeRegistrationDocument_(registrationId, document) {
+  const rid=String(registrationId||'').trim();if(!rid)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');
+  const reg=findRegistrationRow_(rid),status=String(reg.sh.getRange(reg.row,3).getValue()||'');
+  if(['APPROVED','REJECTED'].indexOf(status)>=0)throw new Error('ใบลงทะเบียนนี้ปิดรับเอกสารแล้ว');
+  return saveEmployeeDocument_(rid,'',document,'');
+}
+
+function registrationRequiredDocumentState_(registrationId) {
+  const rid=String(registrationId||'').trim(),reg=findRegistrationRow_(rid),regRow=reg.sh.getRange(reg.row,1,1,Math.max(30,reg.sh.getLastColumn())).getValues()[0];
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0,found={};
+  if(sh&&last>=2)sh.getRange(2,1,last-1,Math.min(16,sh.getLastColumn())).getValues().forEach(r=>{const status=String(r[10]||'ACTIVE');if(String(r[1])===rid&&['DELETED','REPLACED','NEEDS_REVISION'].indexOf(status)<0&&String(r[8]||''))found[String(r[3]||'').toUpperCase()]=true});
+  wf2DocumentRowsForOwner_(rid,'').forEach(r=>{if(['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0&&String(r['Object Key']||''))found[String(r['Type']||'').toUpperCase()]=true});
+  if(String(regRow[18]||''))found.EMPLOYEE_PHOTO=true;
+  const missing=requiredEmployeeDocumentTypes_().filter(type=>!found[type]);
+  return {complete:missing.length===0,missingTypes:missing,missingLabels:missing.map(employeeDocumentTypeLabel_)};
+}
+
+function assertRegistrationRequiredDocuments_(registrationId) {
+  const state=registrationRequiredDocumentState_(registrationId);if(!state.complete)throw new Error('เอกสารบังคับไม่ครบ: '+state.missingLabels.join(', '));return state;
+}
+
+function finalizeEmployeeRegistration_(registrationId) {
+  const rid=String(registrationId||'').trim();if(!rid)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{
+    const reg=findRegistrationRow_(rid),status=String(reg.sh.getRange(reg.row,3).getValue()||'').toUpperCase();
+    if(['APPROVED','REJECTED'].indexOf(status)>=0)throw new Error('ใบลงทะเบียนนี้ถูกดำเนินการแล้ว');
+    if(['DRAFT','PENDING'].indexOf(status)<0)throw new Error('สถานะใบลงทะเบียนไม่พร้อมส่งให้ Admin');
+    const documents=assertRegistrationRequiredDocuments_(rid);
+    if(status==='DRAFT'){reg.sh.getRange(reg.row,3).setValue('PENDING');SpreadsheetApp.flush();invalidateAdminSummary_()}
+    return {ok:true,registrationId:rid,previousStatus:status,status:'PENDING',documents:documents,serverEpochMs:Date.now()};
+  }finally{try{lock.releaseLock()}catch(e){}}
+}
+
+function adminUploadEmployeeDocument_(token, employeeId, document, replaceDocumentId, requestId, registrationId) {
+  requireAdmin_(token);
+  const eid=String(employeeId||'').trim(),rid=String(registrationId||'').trim();
+  if(eid&&rid)throw new Error('ระบุเจ้าของเอกสารซ้ำ');
+  if(rid){const reg=findRegistrationRow_(rid),row=reg.sh.getRange(reg.row,1,1,22).getValues()[0];if(String(row[2]||'').toUpperCase()!=='PENDING'||String(row[21]||'').trim())throw new Error('แนบเอกสารได้เฉพาะใบลงทะเบียน PENDING ที่ยังไม่มีรหัสพนักงาน')}
+  else{const emp=employeeRecordV7_(eid);if(!emp)throw new Error('ไม่พบพนักงาน')}
+  const result=saveEmployeeDocument_(rid,eid,document,replaceDocumentId);
+  auditLogV7_('ADMIN','ADMIN',rid?'UPLOAD_REGISTRATION_DOCUMENT':'UPLOAD_EMPLOYEE_DOCUMENT','EMPLOYEE_DOCUMENT',result.documentId,'',{registrationId:rid,employeeId:eid,type:result.type,replacedDocumentId:String(replaceDocumentId||'')},'',String(requestId||''));
+  return Object.assign(result,{serverEpochMs:Date.now()});
 }
 
 function adminGetRegistrationDocuments_(token, registrationId, employeeId) {
   requireAdmin_(token);
   const rid=String(registrationId||'').trim(),eid=String(employeeId||'').trim();
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET);
-  const last=sh?sh.getLastRow():0;if(!sh||last<2)return {rows:[],serverEpochMs:Date.now()};
-  const vals=sh.getRange(2,1,last-1,12).getValues();
-  const rows=vals.filter(r=>String(r[10]||'ACTIVE')!=='DELETED' && ((rid&&String(r[1])===rid)||(eid&&String(r[2])===eid))).map(r=>({
-    documentId:toClientText_(r[0]),registrationId:toClientText_(r[1]),employeeId:toClientText_(r[2]),type:toClientText_(r[3]),label:toClientText_(r[4]),fileName:toClientText_(r[5]),mimeType:toClientText_(r[6]),fileId:toClientText_(r[8]),uploadedAt:formatDateTimeForClient_(r[9]),status:toClientText_(r[10]),note:toClientText_(r[11])
-  }));
-  return {rows:rows,serverEpochMs:Date.now()};
+  const last=sh?sh.getLastRow():0,vals=sh&&last>=2?sh.getRange(2,1,last-1,Math.min(16,sh.getLastColumn())).getValues():[];
+  const legacyRows=vals.filter(r=>String(r[10]||'ACTIVE')!=='DELETED' && ((rid&&String(r[1])===rid)||(eid&&String(r[2])===eid))).map(r=>({
+    documentId:toClientText_(r[0]),registrationId:toClientText_(r[1]),employeeId:toClientText_(r[2]),type:toClientText_(r[3]),label:toClientText_(r[4]),fileName:toClientText_(r[5]),mimeType:toClientText_(r[6]),fileId:toClientText_(r[8]),uploadedAt:formatDateTimeForClient_(r[9]),status:toClientText_(r[10]||'ACTIVE'),note:toClientText_(r[11]),expiryDate:formatDateInputForClient_(r[12]),required:Boolean(r[13])||requiredEmployeeDocumentTypes_().indexOf(String(r[3]||'').toUpperCase())>=0,verifiedAt:formatDateTimeForClient_(r[14]),verifiedBy:toClientText_(r[15])
+  })).reverse();
+  return {rows:wf2DocumentRowsForAdmin_(rid,eid).concat(legacyRows),serverEpochMs:Date.now()};
 }
 
 function adminGetDocument_(token, fileId) {
+  return adminFileMeta_(token,fileId,false);
+}
+
+function adminFileMeta_(token, fileId, imageOnly) {
   requireAdmin_(token);
-  const id=String(fileId||'').trim();if(!id)throw new Error('ไม่พบไฟล์เอกสาร');
-  const file=DriveApp.getFileById(id),blob=file.getBlob(),mime=blob.getContentType()||'application/octet-stream';
-  return {ok:true,fileName:file.getName(),mimeType:mime,dataUrl:'data:'+mime+';base64,'+Utilities.base64Encode(blob.getBytes())};
+  const id=String(fileId||'').trim();
+  if(!/^[A-Za-z0-9_-]{10,}$/.test(id))throw new Error('ไม่พบไฟล์');
+  try {
+    const file=DriveApp.getFileById(id),mime=String(file.getMimeType()||'application/octet-stream'),size=Number(file.getSize())||0;
+    if(imageOnly&&mime.indexOf('image/')!==0)throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    if(!imageOnly&&mime!=='application/pdf'&&mime.indexOf('image/')!==0)throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    return {ok:true,fileId:id,fileName:file.getName(),mimeType:mime,size:size,chunkSize:49152,serverEpochMs:Date.now()};
+  } catch(e) {
+    const message=e&&e.message?String(e.message):'';
+    if(/not found|does not exist|invalid argument/i.test(message))throw new Error('ไม่พบไฟล์');
+    if(/permission|access denied|forbidden/i.test(message))throw new Error('ไม่มีสิทธิ์เข้าถึงไฟล์');
+    if(message==='โหลดไฟล์ไม่สำเร็จ')throw e;
+    throw new Error('โหลดไฟล์ไม่สำเร็จ');
+  }
 }
 
 function attachDocumentsToEmployee_(ss, registrationId, employeeId) {
-  const sh=ss.getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return;
-  const vals=sh.getRange(2,1,last-1,3).getValues();
-  for(let i=0;i<vals.length;i++) if(String(vals[i][1])===String(registrationId) && !String(vals[i][2]||'').trim()) sh.getRange(i+2,3).setNumberFormat('@').setValue(String(employeeId));
+  const sh=ss.getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0;
+  if(sh&&last>=2){const vals=sh.getRange(2,1,last-1,3).getValues();for(let i=0;i<vals.length;i++) if(String(vals[i][1])===String(registrationId) && !String(vals[i][2]||'').trim()) sh.getRange(i+2,3).setNumberFormat('@').setValue(String(employeeId))}
+  const v2=ss.getSheetByName('Documents');if(v2&&v2.getLastRow()>=2){const rows=wf2Rows_('Documents');rows.filter(r=>String(r['Registration ID'])===String(registrationId)).forEach(r=>wf2UpdateRow_('Documents',r._row,{'Employee ID':String(employeeId),'Owner Type':'EMPLOYEE','Owner ID':String(employeeId),'Updated At':new Date()}))}
 }
 
 function ensureRegistrationPhotoFolder_() {
@@ -2515,7 +2648,14 @@ function adminSetLeaveBalanceV7_(payload){requireAdmin_(String(payload.adminToke
 function adminGetLeaveBalancesV7_(payload){requireAdmin_(String(payload.adminToken||''));return{rows:leaveBalanceRowsV7_(String(payload.employeeId||''),Number(payload.year)||new Date().getFullYear())}}
 
 function adminGetOrgMastersV7_(payload){requireAdmin_(String(payload.adminToken||''));return{branches:getBranchesV7_(true),departments:getDepartmentsV7_(true),shifts:getShiftsV7_(true),devices:deviceRowsV7_(),serverEpochMs:Date.now()}}
-function upsertMasterV7_(sheetName,idCol,id,values){const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName),last=sh.getLastRow();let row=0;if(last>=2){const vals=sh.getRange(2,idCol,last-1,1).getValues();for(let i=0;i<vals.length;i++)if(String(vals[i][0])===String(id)){row=i+2;break}}if(row)sh.getRange(row,1,1,values.length).setValues([values]);else sh.appendRow(values);return row||sh.getLastRow()}
+function upsertMasterV7_(sheetName,idCol,id,values){
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName),last=sh.getLastRow();let row=0;
+  if(last>=2){const vals=sh.getRange(2,idCol,last-1,1).getValues();for(let i=0;i<vals.length;i++)if(String(vals[i][0])===String(id)){row=i+2;break}}
+  const targetRow=row||last+1;
+  if(sheetName===BRANCHES_SHEET)sh.getRange(targetRow,7).setNumberFormat('@');
+  sh.getRange(targetRow,1,1,values.length).setValues([values]);
+  return targetRow;
+}
 function codeV7_(v,label){const s=String(v||'').trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'_').slice(0,30);if(!s)throw new Error('กรุณาระบุรหัส'+label);return s}
 function adminSaveBranchV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.branch||{},code=codeV7_(x.code,'สาขา'),old=getBranchesV7_(true).find(b=>b.code===code)||null,now=new Date();upsertMasterV7_(BRANCHES_SHEET,1,code,[code,String(x.name||'').trim(),String(x.shortName||x.name||'').trim(),x.active!==false,Number(x.sort)||999,String(x.address||''),String(x.phone||''),String(x.timezone||TZ),old?old.createdAt||now:now,now,String(x.note||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_BRANCH','BRANCH',code,old,x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
 function adminSaveDepartmentV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.department||{},code=codeV7_(x.code,'แผนก'),now=new Date();upsertMasterV7_(DEPARTMENTS_SHEET,1,code,[code,String(x.name||'').trim(),String(x.shortName||x.name||'').trim(),x.active!==false,Number(x.sort)||999,now,now,String(x.note||''),String(x.color||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_DEPARTMENT','DEPARTMENT',code,'',x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
@@ -2615,8 +2755,8 @@ function managerGetDailyChecksV7_(payload){const e=requirePortalV7_(payload.port
 function managerResolveDailyCheckV7_(payload){const id=String(payload.checkId||''),sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHIFT_DAILY_CHECKS_SHEET),row=findRowByIdV7_(sh,id);if(!row)throw new Error('ไม่พบรายงาน');const r=sh.getRange(row,1,1,21).getValues()[0],auth=requireManagerScopeV7_(payload.portalToken,String(r[3]),String(r[4]),'canViewAttendance');sh.getRange(row,16).setValue('RESOLVED');sh.getRange(row,19).setValue(new Date());sh.getRange(row,20).setValue(auth.employee.id);sh.getRange(row,21).setValue(String(payload.note||''));auditLogV7_('MANAGER',auth.employee.id,'RESOLVE_SHIFT_CHECK','SHIFT_CHECK',id,{status:String(r[15])},{status:'RESOLVED'},String(payload.note||''),String(payload.requestId||''));return{ok:true}}
 function parseJsonV7_(v){try{return JSON.parse(String(v||'{}'))}catch(e){return{}}}
 
-function employeeDocumentsMetaV7_(employeeId){const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return[];const cols=Math.min(16,sh.getLastColumn());return sh.getRange(2,1,last-1,cols).getValues().filter(r=>String(r[2])===String(employeeId)&&String(r[10]||'ACTIVE')!=='DELETED').map(r=>({documentId:String(r[0]),type:String(r[3]),label:String(r[4]),fileName:String(r[5]),status:String(r[10]),expiryDate:formatDateInputForClient_(r[12]),required:Boolean(r[13]),verifiedAt:formatDateTimeForClient_(r[14]),verifiedBy:String(r[15]||'')}))}
-function adminUpdateDocumentMetaV7_(payload){requireAdmin_(String(payload.adminToken||''));const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),row=findRowByIdV7_(sh,String(payload.documentId||''));if(!row)throw new Error('ไม่พบเอกสาร');if(sh.getMaxColumns()<16)setupWorkforceSystem_();sh.getRange(row,13).setValue(payload.expiryDate?parseIsoDate_(payload.expiryDate):'');sh.getRange(row,14).setValue(Boolean(payload.required));if(payload.verified){sh.getRange(row,15).setValue(new Date());sh.getRange(row,16).setValue('ADMIN')}return{ok:true}}
+function employeeDocumentsMetaV7_(employeeId){const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return[];const cols=Math.min(16,sh.getLastColumn());return sh.getRange(2,1,last-1,cols).getValues().filter(r=>String(r[2])===String(employeeId)&&['DELETED','REPLACED'].indexOf(String(r[10]||'ACTIVE'))<0).map(r=>({documentId:String(r[0]),type:String(r[3]),label:String(r[4]),fileName:String(r[5]),uploadedAt:formatDateTimeForClient_(r[9]),status:String(r[10]||'ACTIVE'),expiryDate:formatDateInputForClient_(r[12]),required:Boolean(r[13])||requiredEmployeeDocumentTypes_().indexOf(String(r[3]||'').toUpperCase())>=0,verifiedAt:formatDateTimeForClient_(r[14]),verifiedBy:String(r[15]||'')}))}
+function adminUpdateDocumentMetaV7_(payload){requireAdmin_(String(payload.adminToken||''));const sh=ensureEmployeeDocumentsSheet_(),row=findRowByIdV7_(sh,String(payload.documentId||''));if(!row)throw new Error('ไม่พบเอกสาร');const status=String(payload.status||(payload.verified?'VERIFIED':'')).toUpperCase();if(status&&['ACTIVE','VERIFIED','NEEDS_REVISION'].indexOf(status)<0)throw new Error('สถานะเอกสารไม่ถูกต้อง');sh.getRange(row,13).setValue(payload.expiryDate?parseIsoDate_(payload.expiryDate):'');sh.getRange(row,14).setValue(Boolean(payload.required));if(payload.note!==undefined)sh.getRange(row,12).setValue(String(payload.note||''));if(status){sh.getRange(row,11).setValue(status);if(status==='VERIFIED'){sh.getRange(row,15).setValue(new Date());sh.getRange(row,16).setValue('ADMIN')}else{sh.getRange(row,15,1,2).clearContent()}}auditLogV7_('ADMIN','ADMIN','UPDATE_DOCUMENT_META','EMPLOYEE_DOCUMENT',String(payload.documentId||''),'',{status:status,expiryDate:String(payload.expiryDate||''),required:Boolean(payload.required)},String(payload.note||''),String(payload.requestId||''));return{ok:true,status:status||String(sh.getRange(row,11).getValue()||'ACTIVE')}}
 
 function adminSaveNotificationChannelV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.channel||{},emp=employeeRecordV7_(String(x.employeeId||''));if(!emp)throw new Error('ไม่พบพนักงาน');const type=String(x.channelType||'LINE_USER_ID'),id=String(x.channelId||'')||'CHN-'+Utilities.getUuid().slice(0,10).toUpperCase(),sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(NOTIFICATION_CHANNELS_SHEET),row=findRowByIdV7_(sh,id),now=new Date(),vals=[id,emp.id,type,String(x.channelAddress||''),x.active!==false,row?sh.getRange(row,6).getValue()||now:now,now,String(x.note||'')];if(row)sh.getRange(row,1,1,8).setValues([vals]);else sh.appendRow(vals);return{ok:true,channelId:id}}
 
