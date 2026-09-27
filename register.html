@@ -21,6 +21,7 @@
 .consent{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.45}.consent input{margin-top:4px;transform:scale(1.25)}
 @media(max-width:620px){.grid2{grid-template-columns:1fr}.brand{font-size:29px}.wrap{padding:13px 10px 34px}}
 </style>
+<link rel="stylesheet" href="./css/registration-mobile.css?v=registration-mobile-ui-1">
 </head>
 <body>
 <div class="overlay" id="busy"><div><strong>กำลังส่งข้อมูล...</strong><div class="help">กรุณารอสักครู่</div></div></div>
@@ -188,5 +189,6 @@ $('registeredAddress').addEventListener('input',()=>{if($('sameAddress').checked
 $('form').addEventListener('submit',async e=>{e.preventDefault();showErr('');if(!state.api){showErr('ระบบยังไม่พร้อม กรุณาติดต่อ Admin');return}const pin=$('employeePin').value,confirmPin=$('employeePinConfirm').value;if(!/^\d{4}$/.test(pin)){showErr('กรุณาตั้ง PIN เป็นตัวเลข 4 หลัก');$('employeePin').focus();return}if(pin!==confirmPin){showErr('PIN 4 หลักทั้งสองช่องไม่ตรงกัน');$('employeePinConfirm').focus();return}const r={branch:$('branch').value,department:$('department').value,position:$('position').value,startDate:$('startDate').value,firstName:$('firstName').value.trim(),lastName:$('lastName').value.trim(),nickname:$('nickname').value.trim(),phone:$('phone').value.trim(),contact:$('contact').value.trim(),birthDate:$('birthDate').value,registeredAddress:$('registeredAddress').value.trim(),currentAddress:$('currentAddress').value.trim(),emergencyName:$('emergencyName').value.trim(),emergencyPhone:$('emergencyPhone').value.trim(),emergencyRelationship:$('emergencyRelationship').value.trim(),bankName:$('bankName').value.trim(),bankCode:$('bankCode').value.trim(),bankAccountNo:$('bankAccountNo').value.trim(),bankAccountName:$('bankAccountName').value.trim(),employeePin:pin,photoData:state.photoData,consent:$('consent').checked};try{busy(1);$('busy').querySelector('strong').textContent='กำลังส่งข้อมูลลงทะเบียน...';const res=await postBridge({op:'employeeRegistrationSubmit',registration:r});const docs=await uploadDocuments(res.registrationId||'');$('form').style.display='none';$('rid').textContent='เลขอ้างอิง: '+(res.registrationId||'')+(docs.uploaded?' • แนบเอกสาร '+docs.uploaded+' ไฟล์':'')+(docs.failed.length?' • เอกสารที่ส่งไม่สำเร็จ: '+docs.failed.join(', '):'');$('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'})}catch(err){showErr(err.message||String(err))}finally{$('busy').querySelector('strong').textContent='กำลังส่งข้อมูล...';busy(0)}});
 })();
 </script>
+<script src="./js/registration-ui.js?v=registration-mobile-ui-1"></script>
 </body>
 </html>
