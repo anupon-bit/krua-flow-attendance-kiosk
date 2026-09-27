@@ -56,6 +56,7 @@
   style.textContent = [
     '#app.adminReadOnly #activityLink',
     '#app.adminReadOnly #managerBtn',
+    '#app.adminReadOnly #managerTools',
     '#app.adminReadOnly #ackBtn',
     '#app.adminReadOnly #v-attendance > .card:nth-child(2)',
     '#app.adminReadOnly #v-leave > .card:first-child',
