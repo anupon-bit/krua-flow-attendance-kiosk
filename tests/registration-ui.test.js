@@ -71,6 +71,8 @@ assert.match(css, /registrationOpenFile/);
 assert.match(workforce, /PENDING_UPLOAD/);
 assert.match(workforce, /REPLACED/);
 assert.match(workforce, /documentGetViewUrl/);
+assert.match(workforce, /const registrationResult = await call\('adminListRegistrationsV2'/);
+assert.match(workforce, /renderRegistrationsV2\(registrationResult\)/);
 assert.doesNotMatch(ui + workforce, /api\.qrserver|chart\.googleapis|quickchart/i);
 
 assert.match(workspace, /data-view="employee-registration" data-url="\.\/workforce\.html\?embed=1(?:&|&amp;)view=registrations"/);

@@ -44,7 +44,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-registration-v2-1';
+  const FRONTEND_VERSION = 'prod-registration-v2-2';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
@@ -459,12 +459,12 @@
     if (selectedRegistrationId) renderRegistrationV2Detail(selectedRegistrationId);
   }
 
-  async function renderRegistrationsV2() {
+  async function renderRegistrationsV2(initialResult) {
     const restoreRegistrationId = selectedRegistrationId;
     registrationDetailSequence += 1;
     loading();
     try {
-      const result = await call('adminListRegistrationsV2', { limit:100 });
+      const result = initialResult || await call('adminListRegistrationsV2', { limit:100 });
       const rows = rowsOf(result);
       const complete = rows.filter(function (row) { return row.documentState && row.documentState.status === 'COMPLETE'; }).length;
       const pending = rows.filter(function (row) { return String(row.status || '').toUpperCase() === 'PENDING'; }).length;
@@ -774,6 +774,12 @@
     }
     loading();
     try {
+      if (view === 'registrations' || view === 'employee-documents') {
+        const registrationResult = await call('adminListRegistrationsV2', { limit:100 });
+        bootstrap = { ready:true, environment:isStaging ? 'STAGING' : 'PRODUCTION', flags:{ WORKFORCE_V2_ENABLED:true } };
+        await renderRegistrationsV2(registrationResult);
+        return;
+      }
       bootstrap = await call('workforceBootstrap');
       if (!bootstrap.ready) { app.innerHTML = '<div class="notice"><strong>' + esc(t('schema.notReady')) + '</strong></div>'; return; }
       if (!(bootstrap.flags || {}).WORKFORCE_V2_ENABLED) { app.innerHTML = '<div class="notice"><strong>' + esc(t('schema.disabled')) + '</strong></div>'; return; }
