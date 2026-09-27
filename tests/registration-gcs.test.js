@@ -33,6 +33,7 @@ assert.match(workforce, /registrationActor\?'REGISTRATION'/);
 assert.match(workforce, /wf2BuildObjectKey_\(ownerType,ownerId,documentId,name\)/);
 assert.match(workforce, /wf2NormalizeFileServiceToken_\(props\.getProperty\('FILE_SERVICE_AUTH_TOKEN'\)\)/);
 assert.match(workforce, /replace\(\/\^Bearer\\s\+\/i,''\)/);
+assert.match(workforce, /\^\[0-9a-f\]\{64\}\$/);
 assert.match(backend, /wf2DocumentRowsForOwner_\(rid,''\)/);
 
 assert.match(admin, /call\('documentGetViewUrl'/);

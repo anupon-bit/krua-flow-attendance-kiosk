@@ -555,6 +555,7 @@ function wf2NormalizeFileServiceToken_(value){const text=String(value||'').trim(
 function wf2FileServiceRequest_(path,body) {
   const props=PropertiesService.getScriptProperties(),base=String(props.getProperty('FILE_SERVICE_URL')||'').trim().replace(/\/$/,''),token=wf2NormalizeFileServiceToken_(props.getProperty('FILE_SERVICE_AUTH_TOKEN'));
   if(!base||!token)throw new Error('ยังไม่ได้ตั้งค่า GCS File Service ใน STAGING');
+  if(!/^[0-9a-f]{64}$/i.test(token))throw new Error('รูปแบบ FILE_SERVICE_AUTH_TOKEN ไม่ถูกต้อง ต้องเป็น hexadecimal 64 ตัวอักษร');
   const response=UrlFetchApp.fetch(base+path,{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+token},payload:JSON.stringify(body),muteHttpExceptions:true});
   const code=response.getResponseCode();let data={};try{data=JSON.parse(response.getContentText()||'{}')}catch(e){}
   if(code<200||code>=300)throw new Error(String(data.error||'File Service ไม่พร้อมใช้งาน'));
