@@ -103,6 +103,24 @@ tbody tr:hover { background: #f8fbf9; }
 .notificationItem:last-child { border-bottom: 0; }
 .empty.compact { margin: 10px 16px 16px; padding: 18px; }
 .sectionError { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px; padding: 14px; border-radius: 10px; background: var(--danger-soft); color: var(--danger); font-size: .82rem; }
+.attendanceResultMeta { margin-top: 4px; color: var(--muted); font-size: .78rem; }
+.attendanceTable table { min-width: 1120px; }
+.attendanceTime { display: inline-flex; align-items: center; min-height: 30px; padding: 4px 9px; border-radius: 9px; font-weight: 900; white-space: nowrap; }
+.attendanceTime.in { background: var(--brand-soft); color: var(--brand-dark); }
+.attendanceTime.out { background: var(--info-soft); color: var(--info); }
+.attendanceTime.missing { background: var(--warning-soft); color: var(--warning); font-size: .72rem; }
+.attendanceTime.emptyTime { background: #f1f4f2; color: var(--muted); }
+.attendanceHours { font-weight: 850; white-space: nowrap; }
+.attendanceHours.missing { color: var(--muted); font-weight: 600; }
+.attendanceDrawerBody { display: grid; gap: 20px; margin-top: 18px; }
+.attendanceSummaryGrid { margin: 0; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.attendanceEvidenceSection h3 { margin: 0 0 12px; font-size: 1rem; }
+.attendanceEvidenceList { display: grid; gap: 10px; }
+.attendanceEvidence { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfb; }
+.attendanceEvidenceHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; }
+.attendancePhotoMissing { color: var(--muted); font-size: .75rem; }
+.attendancePhotoHolder { padding: 0 12px 12px; }
+.attendancePhotoHolder img { display: block; width: 100%; max-height: 420px; margin-top: 8px; border-radius: 10px; object-fit: contain; background: #edf1ef; }
 
 @media (max-width: 900px) {
   .grid, .skeletonGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
