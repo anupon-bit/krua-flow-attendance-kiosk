@@ -399,6 +399,16 @@
     }
   }
 
+  function registrationApprovalPanel(row, documentState) {
+    if (String(row.status || '').toUpperCase() !== 'PENDING') return '';
+    const wageOptions = '<option value="">เลือกประเภทค่าแรง</option><option value="MONTHLY">รายเดือน</option><option value="DAILY">รายวัน</option><option value="HOURLY">รายชั่วโมง</option>';
+    return '<section class="section registrationApproval"><div class="sectionHead"><h2>อนุมัติเป็นพนักงาน</h2><span class="metricMeta">สร้างบัญชีพนักงานและผูกเอกสาร</span></div>' +
+      '<div class="profileGrid"><div class="field"><label>ประเภทค่าแรง</label><select class="input" data-approval-wage-type>' + wageOptions + '</select></div>' +
+      '<div class="field"><label>ค่าแรง</label><input class="input" data-approval-wage-amount type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="ระบุค่าแรง"></div>' +
+      (row.pinSet ? '<div class="field"><label>PIN ลงเวลา</label><div class="notice">ผู้สมัครตั้ง PIN 4 หลักแล้ว</div></div>' : '<div class="field"><label>PIN ลงเวลา</label><input class="input" data-approval-pin type="password" inputmode="numeric" maxlength="4" placeholder="กำหนด PIN 4 หลัก"></div>') + '</div>' +
+      '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" data-approve-registration disabled>อนุมัติเป็นพนักงาน</button><span class="metricMeta" data-approval-hint></span></div></section>';
+  }
+
   async function renderRegistrationV2Detail(registrationId) {
     const target = document.getElementById('registrationDetail');
     if (!target) return;
@@ -439,13 +449,60 @@
         registrationDetailSection('ที่อยู่', [['ที่อยู่ตามทะเบียนบ้าน', row.registeredAddress], ['ที่อยู่ปัจจุบัน', row.currentAddress]], 'address') +
         registrationDetailSection('ผู้ติดต่อฉุกเฉิน', [['ชื่อ', row.emergencyName], ['โทรศัพท์', row.emergencyPhone], ['ความสัมพันธ์', row.emergencyRelationship]], 'emergency') +
         registrationDetailSection('ข้อมูลธนาคาร', [['ธนาคาร', row.bankName], ['รหัสธนาคาร', row.bankCode], ['เลขบัญชี', row.bankAccountNo], ['ชื่อบัญชี', row.bankAccountName]], 'bank') +
-        '<section class="section registrationDocuments"><div class="sectionHead"><h2>เอกสาร</h2>' + registrationDocumentBadge(currentDocumentState) + '</div><div class="tableWrap"><table><thead><tr><th>ประเภท</th><th>ชื่อไฟล์</th><th>MIME</th><th>ขนาด</th><th>สถานะ</th><th>เปิดไฟล์</th></tr></thead><tbody>' + documentRows.join('') + '</tbody></table></div></section></div>';
+        '<section class="section registrationDocuments"><div class="sectionHead"><h2>เอกสาร</h2>' + registrationDocumentBadge(currentDocumentState) + '</div><div class="tableWrap"><table><thead><tr><th>ประเภท</th><th>ชื่อไฟล์</th><th>MIME</th><th>ขนาด</th><th>สถานะ</th><th>เปิดไฟล์</th></tr></thead><tbody>' + documentRows.join('') + '</tbody></table></div></section></div>' + registrationApprovalPanel(row, currentDocumentState);
       target.querySelectorAll('[data-document-id]').forEach(function (button) {
         button.onclick = function () {
           const doc = documents.find(function (item) { return item.documentId === button.dataset.documentId; });
           if (doc) openRegistrationV2Document(doc, button).catch(function (error) { alert(I18N.errorText(error)); });
         };
       });
+      const approveButton = target.querySelector('[data-approve-registration]');
+      if (approveButton) {
+        const wageType = target.querySelector('[data-approval-wage-type]');
+        const wageAmount = target.querySelector('[data-approval-wage-amount]');
+        const pinInput = target.querySelector('[data-approval-pin]');
+        const hint = target.querySelector('[data-approval-hint]');
+        if (wageType) wageType.value = row.wageType || '';
+        if (wageAmount && row.wageAmount) wageAmount.value = String(row.wageAmount);
+        function updateApprovalState() {
+          const missing = [];
+          const pin = pinInput ? pinInput.value.replace(/\D/g, '').slice(0, 4) : '';
+          if (!currentDocumentState.complete) missing.push('ตรวจเอกสารบังคับให้ครบ');
+          if (!row.pinSet && pin.length !== 4) missing.push('กำหนด PIN 4 หลัก');
+          if (!wageType.value) missing.push('เลือกประเภทค่าแรง');
+          if (!(Number(wageAmount.value) > 0)) missing.push('ระบุค่าแรงมากกว่า 0');
+          approveButton.disabled = missing.length > 0;
+          hint.textContent = missing.join(' • ');
+        }
+        [wageType, wageAmount].forEach(function (input) {
+          input.addEventListener(input === wageType ? 'change' : 'input', updateApprovalState);
+        });
+        if (pinInput) pinInput.addEventListener('input', function () {
+          pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 4);
+          updateApprovalState();
+        });
+        updateApprovalState();
+        approveButton.onclick = async function () {
+          if (approveButton.disabled) return;
+          const pin = pinInput ? pinInput.value.replace(/\D/g, '').slice(0, 4) : '';
+          if (!window.confirm('อนุมัติ ' + [row.firstName, row.lastName].filter(Boolean).join(' ') + ' เป็นพนักงาน?')) return;
+          const oldLabel = approveButton.textContent;
+          approveButton.disabled = true;
+          approveButton.textContent = 'กำลังอนุมัติ...';
+          try {
+            const approved = await call('adminApproveRegistrationFast', {
+              registrationId: row.registrationId,
+              employee: { pin:pin, sort:99, wageType:wageType.value, wageAmount:Number(wageAmount.value) }
+            });
+            alert('อนุมัติและสร้างพนักงานแล้ว: ' + (approved.employeeId || ''));
+            await renderRegistrationsV2();
+          } catch (error) {
+            alert(I18N.errorText(error));
+            approveButton.textContent = oldLabel;
+            updateApprovalState();
+          }
+        };
+      }
       target.scrollIntoView({ behavior:'smooth', block:'start' });
     } catch (error) { if (requestId === registrationDetailSequence) target.innerHTML = '<div class="error"><strong>โหลดรายละเอียดไม่สำเร็จ</strong><div>' + esc(I18N.errorText(error)) + '</div></div>'; }
   }
