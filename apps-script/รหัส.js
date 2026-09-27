@@ -196,8 +196,14 @@ function apiRecordAttendance_(payload) {
 
 
 function apiEmployeeRegistrationSubmit_(payload) {
-  const r = submitEmployeeRegistration_(payload && payload.registration ? payload.registration : {});
-  return { ok:true, registrationId:r.registrationId, status:r.status, serverEpochMs:Date.now() };
+  const registration=payload&&payload.registration?payload.registration:{},submissionKey=String(payload&&payload.submissionKey||'').trim();
+  let r=null;
+  if(/^[A-Za-z0-9_-]{10,120}$/.test(submissionKey)){
+    const cache=CacheService.getScriptCache(),cacheKey='REGISTRATION_SUBMIT_'+submissionKey,lock=LockService.getScriptLock();lock.waitLock(15000);
+    try{const existing=cache.get(cacheKey);if(existing){try{const saved=JSON.parse(existing),found=findRegistrationRow_(String(saved.registrationId||''));r={registrationId:String(saved.registrationId),status:String(found.sh.getRange(found.row,3).getValue()||'DRAFT')}}catch(e){r=null}}if(!r){r=submitEmployeeRegistration_(registration);cache.put(cacheKey,JSON.stringify({registrationId:r.registrationId}),21600)}}finally{try{lock.releaseLock()}catch(e){}}
+  }else r=submitEmployeeRegistration_(registration);
+  const registrationUploadToken=wf2CreateRegistrationUploadToken_(r.registrationId);
+  return { ok:true, registrationId:r.registrationId, status:r.status, registrationUploadToken:registrationUploadToken, registrationUploadExpiresIn:21600, serverEpochMs:Date.now() };
 }
 
 function apiEmployeeRegistrationUploadDocument_(payload) {
@@ -1518,8 +1524,8 @@ function validateRegistrationChoice_(value, allowed, label) {
 
 function submitEmployeeRegistration_(registration) {
   const branch = validateBranchV7_(registration.branch, false);
-  const position = validateRegistrationChoice_(registration.position, ['MANAGER','SUPERVISOR','STAFF'], 'Position');
-  const department = validateDepartmentV7_(registration.department, true);
+  const position = validateRegistrationChoice_(registration.position, ['MANAGER','SUPERVISOR','STAFF'], 'ตำแหน่ง');
+  const department = validateDepartmentV7_(registration.department, false);
   const firstName = String(registration.firstName || '').trim();
   const lastName = String(registration.lastName || '').trim();
   const nickname = String(registration.nickname || '').trim();
@@ -1539,8 +1545,8 @@ function submitEmployeeRegistration_(registration) {
   const employeePin = String(registration.employeePin || '');
   if (!/^\d{4}$/.test(employeePin)) throw new Error('กรุณาตั้ง PIN ลงเวลาเป็นตัวเลข 4 หลัก');
   const registrationPinHash = hashPortablePin_(employeePin);
-  if (!firstName || !lastName || !phone || !registeredAddress || !currentAddress || !emergencyName || !emergencyPhone || !birthDate || !bankName || !bankAccountNo || !bankAccountName) throw new Error('Required fields missing');
-  if (!registration.consent) throw new Error('Consent required');
+  if (!firstName || !lastName || !phone || !registeredAddress || !currentAddress || !emergencyName || !emergencyPhone || !birthDate || !bankName || !bankAccountNo || !bankAccountName) throw new Error('กรุณากรอกข้อมูลที่จำเป็นให้ครบ');
+  if (!registration.consent) throw new Error('กรุณายืนยันว่าข้อมูลถูกต้อง');
   const registrationId = 'REG-' + Utilities.formatDate(new Date(), TZ, 'yyyyMMdd-HHmmss') + '-' + Utilities.getUuid().slice(0,6).toUpperCase();
   let photoUrl='', photoFileId='';
   if (registration.photoData) {
@@ -1712,6 +1718,7 @@ function registrationRequiredDocumentState_(registrationId) {
   const rid=String(registrationId||'').trim(),reg=findRegistrationRow_(rid),regRow=reg.sh.getRange(reg.row,1,1,Math.max(30,reg.sh.getLastColumn())).getValues()[0];
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0,found={};
   if(sh&&last>=2)sh.getRange(2,1,last-1,Math.min(16,sh.getLastColumn())).getValues().forEach(r=>{const status=String(r[10]||'ACTIVE');if(String(r[1])===rid&&['DELETED','REPLACED','NEEDS_REVISION'].indexOf(status)<0&&String(r[8]||''))found[String(r[3]||'').toUpperCase()]=true});
+  wf2DocumentRowsForOwner_(rid,'').forEach(r=>{if(['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0&&String(r['Object Key']||''))found[String(r['Type']||'').toUpperCase()]=true});
   if(String(regRow[18]||''))found.EMPLOYEE_PHOTO=true;
   const missing=requiredEmployeeDocumentTypes_().filter(type=>!found[type]);
   return {complete:missing.length===0,missingTypes:missing,missingLabels:missing.map(employeeDocumentTypeLabel_)};
@@ -1723,11 +1730,15 @@ function assertRegistrationRequiredDocuments_(registrationId) {
 
 function finalizeEmployeeRegistration_(registrationId) {
   const rid=String(registrationId||'').trim();if(!rid)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');
-  const reg=findRegistrationRow_(rid),status=String(reg.sh.getRange(reg.row,3).getValue()||'');
-  if(['APPROVED','REJECTED'].indexOf(status)>=0)throw new Error('ใบลงทะเบียนนี้ถูกดำเนินการแล้ว');
-  const documents=assertRegistrationRequiredDocuments_(rid);
-  reg.sh.getRange(reg.row,3).setValue('PENDING');invalidateAdminSummary_();
-  return {ok:true,registrationId:rid,status:'PENDING',documents:documents,serverEpochMs:Date.now()};
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{
+    const reg=findRegistrationRow_(rid),status=String(reg.sh.getRange(reg.row,3).getValue()||'').toUpperCase();
+    if(['APPROVED','REJECTED'].indexOf(status)>=0)throw new Error('ใบลงทะเบียนนี้ถูกดำเนินการแล้ว');
+    if(['DRAFT','PENDING'].indexOf(status)<0)throw new Error('สถานะใบลงทะเบียนไม่พร้อมส่งให้ Admin');
+    const documents=assertRegistrationRequiredDocuments_(rid);
+    if(status==='DRAFT'){reg.sh.getRange(reg.row,3).setValue('PENDING');SpreadsheetApp.flush();invalidateAdminSummary_()}
+    return {ok:true,registrationId:rid,previousStatus:status,status:'PENDING',documents:documents,serverEpochMs:Date.now()};
+  }finally{try{lock.releaseLock()}catch(e){}}
 }
 
 function adminUploadEmployeeDocument_(token, employeeId, document, replaceDocumentId, requestId, registrationId) {
@@ -1745,12 +1756,11 @@ function adminGetRegistrationDocuments_(token, registrationId, employeeId) {
   requireAdmin_(token);
   const rid=String(registrationId||'').trim(),eid=String(employeeId||'').trim();
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_DOCUMENTS_SHEET);
-  const last=sh?sh.getLastRow():0;if(!sh||last<2)return {rows:[],serverEpochMs:Date.now()};
-  const vals=sh.getRange(2,1,last-1,Math.min(16,sh.getLastColumn())).getValues();
-  const rows=vals.filter(r=>String(r[10]||'ACTIVE')!=='DELETED' && ((rid&&String(r[1])===rid)||(eid&&String(r[2])===eid))).map(r=>({
+  const last=sh?sh.getLastRow():0,vals=sh&&last>=2?sh.getRange(2,1,last-1,Math.min(16,sh.getLastColumn())).getValues():[];
+  const legacyRows=vals.filter(r=>String(r[10]||'ACTIVE')!=='DELETED' && ((rid&&String(r[1])===rid)||(eid&&String(r[2])===eid))).map(r=>({
     documentId:toClientText_(r[0]),registrationId:toClientText_(r[1]),employeeId:toClientText_(r[2]),type:toClientText_(r[3]),label:toClientText_(r[4]),fileName:toClientText_(r[5]),mimeType:toClientText_(r[6]),fileId:toClientText_(r[8]),uploadedAt:formatDateTimeForClient_(r[9]),status:toClientText_(r[10]||'ACTIVE'),note:toClientText_(r[11]),expiryDate:formatDateInputForClient_(r[12]),required:Boolean(r[13])||requiredEmployeeDocumentTypes_().indexOf(String(r[3]||'').toUpperCase())>=0,verifiedAt:formatDateTimeForClient_(r[14]),verifiedBy:toClientText_(r[15])
   })).reverse();
-  return {rows:rows,serverEpochMs:Date.now()};
+  return {rows:wf2DocumentRowsForAdmin_(rid,eid).concat(legacyRows),serverEpochMs:Date.now()};
 }
 
 function adminGetDocument_(token, fileId) {
@@ -1776,9 +1786,9 @@ function adminFileMeta_(token, fileId, imageOnly) {
 }
 
 function attachDocumentsToEmployee_(ss, registrationId, employeeId) {
-  const sh=ss.getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return;
-  const vals=sh.getRange(2,1,last-1,3).getValues();
-  for(let i=0;i<vals.length;i++) if(String(vals[i][1])===String(registrationId) && !String(vals[i][2]||'').trim()) sh.getRange(i+2,3).setNumberFormat('@').setValue(String(employeeId));
+  const sh=ss.getSheetByName(EMPLOYEE_DOCUMENTS_SHEET),last=sh?sh.getLastRow():0;
+  if(sh&&last>=2){const vals=sh.getRange(2,1,last-1,3).getValues();for(let i=0;i<vals.length;i++) if(String(vals[i][1])===String(registrationId) && !String(vals[i][2]||'').trim()) sh.getRange(i+2,3).setNumberFormat('@').setValue(String(employeeId))}
+  const v2=ss.getSheetByName('Documents');if(v2&&v2.getLastRow()>=2){const rows=wf2Rows_('Documents');rows.filter(r=>String(r['Registration ID'])===String(registrationId)).forEach(r=>wf2UpdateRow_('Documents',r._row,{'Employee ID':String(employeeId),'Owner Type':'EMPLOYEE','Owner ID':String(employeeId),'Updated At':new Date()}))}
 }
 
 function ensureRegistrationPhotoFolder_() {

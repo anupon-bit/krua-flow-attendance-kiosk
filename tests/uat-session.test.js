@@ -57,14 +57,15 @@ assert(workforce.includes("type: 'KruaFlowAdminSessionActive'"), 'workforce must
 
 [workspace, workforce].forEach((html, index) => {
   assert(html.includes('./js/admin-session.js'), `page ${index + 1} must use the shared session helper`);
-  assert(html.includes('STAGING_API_URL'), `page ${index + 1} must use the isolated staging endpoint`);
-  assert(html.includes('new KruaFlowApi.Client({ url: stagingApiUrl'), `page ${index + 1} must pass the staging endpoint explicitly`);
+  assert(html.includes("isStaging ? 'STAGING_API_URL' : 'API_URL'"), `page ${index + 1} must select an environment-specific endpoint`);
+  assert(html.includes('new KruaFlowApi.Client({ url: configuredApiUrl'), `page ${index + 1} must pass the selected endpoint explicitly`);
 });
 
 const topbar = workspace.match(/<header class="topbar">([\s\S]*?)<\/header>/);
 assert(topbar, 'workspace top bar is missing');
 assert.strictEqual((topbar[1].match(/data-language=/g) || []).length, 2, 'top bar must contain one TH/EN language switcher');
-assert(topbar[1].includes('environment.staging'), 'top bar must contain the staging badge');
+assert(topbar[1].includes('environmentBadge'), 'top bar must contain the environment badge');
+assert(workspace.includes("isStaging ? 'environment.staging' : 'environment.production'"), 'environment badge must distinguish STAGING and PRODUCTION');
 assert(topbar[1].includes('workspace.openFull'), 'top bar must contain full-screen control');
 assert(topbar[1].includes('workspace.logout'), 'top bar must contain logout control');
 assert(!workforce.includes('class="headActions"'), 'embedded workforce content must not render a second control bar');

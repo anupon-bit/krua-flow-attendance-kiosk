@@ -109,6 +109,8 @@ function apiWorkforceV2HandlePost_(payload) {
   if(op==='adminMarkNotificationRead') return wf2AdminMarkNotificationRead_(payload);
   if(op==='adminGetEmployeeExits') return wf2AdminGetEmployeeExits_(payload);
   if(op==='adminSaveExitInterview') return wf2AdminSaveExitInterview_(payload);
+  if(op==='adminListRegistrationsV2') return wf2AdminListRegistrationsV2_(payload);
+  if(op==='adminGetRegistrationV2') return wf2AdminGetRegistrationV2_(payload);
   if(op==='documentCreateUploadSession') return wf2DocumentCreateUploadSession_(payload);
   if(op==='documentFinalizeUpload') return wf2DocumentFinalizeUpload_(payload);
   if(op==='documentGetViewUrl') return wf2DocumentGetViewUrl_(payload);
@@ -450,17 +452,65 @@ function wf2AdminGetWorkQueue_(payload) {
   return {rows:rows.slice(0,limit).map(r=>({workItemId:String(r['Work Item ID']),entityType:String(r['Entity Type']),entityId:String(r['Entity ID']),title:String(r['Title']),assignedRole:String(r['Assigned Role']),assignedUser:String(r['Assigned User']),dueAt:formatDateTimeForClient_(r['Due At']),priority:String(r['Priority']),status:String(r['Status']),branchCode:String(r['Branch Code']),departmentCode:String(r['Department Code'])})),total:rows.length};
 }
 
+function wf2RegistrationDocumentState_(rows) {
+  const required=['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO'];
+  const current=(rows||[]).filter(r=>['DELETED','REPLACED'].indexOf(String(r['Status']||'ACTIVE').toUpperCase())<0);
+  const available=current.filter(r=>['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0);
+  const missing=required.filter(type=>!available.some(r=>String(r['Type']||'').toUpperCase()===type));
+  const issue=current.some(r=>['FAILED','ERROR','NEEDS_REVISION'].indexOf(String(r['Status']||'').toUpperCase())>=0);
+  return {status:issue?'ISSUE':missing.length?'INCOMPLETE':'COMPLETE',complete:!issue&&!missing.length,missingTypes:missing,total:available.length};
+}
+
+function wf2RegistrationRowsV2_() {
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName('Employee_Registrations'),last=sh?sh.getLastRow():0;
+  if(!sh||last<2)return[];
+  return sh.getRange(2,1,last-1,Math.max(30,sh.getLastColumn())).getValues().reverse().map(r=>({
+    registrationId:toClientText_(r[0]),submittedAt:formatDateTimeForClient_(r[1]),status:toClientText_(r[2]),branch:toClientText_(r[3]),
+    firstName:toClientText_(r[4]),lastName:toClientText_(r[5]),nickname:toClientText_(r[6]),phone:toClientText_(r[7]),contact:toClientText_(r[8]),
+    position:toClientText_(r[9]),birthDate:formatDateInputForClient_(r[10]),startDate:formatDateInputForClient_(r[11]),registeredAddress:toClientText_(r[12]),
+    currentAddress:toClientText_(r[13]),emergencyName:toClientText_(r[14]),emergencyPhone:toClientText_(r[15]),emergencyRelationship:toClientText_(r[16]),
+    adminNote:toClientText_(r[19]),reviewedAt:formatDateTimeForClient_(r[20]),employeeId:toClientText_(r[21]),wageType:toClientText_(r[22]),wageAmount:Number(r[23])||0,
+    pinSet:Boolean(String(r[24]||'').trim()),bankName:toClientText_(r[25]),bankAccountNo:toClientText_(r[26]),bankAccountName:toClientText_(r[27]),bankCode:toClientText_(r[28]),department:toClientText_(r[29])
+  }));
+}
+
+function wf2AdminListRegistrationsV2_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const limit=Math.min(200,Math.max(1,Number(payload.limit)||100)),status=String(payload.status||'').toUpperCase();
+  const documents=wf2Rows_('Documents'),byRegistration={};
+  documents.forEach(row=>{const id=String(row['Registration ID']||'');if(id)(byRegistration[id]||(byRegistration[id]=[])).push(row)});
+  let registrations=wf2RegistrationRowsV2_();
+  if(status)registrations=registrations.filter(row=>String(row.status||'').toUpperCase()===status);
+  const total=registrations.length;
+  return {rows:registrations.slice(0,limit).map(row=>({
+    registrationId:row.registrationId,submittedAt:row.submittedAt,status:row.status,firstName:row.firstName,lastName:row.lastName,nickname:row.nickname,
+    phone:row.phone,branch:row.branch,department:row.department,position:row.position,employeeId:row.employeeId,
+    documentState:wf2RegistrationDocumentState_(byRegistration[row.registrationId]||[])
+  })),total:total,serverEpochMs:Date.now()};
+}
+
+function wf2AdminGetRegistrationV2_(payload) {
+  requireAdmin_(String(payload.adminToken||''));
+  const id=String(payload.registrationId||'').trim();if(!id)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');
+  const registration=wf2RegistrationRowsV2_().find(row=>String(row.registrationId)===id);if(!registration)throw new Error('ไม่พบข้อมูลลงทะเบียน');
+  const documents=wf2DocumentRowsForAdminAll_(id,''),documentRows=wf2Rows_('Documents').filter(row=>String(row['Registration ID']||'')===id);
+  return {registration:Object.assign({},registration,{consent:true,consentSource:'SUBMISSION_REQUIRED'}),documents:documents,documentState:wf2RegistrationDocumentState_(documentRows),serverEpochMs:Date.now()};
+}
+
 function wf2DocumentCreateUploadSession_(payload) {
   const actor=wf2RequireDocumentActor_(payload),data=payload.document||payload,max=Number(wf2Setting_('DOCUMENT_MAX_BYTES'))||10485760;
   wf2RequireFlag_('GCS_DOCUMENTS_ENABLED');
   const mime=String(data.mimeType||'').toLowerCase(),size=Number(data.size)||0,name=String(data.fileName||'');
   if(['image/jpeg','image/png','image/webp','application/pdf'].indexOf(mime)<0)throw new Error('รองรับเฉพาะ JPG, PNG, WEBP และ PDF');
   if(size<=0||size>max)throw new Error('ขนาดไฟล์เกินกำหนด');
-  const documentId=wf2EntityId_('DOC'),ownerType=actor.type==='APPLICANT'?'APPLICANT':String(data.ownerType||'').toUpperCase(),ownerId=actor.type==='APPLICANT'?actor.id:String(data.ownerId||'');
+  const registrationActor=actor.type==='REGISTRATION',applicantActor=actor.type==='APPLICANT';
+  const documentId=wf2EntityId_('DOC'),ownerType=registrationActor?'REGISTRATION':applicantActor?'APPLICANT':String(data.ownerType||'').toUpperCase(),ownerId=(registrationActor||applicantActor)?actor.id:String(data.ownerId||'');
   wf2AssertDocumentOwner_(actor,ownerType,ownerId);
-  const objectKey=wf2BuildObjectKey_(ownerType,ownerId,documentId,name),request={documentId:documentId,objectKey:objectKey,fileName:name,mimeType:mime,size:size};
+  const type=String(data.documentType||'').toUpperCase(),allowedTypes=['ID_CARD','HOUSE_REGISTRATION','EMPLOYEE_PHOTO','EDUCATION','OTHER'];if(allowedTypes.indexOf(type)<0)throw new Error('ประเภทเอกสารไม่ถูกต้อง');
+  const required=registrationActor?requiredEmployeeDocumentTypes_().indexOf(type)>=0:data.required===true;
+  const registrationId=registrationActor?actor.id:String(data.registrationId||''),objectKey=wf2BuildObjectKey_(ownerType,ownerId,documentId,name),request={documentId:documentId,objectKey:objectKey,fileName:name,mimeType:mime,size:size};
   const signed=wf2FileServiceRequest_('/v1/uploads',request);
-  wf2Append_('Documents',{'Document ID':documentId,'Person ID':actor.type==='APPLICANT'?actor.personId:String(data.personId||''),'Applicant ID':actor.type==='APPLICANT'?actor.id:String(data.applicantId||''),'Registration ID':String(data.registrationId||''),'Employee ID':String(data.employeeId||''),'Owner Type':ownerType,'Owner ID':ownerId,'Type':String(data.documentType||''),'Label':String(data.label||''),'Original File Name':name,'MIME Type':mime,'Size':size,'Storage Provider':'GCS','Bucket':String(signed.bucket||''),'Object Key':objectKey,'Uploaded By':actor.id,'Status':'PENDING_UPLOAD','Required':data.required===true,'Version':1,'Created At':new Date(),'Updated At':new Date()});
+  wf2Append_('Documents',{'Document ID':documentId,'Person ID':applicantActor?actor.personId:String(data.personId||''),'Applicant ID':applicantActor?actor.id:String(data.applicantId||''),'Registration ID':registrationId,'Employee ID':String(data.employeeId||''),'Owner Type':ownerType,'Owner ID':ownerId,'Type':type,'Label':String(data.label||''),'Original File Name':name,'MIME Type':mime,'Size':size,'Storage Provider':'GCS','Bucket':String(signed.bucket||''),'Object Key':objectKey,'Uploaded By':actor.id,'Status':'PENDING_UPLOAD','Required':required,'Version':1,'Created At':new Date(),'Updated At':new Date()});
   return {documentId:documentId,objectKey:objectKey,uploadUrl:signed.uploadUrl,expiresAt:signed.expiresAt,requiredHeaders:signed.requiredHeaders||{}};
 }
 
@@ -468,8 +518,15 @@ function wf2DocumentFinalizeUpload_(payload) {
   const actor=wf2RequireDocumentActor_(payload);wf2RequireFlag_('GCS_DOCUMENTS_ENABLED');
   const id=String(payload.documentId||''),row=wf2Rows_('Documents').find(r=>String(r['Document ID'])===id);if(!row)throw new Error('ไม่พบเอกสาร');
   wf2AssertDocumentOwner_(actor,String(row['Owner Type']),String(row['Owner ID']));
+  const currentStatus=String(row['Status']||'').toUpperCase();
+  if(['ACTIVE','VERIFIED'].indexOf(currentStatus)>=0)return{ok:true,documentId:id,status:currentStatus};
+  if(['DELETED','REPLACED'].indexOf(currentStatus)>=0)throw new Error('รอบอัปโหลดนี้ถูกแทนที่แล้ว กรุณาใช้ไฟล์ล่าสุด');
   const verified=wf2FileServiceRequest_('/v1/uploads/finalize',{documentId:id,objectKey:String(row['Object Key']),expectedSize:Number(row['Size'])||0,expectedMimeType:String(row['MIME Type'])});
-  wf2UpdateRow_('Documents',row._row,{'Checksum':String(verified.checksum||''),'Uploaded At':new Date(),'Status':'ACTIVE','Updated At':new Date()});
+  const now=new Date();wf2UpdateRow_('Documents',row._row,{'Checksum':String(verified.checksum||''),'Uploaded At':now,'Status':'ACTIVE','Updated At':now});
+  const type=String(row['Type']||'').toUpperCase();
+  if(requiredEmployeeDocumentTypes_().indexOf(type)>=0){
+    wf2Rows_('Documents').filter(old=>old._row<row._row&&String(old['Owner Type']||'')===String(row['Owner Type']||'')&&String(old['Owner ID']||'')===String(row['Owner ID']||'')&&String(old['Type']||'').toUpperCase()===type&&['PENDING_UPLOAD','ACTIVE','VERIFIED'].indexOf(String(old['Status']||'').toUpperCase())>=0).forEach(old=>wf2UpdateRow_('Documents',old._row,{'Status':'REPLACED','Replaced Document ID':id,'Updated At':now}));
+  }
   return {ok:true,documentId:id,status:'ACTIVE'};
 }
 
@@ -484,10 +541,16 @@ function wf2DocumentGetViewUrl_(payload) {
 function wf2RequireDocumentActor_(payload) {
   const adminToken=String(payload.adminToken||'');if(adminToken){requireAdmin_(adminToken);return{type:'ADMIN',id:'ADMIN'}}
   const portalToken=String(payload.portalToken||'');if(portalToken){const e=requirePortalV7_(portalToken);return{type:'EMPLOYEE',id:e.id,role:e.accessRole}}
+  const registrationToken=String(payload.registrationUploadToken||'');if(registrationToken){const raw=CacheService.getScriptCache().get('WF2_REGISTRATION_UPLOAD_'+registrationToken);if(raw){const data=JSON.parse(raw),rid=String(data.registrationId||''),reg=findRegistrationRow_(rid),status=String(reg.sh.getRange(reg.row,3).getValue()||'').toUpperCase();if(status==='DRAFT')return{type:'REGISTRATION',id:rid}}}
   const applicantToken=String(payload.applicantUploadToken||'');if(applicantToken){const raw=CacheService.getScriptCache().get('WF2_APPLICANT_UPLOAD_'+applicantToken);if(raw){const data=JSON.parse(raw);return{type:'APPLICANT',id:String(data.applicantId),personId:String(data.personId)}}}
   throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสาร');
 }
-function wf2AssertDocumentOwner_(actor,ownerType,ownerId){if(actor.type==='ADMIN')return;if(actor.type==='EMPLOYEE'&&(ownerType!=='EMPLOYEE'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้');if(actor.type==='APPLICANT'&&(ownerType!=='APPLICANT'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้')}
+function wf2AssertDocumentOwner_(actor,ownerType,ownerId){if(actor.type==='ADMIN')return;if(actor.type==='EMPLOYEE'&&(ownerType!=='EMPLOYEE'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้');if(actor.type==='APPLICANT'&&(ownerType!=='APPLICANT'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้');if(actor.type==='REGISTRATION'&&(ownerType!=='REGISTRATION'||String(ownerId)!==String(actor.id)))throw new Error('ไม่มีสิทธิ์เข้าถึงเอกสารนี้')}
+function wf2CreateRegistrationUploadToken_(registrationId){const rid=String(registrationId||'').trim();if(!rid)throw new Error('ไม่พบเลขอ้างอิงการลงทะเบียน');const token=Utilities.getUuid()+Utilities.getUuid();CacheService.getScriptCache().put('WF2_REGISTRATION_UPLOAD_'+token,JSON.stringify({registrationId:rid}),21600);return token}
+function wf2DocumentRowsForOwner_(registrationId,employeeId){const ss=SpreadsheetApp.openById(SPREADSHEET_ID),sh=ss.getSheetByName('Documents');if(!sh||sh.getLastRow()<2)return[];const rid=String(registrationId||''),eid=String(employeeId||'');return wf2Rows_('Documents').filter(r=>((rid&&String(r['Registration ID'])===rid)||(eid&&String(r['Employee ID'])===eid))&&['DELETED','REPLACED'].indexOf(String(r['Status']||'ACTIVE').toUpperCase())<0)}
+function wf2DocumentRowForAdmin_(r){return{documentId:String(r['Document ID']||''),registrationId:String(r['Registration ID']||''),employeeId:String(r['Employee ID']||''),type:String(r['Type']||''),label:String(r['Label']||''),fileName:String(r['Original File Name']||''),mimeType:String(r['MIME Type']||''),size:Number(r['Size'])||0,fileId:'',storageProvider:String(r['Storage Provider']||'GCS'),uploadedAt:formatDateTimeForClient_(r['Uploaded At']),status:String(r['Status']||'PENDING_UPLOAD'),note:'',expiryDate:formatDateInputForClient_(r['Expiry Date']),required:Boolean(r['Required']),verifiedAt:formatDateTimeForClient_(r['Verified At']),verifiedBy:String(r['Verified By']||'')};}
+function wf2DocumentRowsForAdminAll_(registrationId,employeeId){return wf2DocumentRowsForOwner_(registrationId,employeeId).map(wf2DocumentRowForAdmin_).reverse()}
+function wf2DocumentRowsForAdmin_(registrationId,employeeId){return wf2DocumentRowsForOwner_(registrationId,employeeId).filter(r=>['ACTIVE','VERIFIED'].indexOf(String(r['Status']||'').toUpperCase())>=0).map(wf2DocumentRowForAdmin_).reverse()}
 function wf2FileServiceRequest_(path,body) {
   const props=PropertiesService.getScriptProperties(),base=String(props.getProperty('FILE_SERVICE_URL')||'').replace(/\/$/,''),token=String(props.getProperty('FILE_SERVICE_AUTH_TOKEN')||'');
   if(!base||!token)throw new Error('ยังไม่ได้ตั้งค่า GCS File Service ใน STAGING');

@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+test
+coverage
+*.pem
+*.key
+*service-account*.json
