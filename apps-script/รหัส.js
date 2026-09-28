@@ -42,7 +42,7 @@ function doPost(e) {
     result = { ready:true, ok:false, error:err && err.message ? err.message : String(err) };
     if (requestId) apiPutResult_(requestId, result);
   }
-  return apiPostMessageResponse_(requestId, result, clientOrigin, op === 'adminGetFileChunk');
+  return apiPostMessageResponse_(requestId, result, clientOrigin);
 }
 
 function apiAllowedClientOrigin_(origin) {
@@ -50,12 +50,12 @@ function apiAllowedClientOrigin_(origin) {
   return ['http://localhost:8081','http://127.0.0.1:8081','https://anupon-bit.github.io'].indexOf(value)>=0?value:'';
 }
 
-function apiPostMessageResponse_(requestId, result, clientOrigin, allowEmbeddedChunk) {
+function apiPostMessageResponse_(requestId, result, clientOrigin) {
   const message = { type:'KruaFlowApiResult', requestId:String(requestId || ''), result:result || {ready:true,ok:false,error:'ไม่พบผลลัพธ์'} };
   const json = JSON.stringify(message).replace(/</g, '\\u003c');
-  const target=allowEmbeddedChunk&&clientOrigin?JSON.stringify(clientOrigin):'"*"';
+  const target=clientOrigin?JSON.stringify(clientOrigin):'"*"';
   const output=HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ','+target+')}catch(e){}<\/script>');
-  return allowEmbeddedChunk&&clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
+  return clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
 }
 
 function apiHandlePost_(payload) {
@@ -2689,33 +2689,31 @@ function adminSaveManagerScopeV7_(payload){
   if(branch!=='*')validateBranchV7_(branch,false);
   if(dept!=='*')validateDepartmentV7_(dept,false);
   const lock=LockService.getScriptLock();lock.waitLock(10000);
+  let savedScope=null;
   try{
     const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MANAGER_SCOPES_SHEET),now=new Date();
-    let id=String(x.scopeId||''),row=id?findRowByIdV7_(sh,id):0;
-    if(row&&String(sh.getRange(row,2).getValue()||'')!==emp.id)throw new Error('Scope ไม่ตรงกับพนักงานที่เลือก');
-    if(!row){
-      const last=sh?sh.getLastRow():0;
-      if(last>=2){
-        const rows=sh.getRange(2,1,last-1,11).getValues();
-        for(let i=rows.length-1;i>=0;i--)if(String(rows[i][1])===emp.id&&String(rows[i][2]||'*')===branch&&String(rows[i][3]||'*')===dept&&rows[i][7]!==false){row=i+2;id=String(rows[i][0]||'');break}
-      }
+    const last=sh?sh.getLastRow():0,rows=last>=2?sh.getRange(2,1,last-1,11).getValues():[];
+    let id=String(x.scopeId||''),rowIndex=id?rows.findIndex(r=>String(r[0])===id):-1;
+    if(id&&rowIndex<0)throw new Error('ไม่พบ Scope');
+    if(rowIndex>=0&&String(rows[rowIndex][1]||'')!==emp.id)throw new Error('Scope ไม่ตรงกับพนักงานที่เลือก');
+    if(rowIndex<0){
+      for(let i=rows.length-1;i>=0;i--)if(String(rows[i][1])===emp.id&&String(rows[i][2]||'*')===branch&&String(rows[i][3]||'*')===dept&&rows[i][7]!==false){rowIndex=i;id=String(rows[i][0]||'');break}
     }
     if(!id)id='SCP-'+Utilities.getUuid().slice(0,10).toUpperCase();
-    const createdAt=row?sh.getRange(row,9).getValue()||now:now,vals=[id,emp.id,branch,dept,x.canApproveLeave!==false,x.canManageSchedule!==false,x.canViewAttendance!==false,x.active!==false,createdAt,now,String(x.note||'')];
-    if(row)sh.getRange(row,1,1,11).setValues([vals]);else{sh.appendRow(vals);row=sh.getLastRow()}
-    const last2=sh.getLastRow();
-    if(last2>=2){
-      const rows2=sh.getRange(2,1,last2-1,11).getValues();
-      for(let i=0;i<rows2.length;i++){
-        const rr=i+2;if(rr===row)continue;
-        if(String(rows2[i][1])===emp.id&&String(rows2[i][2]||'*')===branch&&String(rows2[i][3]||'*')===dept&&rows2[i][7]!==false){sh.getRange(rr,8).setValue(false);sh.getRange(rr,10).setValue(now)}
-      }
+    const row=rowIndex>=0?rowIndex+2:0,createdAt=rowIndex>=0?(rows[rowIndex][8]||now):now,vals=[id,emp.id,branch,dept,x.canApproveLeave!==false,x.canManageSchedule!==false,x.canViewAttendance!==false,x.active!==false,createdAt,now,String(x.note||'')];
+    if(row)sh.getRange(row,1,1,11).setValues([vals]);else sh.appendRow(vals);
+    const duplicateRows=[];
+    for(let i=0;i<rows.length;i++){
+      if(i===rowIndex)continue;
+      if(String(rows[i][1])===emp.id&&String(rows[i][2]||'*')===branch&&String(rows[i][3]||'*')===dept&&rows[i][7]!==false)duplicateRows.push(i+2);
     }
+    if(duplicateRows.length){sh.getRangeList(duplicateRows.map(r=>'H'+r)).setValue(false);sh.getRangeList(duplicateRows.map(r=>'J'+r)).setValue(now)}
     const esh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);esh.getRange(emp.row,33).setValue(role);esh.getRange(emp.row,6).setValue(now);
     cacheRemoveV7_(['V7_SCOPES_'+emp.id]);invalidateAdminSummary_();
-    auditLogV7_('ADMIN','ADMIN','SAVE_MANAGER_SCOPE','MANAGER_SCOPE',id,'',x,String(x.note||''),String(payload.requestId||''));
-    return{ok:true,scopeId:id};
+    savedScope={scopeId:id,employeeId:emp.id,branchCode:branch,departmentCode:dept,canApproveLeave:vals[4],canManageSchedule:vals[5],canViewAttendance:vals[6],active:vals[7],note:vals[10]};
   }finally{lock.releaseLock()}
+  auditLogV7_('ADMIN','ADMIN','SAVE_MANAGER_SCOPE','MANAGER_SCOPE',savedScope.scopeId,'',x,String(x.note||''),String(payload.requestId||''));
+  return{ok:true,scopeId:savedScope.scopeId,scope:savedScope,accessRole:role};
 }
 function adminDeleteManagerScopeV7_(payload){requireAdmin_(String(payload.adminToken||''));const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MANAGER_SCOPES_SHEET),row=findRowByIdV7_(sh,String(payload.scopeId||''));if(!row)throw new Error('ไม่พบ Scope');const eid=String(sh.getRange(row,2).getValue()||'');sh.getRange(row,8).setValue(false);sh.getRange(row,10).setValue(new Date());cacheRemoveV7_(['V7_SCOPES_'+eid]);return{ok:true}}
 function adminGetLeaveQuotaRulesV7_(payload){requireAdmin_(String(payload.adminToken||''));const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(LEAVE_QUOTA_RULES_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return{rows:[]};const rows=sh.getRange(2,1,last-1,14).getValues().map(r=>({ruleId:String(r[0]),branchCode:String(r[1]),departmentCode:String(r[2]),shiftCode:String(r[3]),maxOff:Number(r[4]),minStaffing:Number(r[5])||0,minLeadDays:Number(r[6])||0,blackout:Boolean(r[7]),effectiveStart:formatDateInputForClient_(r[8]),effectiveEnd:formatDateInputForClient_(r[9]),active:r[10]!==false,priority:Number(r[11])||0,note:String(r[12]||'')}));return{rows:rows}}
