@@ -11,7 +11,7 @@ for (const match of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)
   new vm.Script(match[1], { filename: 'admin.html' });
 }
 
-assert.match(admin, /call\(\{op:'orgBootstrap'\}/, 'employee profile must load organization masters');
+assert.match(admin, /call\(\{op:'adminGetOrgMasters',adminToken:state\.token\}/, 'employee profile must use the authenticated Settings master source');
 assert.match(admin, /id="refreshOrgMastersBtn"/);
 assert.match(admin, /id="orgShiftSummary"/);
 assert.match(admin, /schedule\.html\?admin=1&amp;embed=1/, 'shift assignment must link to dated schedules');
