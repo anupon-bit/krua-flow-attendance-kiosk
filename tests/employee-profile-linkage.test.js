@@ -12,6 +12,9 @@ for (const match of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)
 }
 
 assert.match(admin, /call\(\{op:'adminGetOrgMasters',adminToken:state\.token,includeDevices:false\},\{timeoutMs:45000/, 'employee profile must use the authenticated Settings master source without loading devices');
+assert.match(admin, /maxPollAttempts:80/, 'Settings request must be allowed to poll for its full timeout');
+assert.match(admin, /maxPollAttempts:Number\(opts\.maxPollAttempts\)\|\|10/);
+assert.match(admin, /var pending=pendingCalls\[id\];if\(!pending\)return/);
 assert.match(admin, /id="refreshOrgMastersBtn"/);
 assert.match(admin, /id="orgShiftSummary"/);
 assert.match(admin, /ไม่มีสาขาที่เปิดใช้งาน/);
