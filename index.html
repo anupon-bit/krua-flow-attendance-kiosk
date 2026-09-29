@@ -106,13 +106,13 @@
   setInterval(tick,1000);tick();
 
   function sanitizeApiUrl(url){url=String(url||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(url))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return url.split('?')[0]}
-  const pendingRequests=new Map();
+  const pendingRequests=new Map(),MAX_STATUS_POLL_ATTEMPTS=40,MAX_PHOTO_DATA_URL_CHARS=180000;
 
   function settleRequest(requestId,result){
     const pending=pendingRequests.get(requestId);
     if(!pending||!result||result.ready!==true)return;
-    pendingRequests.delete(requestId);
-    result.ok?pending.resolve(result.data||{}):pending.reject(new Error(result.error||'ทำรายการไม่สำเร็จ'));
+    clearTimeout(pending.timeout);clearTimeout(pending.slow);pendingRequests.delete(requestId);
+    if(result.ok)pending.resolve(result.data||{});else{const error=new Error(result.error||'ทำรายการไม่สำเร็จ');if(result.errorCode)error.code=result.errorCode;pending.reject(error)}
   }
 
   window.addEventListener('message',event=>{
@@ -122,7 +122,8 @@
   });
   function randomDeviceToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 
-  function postBridge(payload){
+  function postBridge(payload,options){
+    options=options||{};const isAttendance=payload&&payload.op==='recordAttendance';
     return new Promise((resolve,reject)=>{
       const requestId=uid();payload.requestId=requestId;payload.clientOrigin=location.origin;
       pendingRequests.set(requestId,{resolve,reject});
@@ -131,20 +132,24 @@
       try{form.submit()}catch(e){pendingRequests.delete(requestId);form.remove();reject(e);return}
       setTimeout(()=>form.remove(),5000);
       pollStatus(requestId,resolve,reject,0);
+      const pending=pendingRequests.get(requestId);
+      if(isAttendance)pending.slow=setTimeout(()=>{if(pendingRequests.get(requestId)===pending)showBusy('ระบบกำลังบันทึกภาพ ใช้เวลานานกว่าปกติ กรุณาอย่ากดซ้ำ...')},options.slowAfterMs||20000);
+      pending.timeout=setTimeout(()=>{const error=new Error(options.timeoutMessage||(isAttendance?'ยังยืนยันผลบันทึกไม่ได้ ระบบอาจกำลังบันทึกอยู่ กรุณาตรวจรายการก่อนลองซ้ำ':'เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'));if(isAttendance)error.code='ATTENDANCE_OUTCOME_UNKNOWN';settleRequest(requestId,{ready:true,ok:false,error:error.message,errorCode:error.code})},options.timeoutMs||(isAttendance?120000:45000));
     });
   }
 
   function pollStatus(requestId,resolve,reject,attempt){
     if(!pendingRequests.has(requestId))return;
-    if(attempt>12){settleRequest(requestId,{ready:true,ok:false,error:'เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'});return}
+    if(attempt>=MAX_STATUS_POLL_ATTEMPTS){settleRequest(requestId,{ready:true,ok:false,error:'ยังยืนยันผลจาก Backend ไม่ได้ กรุณาตรวจรายการก่อนลองบันทึกซ้ำ',errorCode:'ATTENDANCE_OUTCOME_UNKNOWN'});return}
     const cb='__kfcb_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt;
     const script=document.createElement('script');
+    const retryDelay=Math.min(900+attempt*75,3000);
     let done=false;const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};script.remove()};
-    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),700);return}settleRequest(requestId,res)};
-    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)};
+    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),retryDelay);return}settleRequest(requestId,res)};
+    script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),retryDelay)};
     script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
     document.head.appendChild(script);
-    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)}},3500);
+    setTimeout(()=>{if(!done){cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),retryDelay)}},3500);
   }
 
   function saveKioskCache(){
@@ -218,6 +223,7 @@
     setTimeout(()=>$('actionSection').scrollIntoView({behavior:'smooth',block:'center'}),60);
   }
   async function startCamera(action){
+      $('saveBtn').disabled=false;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setCamError('เบราว์เซอร์นี้ไม่รองรับกล้องสด กรุณาเปิดด้วย Chrome โดยตรง');return;}
     if(!state.pinVerified||!state.employee)return;state.action=action;state.photoData='';$('cameraSection').classList.add('show');$('selectionText').innerHTML=`${state.employee.name}<span>${state.employee.id} • ${actionLabels[action]}</span>`;$('preview').style.display='none';$('video').style.display='block';$('retakeBtn').style.display='none';$('saveBtn').style.display='none';$('captureBtn').style.display='';$('captureBtn').disabled=true;setCamError('');$('camStatus').textContent='กำลังเปิดกล้องหน้า...';$('cameraSection').scrollIntoView({behavior:'smooth',block:'start'});
     stopCamera();
@@ -234,7 +240,7 @@
     const maxDim=800;let sw=v.videoWidth,sh=v.videoHeight,scale=Math.min(1,maxDim/Math.max(sw,sh));let w=Math.round(sw*scale),h=Math.round(sh*scale);
     const c=$('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.save();ctx.translate(w,0);ctx.scale(-1,1);ctx.drawImage(v,0,0,w,h);ctx.restore();
     const bar=Math.max(150,Math.round(h*.22));ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(0,h-bar,w,bar);ctx.fillStyle='#fff';const p=Math.max(16,Math.round(w*.035));ctx.font=`900 ${Math.round(p*1.12)}px sans-serif`;ctx.fillText('Krua Flow Attendance',p,h-bar+p*1.45);ctx.font=`800 ${p}px sans-serif`;ctx.fillText(`${state.employee.name} • ${state.employee.id}`,p,h-bar+p*2.75);ctx.fillText(`${actionLabels[state.action]} • ${thaiDateTime(serverNow())}`,p,h-bar+p*4.05);ctx.font=`700 ${Math.round(p*.82)}px sans-serif`;ctx.fillText(`DEVICE ${state.deviceId}`,p,h-bar+p*5.18);
-    state.photoData=c.toDataURL('image/jpeg',.68);$('preview').src=state.photoData;$('preview').style.display='block';$('video').style.display='none';stopCamera();$('captureBtn').style.display='none';$('retakeBtn').style.display='';$('saveBtn').style.display='';$('camStatus').textContent='ตรวจรูปแล้วกด “บันทึกเวลา”';$('camStatus').className='camStatus ok';
+    let quality=.62,photoData=c.toDataURL('image/jpeg',quality);while(photoData.length>MAX_PHOTO_DATA_URL_CHARS&&quality>.42){quality=Math.max(.42,quality-.08);photoData=c.toDataURL('image/jpeg',quality)}state.photoData=photoData;$('preview').src=state.photoData;$('preview').style.display='block';$('video').style.display='none';stopCamera();$('captureBtn').style.display='none';$('retakeBtn').style.display='';$('saveBtn').disabled=false;$('saveBtn').style.display='';$('camStatus').textContent='ตรวจรูปแล้วกด “บันทึกเวลา”';$('camStatus').className='camStatus ok';
   }
 
   async function retake(){await startCamera(state.action)}
@@ -243,7 +249,7 @@
     if(!state.photoData||!state.pinVerified||!state.employee)return;
     $('saveBtn').disabled=true;
     try{showBusy('กำลังตรวจรหัสและบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=(res.employeeNickname||res.employeeName);$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},1400)}
-    catch(e){hideBusy();setCamError(e.message||String(e));$('saveBtn').disabled=false}
+    catch(e){hideBusy();const message=e.message||String(e),duplicate=/รายการเดิมถูกบันทึกไปแล้ว/.test(message),unknown=e.code==='ATTENDANCE_OUTCOME_UNKNOWN';setCamError(duplicate?'รายการนี้ถูกบันทึกแล้ว กรุณาเลือกรายการถัดไป':message);$('saveBtn').disabled=duplicate||unknown}
   }
 
   $('activateBtn').addEventListener('click',activate);

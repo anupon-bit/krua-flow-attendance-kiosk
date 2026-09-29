@@ -15,6 +15,12 @@ assert.match(page, /pendingRequests\.get\(requestId\)/, 'responses must match an
 assert.match(page, /payload\.clientOrigin=location\.origin/, 'Apps Script must receive the kiosk origin to target the iframe response');
 assert.match(page, /function pollStatus\(/, 'JSONP status polling must remain as a fallback');
 assert.match(page, /if\(!pendingRequests\.has\(requestId\)\)return/, 'polling must stop after another transport settles the request');
+assert.match(page, /MAX_STATUS_POLL_ATTEMPTS=40/, 'attendance status polling must tolerate a slow Drive write');
+assert.match(page, /options\.timeoutMs\|\|\(isAttendance\?120000:45000\)/, 'attendance requests must wait longer than the generic API timeout');
+assert.match(page, /ระบบกำลังบันทึกภาพ ใช้เวลานานกว่าปกติ กรุณาอย่ากดซ้ำ/, 'slow submissions must warn against duplicate taps');
+assert.match(page, /MAX_PHOTO_DATA_URL_CHARS=180000/, 'large photos must be compressed before sending to Apps Script');
+assert.match(page, /photoData\.length>MAX_PHOTO_DATA_URL_CHARS/, 'photo compression must adapt only when payload exceeds the target');
+assert.match(page, /e\.code==='ATTENDANCE_OUTCOME_UNKNOWN'/, 'ambiguous timeouts must prevent an immediate duplicate submission');
 assert.match(page, /\$\('saveBtn'\)\.disabled=true/, 'save must disable the button while submission is in flight');
 
 const duplicateFunction = backend.match(/function rejectDuplicate_\(sh, employeeId, action, now, seconds\) \{[\s\S]*?\n\}/);
