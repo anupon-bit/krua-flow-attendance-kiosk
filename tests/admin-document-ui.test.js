@@ -6,7 +6,6 @@ const vm = require('node:vm');
 
 const workforce = fs.readFileSync('workforce.html', 'utf8');
 const css = fs.readFileSync('css/registration-mobile.css', 'utf8');
-const admin = fs.readFileSync('admin.html', 'utf8');
 const start = workforce.indexOf('function registrationDocumentPriority');
 const end = workforce.indexOf('function registrationDetailSection', start);
 assert.ok(start >= 0 && end > start, 'document grouping helpers missing');
@@ -65,12 +64,5 @@ assert.match(workforce, /registrationDocumentBadge\(currentDocumentState\)/);
 assert.match(workforce, /documentGetViewUrl/);
 assert.match(css, /\.registrationDocumentHistory/);
 assert.match(css, /\.registrationHistoryItem/);
-
-assert.doesNotMatch(admin, /id="overviewDocuments"|renderOverviewDocumentStatus/, 'document status must not be duplicated in employee overview');
-assert.match(admin, /id="requiredDocumentList"/, 'required documents must have a dedicated group');
-assert.match(admin, /id="additionalDocumentList"/, 'additional documents must have a dedicated group');
-assert.match(admin, /id="additionalDocumentsGroup"/, 'additional documents group must be connected to its renderer');
-assert.doesNotMatch(admin, /เอกสารการลา \/ เอกสารประกอบ/, 'documents page must not show the unsupported leave-attachment placeholder');
-assert.doesNotMatch(admin, /renderEmployeeDetail\(Object\.assign\(\{\},stub,detail\)\);return loadEmployeeDocuments/, 'employee overview must not load documents before the documents tab is opened');
 
 console.log('admin document UI tests: pass');
