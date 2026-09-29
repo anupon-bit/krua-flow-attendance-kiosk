@@ -429,6 +429,7 @@ function getRegisteredDevices_() {
 
 function saveRegisteredDevices_(devices) {
   PropertiesService.getScriptProperties().setProperty('STORE_DEVICES_JSON', JSON.stringify(devices || []));
+  cacheRemoveV7_(['V7_DEVICES']);
 }
 
 function nextDeviceId_(devices) {
@@ -2107,11 +2108,14 @@ function syncDevicesFromPropertiesV7_(sh) {
   const devices = getRegisteredDevices_();
   const last = sh.getLastRow();
   const existing = {};
+  let added=false;
   if (last >= 2) sh.getRange(2,1,last-1,1).getValues().forEach((r,i)=>{ if (String(r[0]||'')) existing[String(r[0])] = i+2; });
   devices.forEach(d => {
     if (!d || !d.deviceId || existing[d.deviceId]) return;
     sh.appendRow([d.deviceId,'',d.deviceId,true,d.registeredAt ? new Date(d.registeredAt) : new Date(),new Date(),'']);
+    added=true;
   });
+  if(added)cacheRemoveV7_(['V7_DEVICES']);
 }
 
 function cacheJsonV7_(key, ttlSeconds, producer) {
@@ -2738,10 +2742,10 @@ function managerScheduleBundleV7_(payload){
 function managerSummaryV7_(payload){const e=requirePortalV7_(payload.portalToken,managementRolesV7_()),scopes=managerScopesForEmployeeV7_(e.id),pendingLeave=managerGetLeaveRequestsV7_({portalToken:payload.portalToken,status:'PENDING'}).rows.length,pendingCorrections=managerGetAttendanceCorrectionsV7_({portalToken:payload.portalToken,status:'PENDING'}).rows.length,pendingSwaps=managerGetShiftSwapRequestsV7_({portalToken:payload.portalToken,status:'PENDING_MANAGER'}).rows.length;return{employee:portalEmployeeSafeV7_(e),scopes:scopes,branches:getBranchesV7_(false),departments:getDepartmentsV7_(false),pendingLeave:pendingLeave,pendingCorrections:pendingCorrections,pendingSwaps:pendingSwaps,serverEpochMs:Date.now()}}
 function managerGetTeamV7_(payload){const branch=validateBranchV7_(payload.branchCode,false),dept=validateDepartmentV7_(payload.departmentCode,false);requireManagerScopeV7_(payload.portalToken,branch,dept,['canViewAttendance','canManageSchedule']);const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return{rows:[]};const rows=sh.getRange(2,1,last-1,33).getValues().filter(r=>r[2]!==false&&String(r[10])===branch&&String(r[31])===dept).map(r=>({id:String(r[0]),name:String(r[1]),nickname:String(r[7]||''),position:String(r[13]||''),branch:String(r[10]),department:String(r[31]||'')}));return{rows:rows}}
 
-function deviceRowsV7_(){const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(DEVICES_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)return[];return sh.getRange(2,1,last-1,7).getValues().map(r=>({deviceId:String(r[0]),branchCode:String(r[1]||''),label:String(r[2]||''),active:r[3]!==false,registeredAt:formatDateTimeForClient_(r[4]),updatedAt:formatDateTimeForClient_(r[5]),note:String(r[6]||'')}))}
+function deviceRowsV7_(){return cacheJsonV7_('V7_DEVICES',30,()=>{const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(DEVICES_SHEET),last=sh?sh.getLastRow():0,rows=sh&&last>=2?sh.getRange(2,1,last-1,7).getValues():[],registered=getRegisteredDevices_(),byId={},out=rows.filter(r=>String(r[0]||'').trim()).map(r=>{const x={deviceId:String(r[0]),branchCode:String(r[1]||''),label:String(r[2]||r[0]||''),active:r[3]!==false,registeredAt:formatDateTimeForClient_(r[4]),updatedAt:formatDateTimeForClient_(r[5]),note:String(r[6]||''),registered:false};byId[x.deviceId]=x;return x});registered.forEach(d=>{const id=String(d&&d.deviceId||'').trim();if(!id)return;const hit=byId[id];if(hit){hit.registered=true;if(!hit.registeredAt)hit.registeredAt=formatDateTimeForClient_(d.registeredAt)}else{const x={deviceId:id,branchCode:'',label:id,active:true,registeredAt:formatDateTimeForClient_(d.registeredAt),updatedAt:'',note:'',registered:true};byId[id]=x;out.push(x)}});return out.sort((a,b)=>(a.active===b.active?0:(a.active?-1:1))||String(a.deviceId).localeCompare(String(b.deviceId)))})}
 function deviceBranchV7_(deviceId){const x=deviceRowsV7_().find(d=>d.deviceId===String(deviceId||'')&&d.active);return x?x.branchCode:''}
-function adminGetDevicesV7_(payload){requireAdmin_(String(payload.adminToken||''));return{rows:deviceRowsV7_()}}
-function adminSaveDeviceV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.device||{},id=String(x.deviceId||'').trim();if(!id)throw new Error('ไม่พบ Device ID');const branch=String(x.branchCode||'');if(branch)validateBranchV7_(branch,false);const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(DEVICES_SHEET),row=findRowByIdV7_(sh,id),now=new Date(),vals=[id,branch,String(x.label||id),x.active!==false,row?sh.getRange(row,5).getValue()||now:now,now,String(x.note||'')];if(row)sh.getRange(row,1,1,7).setValues([vals]);else sh.appendRow(vals);return{ok:true}}
+function adminGetDevicesV7_(payload){requireAdmin_(String(payload.adminToken||''));return{rows:deviceRowsV7_(),branches:getBranchesV7_(true),serverEpochMs:Date.now()}}
+function adminSaveDeviceV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.device||{},id=String(x.deviceId||'').trim();if(!id)throw new Error('ไม่พบ Device ID');const branch=String(x.branchCode||'');if(branch)validateBranchV7_(branch,false);const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(DEVICES_SHEET),row=findRowByIdV7_(sh,id),now=new Date(),registered=getRegisteredDevices_().some(d=>String(d&&d.deviceId||'')===id),vals=[id,branch,String(x.label||id),x.active!==false,row?sh.getRange(row,5).getValue()||now:now,now,String(x.note||'')];if(row)sh.getRange(row,1,1,7).setValues([vals]);else sh.appendRow(vals);cacheRemoveV7_(['V7_DEVICES']);return{ok:true,device:{deviceId:id,branchCode:branch,label:vals[2],active:vals[3],registeredAt:formatDateTimeForClient_(vals[4]),updatedAt:formatDateTimeForClient_(now),note:vals[6],registered:registered}}}
 
 function runShiftMonitoring_(){
   setupWorkforceSystem_();const now=new Date(),dateKeys=[Utilities.formatDate(now,TZ,'yyyy-MM-dd')],y=new Date(now);y.setDate(y.getDate()-1);dateKeys.push(Utilities.formatDate(y,TZ,'yyyy-MM-dd'));const target=Number(getSetting_('SHIFT_CHECK_TARGET_MINUTES'))||25,endDelay=Number(getSetting_('END_SHIFT_CHECK_DELAY_MINUTES'))||30;
