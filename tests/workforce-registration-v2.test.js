@@ -16,8 +16,15 @@ assert.doesNotMatch(workspace, /data-view="employee-(?:registration|documents)"[
 assert.equal(workspace.match(/const FRONTEND_VERSION = '([^']+)'/)[1], workforce.match(/const FRONTEND_VERSION = '([^']+)'/)[1]);
 
 assert.match(workforce, /adminListRegistrationsV2/);
-assert.equal((workforce.match(/adminListRegistrationsV2', \{ limit:25 \}/g) || []).length, 2);
+assert.equal((workforce.match(/adminListRegistrationsV2', \{ limit:25 \}/g) || []).length, 3);
 assert.doesNotMatch(workforce, /adminListRegistrationsV2', \{ limit:100 \}/);
+assert.match(workforce, /if \(view === 'registrations'\) return renderRegistrationsV2\(\)/);
+assert.match(workforce, /if \(view === 'employee-documents'\) return renderEmployeeDocumentsV2\(\)/);
+const employeeDocumentsView = workforce.match(/async function renderEmployeeDocumentsV2\(initialResult\) \{([\s\S]*?)\n  \}\n\n  function bindRowDetails/);
+assert.ok(employeeDocumentsView, 'employee documents must have a dedicated view renderer');
+assert.doesNotMatch(employeeDocumentsView[1], /registrationSharePanel\(/, 'documents view must not duplicate the employee registration link panel');
+assert.match(employeeDocumentsView[1], /employeeDocumentFilter/, 'documents view must support document status filtering');
+assert.match(employeeDocumentsView[1], /missingTypes/, 'documents view must show missing document types');
 assert.match(workforce, /adminGetRegistrationV2/);
 assert.match(workforce, /data-approve-registration/);
 assert.match(workforce, /call\('adminApproveRegistrationFast'/);

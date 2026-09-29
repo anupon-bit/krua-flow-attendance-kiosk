@@ -9,9 +9,9 @@
   <script src="./mock-data.js?v=prod-registration-approval-2"></script>
   <script src="./js/api-client.js?v=prod-registration-approval-2"></script>
   <script src="./js/admin-session.js?v=prod-registration-approval-2"></script>
-  <script src="./js/i18n.js?v=prod-registration-approval-2"></script>
+  <script src="./js/i18n.js?v=prod-employee-documents-1"></script>
   <script src="./js/registration-ui.js?v=prod-registration-approval-2"></script>
-  <link rel="stylesheet" href="./css/workforce.css?v=prod-registration-approval-2">
+  <link rel="stylesheet" href="./css/workforce.css?v=prod-employee-documents-1">
   <link rel="stylesheet" href="./css/registration-mobile.css?v=prod-registration-approval-2">
 </head>
 <body>
@@ -44,7 +44,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-registration-approval-2';
+  const FRONTEND_VERSION = 'prod-employee-documents-1';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
@@ -69,7 +69,7 @@
     interviews: ['view.interviews', 'subtitle.preview'],
     staffing: ['view.staffing', 'subtitle.preview'],
     onboarding: ['view.onboarding', 'subtitle.preview'],
-    'employee-documents': ['view.employeeDocuments', 'subtitle.preview'],
+    'employee-documents': ['view.employeeDocuments', 'subtitle.employeeDocuments'],
     offboarding: ['view.offboarding', 'subtitle.preview'],
     attendance: ['view.attendance', 'subtitle.attendance'],
     activity: ['view.activity', 'subtitle.preview'],
@@ -550,6 +550,80 @@
     } catch (error) { showError(error, renderRegistrationsV2); }
   }
 
+  async function renderEmployeeDocumentsV2(initialResult) {
+    const restoreRegistrationId = selectedRegistrationId;
+    registrationDetailSequence += 1;
+    loading();
+    try {
+      const result = initialResult || await call('adminListRegistrationsV2', { limit:25 });
+      const rows = rowsOf(result);
+      const documentStatus = function (row) { return String(row.documentState && row.documentState.status || 'INCOMPLETE').toUpperCase(); };
+      const complete = rows.filter(function (row) { return documentStatus(row) === 'COMPLETE'; }).length;
+      const issues = rows.filter(function (row) { return documentStatus(row) === 'ISSUE'; }).length;
+      const incomplete = rows.length - complete - issues;
+      const documentLabels = {
+        ID_CARD:t('employeeDocuments.idCard'),
+        HOUSE_REGISTRATION:t('employeeDocuments.houseRegistration'),
+        EMPLOYEE_PHOTO:t('employeeDocuments.employeePhoto')
+      };
+
+      app.className = 'employeeDocumentView';
+      app.innerHTML = '<section class="employeeDocumentIntro"><div><h2>' + esc(t('employeeDocuments.heading')) + '</h2><p>' + esc(t('subtitle.employeeDocuments')) + '</p></div><span class="metricMeta" id="employeeDocumentResultCount"></span></section>' +
+        flowLabel('summary.title') + '<div class="registrationSummary employeeDocumentSummary">' +
+        registrationMetric('total', t('employeeDocuments.total'), result.total, t('employeeDocuments.registered')) +
+        registrationMetric('complete', t('employeeDocuments.complete'), complete, t('employeeDocuments.latestItems')) +
+        registrationMetric('pending', t('employeeDocuments.incomplete'), incomplete, t('employeeDocuments.toFollow')) +
+        registrationMetric('followup', t('employeeDocuments.issue'), issues, t('employeeDocuments.hasIssues')) + '</div>' +
+        '<section class="section"><div class="sectionHead"><h2>' + esc(t('employeeDocuments.queue')) + '</h2><button class="btn small" id="employeeDocumentsRefresh" type="button">' + esc(t('common.refresh')) + '</button></div>' +
+        '<div class="toolbar employeeDocumentToolbar"><input class="input" id="employeeDocumentSearch" type="search" placeholder="' + esc(t('employeeDocuments.searchPlaceholder')) + '" aria-label="' + esc(t('employeeDocuments.searchLabel')) + '">' +
+        '<select class="select" id="employeeDocumentFilter" aria-label="' + esc(t('employeeDocuments.filterLabel')) + '"><option value="ALL">' + esc(t('employeeDocuments.allStatuses')) + '</option><option value="INCOMPLETE">' + esc(t('employeeDocuments.incomplete')) + '</option><option value="ISSUE">' + esc(t('employeeDocuments.issue')) + '</option><option value="COMPLETE">' + esc(t('employeeDocuments.complete')) + '</option></select></div>' +
+        '<div class="tableWrap registrationTable" id="employeeDocumentTable"></div></section><div id="registrationDetail"></div>';
+
+      const searchInput = document.getElementById('employeeDocumentSearch');
+      const filterSelect = document.getElementById('employeeDocumentFilter');
+      const resultCount = document.getElementById('employeeDocumentResultCount');
+      const table = document.getElementById('employeeDocumentTable');
+      function renderRows() {
+        const query = searchInput.value.trim().toLocaleLowerCase(locale());
+        const filter = filterSelect.value;
+        const visible = rows.filter(function (row) {
+          const state = documentStatus(row);
+          if (filter !== 'ALL' && state !== filter) return false;
+          const haystack = [row.firstName,row.lastName,row.nickname,row.employeeId,row.registrationId,row.phone,row.branch,row.department].join(' ').toLocaleLowerCase(locale());
+          return !query || haystack.indexOf(query) >= 0;
+        });
+        resultCount.textContent = t('employeeDocuments.showing') + ' ' + formatNumber(visible.length) + ' ' + t('employeeDocuments.of') + ' ' + formatNumber(rows.length) + ' ' + t('employeeDocuments.latest');
+        if (!visible.length) {
+          table.innerHTML = '<div class="empty">' + esc(t('common.noResults')) + '</div>';
+          if (selectedRegistrationId) { selectedRegistrationId = ''; registrationDetailSequence += 1; document.getElementById('registrationDetail').innerHTML = ''; }
+        } else {
+          table.innerHTML = '<table><thead><tr><th>' + esc(t('employeeDocuments.employee')) + '</th><th>' + esc(t('table.branch')) + ' / ' + esc(t('table.department')) + '</th><th>' + esc(t('employeeDocuments.attention')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('table.date')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' + visible.map(function (row) {
+            const name = [row.firstName,row.lastName].filter(Boolean).join(' ') || row.nickname || t('common.notAvailable');
+            const employeeRef = row.employeeId ? t('table.employeeId') + ' ' + row.employeeId : row.registrationId;
+            const state = documentStatus(row), missing = (row.documentState && row.documentState.missingTypes || []).map(function (type) { return documentLabels[type] || type; });
+            const attention = state === 'COMPLETE' ? t('employeeDocuments.completeSummary') : state === 'ISSUE' ? (missing.length ? t('employeeDocuments.needsCorrection') + ' ' : t('employeeDocuments.hasIssues') + ' ') + missing.join(' • ') : t('employeeDocuments.missing') + ' ' + (missing.join(' • ') || t('employeeDocuments.requiredDocuments'));
+            return '<tr data-registration-row="' + esc(row.registrationId) + '" tabindex="0" role="button" aria-pressed="false" aria-label="' + esc(t('employeeDocuments.inspect')) + ' ' + esc(name) + '"><td><strong>' + esc(name) + '</strong><div class="metricMeta">' + esc(employeeRef) + '</div><div class="metricMeta">' + esc(row.phone || '—') + '</div></td><td>' + esc(row.branch || '—') + '<div class="metricMeta">' + esc(row.department || '—') + '</div></td><td class="employeeDocumentAttention ' + (state === 'ISSUE' ? 'issue' : state === 'INCOMPLETE' ? 'missing' : '') + '">' + esc(attention) + '</td><td>' + registrationDocumentBadge(row.documentState) + '</td><td>' + esc(row.submittedAt || '—') + '</td><td><button class="btn small" type="button" data-registration-id="' + esc(row.registrationId) + '">' + esc(state === 'COMPLETE' ? t('employeeDocuments.view') : t('employeeDocuments.inspect')) + '</button></td></tr>';
+          }).join('') + '</tbody></table>';
+          table.querySelectorAll('[data-registration-row]').forEach(function (row) {
+            row.onclick = function (event) { if (!event.target.closest('button,a,input,select,textarea')) selectRegistrationV2(row.dataset.registrationRow); };
+            row.onkeydown = function (event) { if (event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectRegistrationV2(row.dataset.registrationRow); } };
+          });
+          table.querySelectorAll('[data-registration-id]').forEach(function (button) {
+            button.onclick = function (event) { event.stopPropagation(); selectRegistrationV2(button.dataset.registrationId); };
+          });
+          const selectedToRestore = selectedRegistrationId || restoreRegistrationId;
+          const restoreRow = Array.from(table.querySelectorAll('[data-registration-row]')).find(function (row) { return row.dataset.registrationRow === selectedToRestore; });
+          if (restoreRow) selectRegistrationV2(restoreRegistrationId);
+          else if (selectedRegistrationId) { selectedRegistrationId = ''; registrationDetailSequence += 1; document.getElementById('registrationDetail').innerHTML = ''; }
+        }
+      }
+      searchInput.addEventListener('input', renderRows);
+      filterSelect.addEventListener('change', renderRows);
+      document.getElementById('employeeDocumentsRefresh').onclick = function () { renderEmployeeDocumentsV2(); };
+      renderRows();
+    } catch (error) { showError(error, function () { renderEmployeeDocumentsV2(); }); }
+  }
+
   function bindRowDetails(container, rows, fieldMap) {
     container.querySelectorAll('[data-row-index]').forEach(function (button) {
       button.onclick = function () {
@@ -951,7 +1025,8 @@
     if (view === 'dashboard') return renderDashboard();
     if (view === 'work-queue') return renderQueue();
     if (view === 'notifications') return renderNotifications();
-    if (view === 'registrations' || view === 'employee-documents') return renderRegistrationsV2();
+    if (view === 'registrations') return renderRegistrationsV2();
+    if (view === 'employee-documents') return renderEmployeeDocumentsV2();
     if (view === 'attendance') return renderAttendance();
     if (view === 'payroll-period') return renderPayrollPeriods();
     return previewView();
@@ -979,7 +1054,7 @@
       if (view === 'registrations' || view === 'employee-documents') {
         const registrationResult = await call('adminListRegistrationsV2', { limit:25 });
         bootstrap = { ready:true, environment:isStaging ? 'STAGING' : 'PRODUCTION', flags:{ WORKFORCE_V2_ENABLED:true } };
-        await renderRegistrationsV2(registrationResult);
+        await (view === 'employee-documents' ? renderEmployeeDocumentsV2(registrationResult) : renderRegistrationsV2(registrationResult));
         return;
       }
       bootstrap = await call('workforceBootstrap');

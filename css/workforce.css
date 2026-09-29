@@ -121,6 +121,16 @@ tbody tr:hover { background: #f8fbf9; }
 .attendancePhotoMissing { color: var(--muted); font-size: .75rem; }
 .attendancePhotoHolder { padding: 0 12px 12px; }
 .attendancePhotoHolder img { display: block; width: 100%; max-height: 420px; margin-top: 8px; border-radius: 10px; object-fit: contain; background: #edf1ef; }
+.employeeDocumentIntro { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:0 0 14px; padding:0 2px 14px; border-bottom:1px solid var(--line); }
+.employeeDocumentIntro h2 { margin:0; font-size:1.15rem; }
+.employeeDocumentIntro p { margin:4px 0 0; color:var(--muted); font-size:.82rem; }
+.employeeDocumentSummary { margin-bottom:16px; }
+.employeeDocumentToolbar { padding:12px 14px; }
+.employeeDocumentToolbar .input { min-width:260px; }
+.employeeDocumentToolbar .select { min-width:190px; }
+.employeeDocumentAttention { max-width:300px; color:var(--muted); font-size:.8rem; }
+.employeeDocumentAttention.missing { color:var(--warning); font-weight:800; }
+.employeeDocumentAttention.issue { color:var(--danger); font-weight:800; }
 
 @media (max-width: 900px) {
   .grid, .skeletonGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -135,6 +145,8 @@ tbody tr:hover { background: #f8fbf9; }
   .dashboardMetrics { grid-template-columns: 1fr 1fr; }
   .card { min-height: 108px; padding: 14px; }
   .toolbar { align-items: stretch; }
+  .employeeDocumentIntro { align-items:flex-start; flex-direction:column; gap:8px; }
+  .employeeDocumentToolbar .input, .employeeDocumentToolbar .select { min-width:0; }
   .input, .select, .toolbar .btn { width: 100%; }
   .drawerGrid { grid-template-columns: 1fr; gap: 4px; }
   .drawerGrid dd { margin-bottom: 12px; }
