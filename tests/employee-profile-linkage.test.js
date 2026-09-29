@@ -40,8 +40,8 @@ assert.match(admin, /มีการแก้ไขที่ยังไม่�
 assert.match(admin, /op:'adminGetPermissionUsers',adminToken:state\.token,includeRosterDetails:true/);
 assert.match(admin, /e\.firstName,e\.lastName,e\.nickname/);
 
-const helperStart = admin.indexOf('function setEmployeeMasterSelect(');
-const helperEnd = admin.indexOf('\nfunction renderEmployeeOrgMasters', helperStart);
+const helperStart = admin.indexOf('function setSettingsMasterSelect(');
+const helperEnd = admin.indexOf('\nfunction setEmployeeMasterSelect', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'organization select helper missing');
 const select = {
   options: [],
@@ -55,14 +55,14 @@ const context = vm.createContext({
   $() { return select; },
   document: { createElement() { return { value: '', textContent: '' }; } }
 });
-new vm.Script(admin.slice(helperStart, helperEnd) + '\nthis.populate = setEmployeeMasterSelect;').runInContext(context);
-context.populate('dBranch', [{ code: 'A', name: 'Active', active: true }, { code: 'OLD', name: 'Old', active: false }], 'A');
+new vm.Script(admin.slice(helperStart, helperEnd) + '\nthis.populate = setSettingsMasterSelect;').runInContext(context);
+context.populate(select, [{ code: 'A', name: 'Active', active: true }, { code: 'OLD', name: 'Old', active: false }], 'A');
 assert.deepEqual(Array.from(select.options, option => option.value), ['', 'A']);
-context.populate('dBranch', [{ code: 'A', name: 'Active', active: true }, { code: 'OLD', name: 'Old', active: false }], 'OLD');
+context.populate(select, [{ code: 'A', name: 'Active', active: true }, { code: 'OLD', name: 'Old', active: false }], 'OLD');
 assert.equal(select.value, 'OLD');
 assert.match(select.options[2].textContent, /ปิดใช้งาน/);
 assert.equal(select.options[2].disabled, true, 'inactive settings must remain visible but unavailable for new assignments');
-context.populate('dBranch', [{ code: 'A', name: 'Active', active: true }], 'MISSING');
+context.populate(select, [{ code: 'A', name: 'Active', active: true }], 'MISSING');
 assert.match(select.options[2].textContent, /ไม่มีในรายการ Settings ที่เปิดใช้งาน/);
 assert.equal(select.options[2].disabled, true, 'unknown legacy values must not be assignable');
 

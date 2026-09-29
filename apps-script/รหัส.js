@@ -1209,6 +1209,7 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
 
     let r = regSh.getRange(regRow,1,1,Math.max(30,regSh.getLastColumn())).getValues()[0];
     if (String(r[2]) === 'APPROVED') throw new Error('Registration already approved');
+    const originalWageType=String(r[22]||'');
 
     if (registration && Object.keys(registration).length) {
       const branch=validateBranchV7_(registration.branch,false);
@@ -1240,6 +1241,7 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
       employeePinHash = hashPortablePin_(fallbackPin);
     }
     const wageType=String((employee && employee.wageType)||r[22]||'').trim();
+    if(wageType!==originalWageType)validateWageTypeV7_(wageType,true);
     const wageAmount=Number((employee && employee.wageAmount)||r[23]||0);
     const fullName=(String(r[4])+' '+String(r[5])).trim();
     const erow=empSh.getLastRow()+1;
@@ -1432,14 +1434,16 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
     if (String(vals[i][0]) === id) {
       const row = i + 2;
       const currentProfile = sh.getRange(row,2,1,31).getValues()[0];
-      const currentName = String(currentProfile[0] || ''), currentBranch = String(currentProfile[9] || ''), currentDepartment = String(currentProfile[30] || '');
+      const currentName = String(currentProfile[0] || ''), currentBranch = String(currentProfile[9] || ''), currentDepartment = String(currentProfile[30] || ''), currentWageType = String(currentProfile[13] || '');
       const nextFirstName = profile && profile.firstName !== undefined ? String(profile.firstName || '').trim() : String(currentProfile[10] || '');
       const nextLastName = profile && profile.lastName !== undefined ? String(profile.lastName || '').trim() : String(currentProfile[11] || '');
       const nextName = [nextFirstName, nextLastName].filter(Boolean).join(' ') || currentName;
       const nextBranch = profile && profile.branch !== undefined ? String(profile.branch || '').trim() : currentBranch;
       const nextDepartment = profile && profile.department !== undefined ? String(profile.department || '').trim() : currentDepartment;
+      const nextWageType = profile && profile.wageType !== undefined ? String(profile.wageType || '').trim() : currentWageType;
       if (nextBranch !== currentBranch) validateBranchV7_(nextBranch, true);
       if (nextDepartment !== currentDepartment) validateDepartmentV7_(nextDepartment, true);
+      if (nextWageType !== currentWageType) validateWageTypeV7_(nextWageType, true);
       const nickname = String((profile && profile.nickname) || '').trim();
       const phone = String((profile && profile.phone) || '').trim();
       const startDate = parseIsoDate_(profile && profile.startDate);
@@ -1453,7 +1457,7 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       sh.getRange(row,12).setValue(nextFirstName);
       sh.getRange(row,13).setValue(nextLastName);
       sh.getRange(row,14).setValue(String((profile && profile.position) || ''));
-      sh.getRange(row,15).setValue(String((profile && profile.wageType) || ''));
+      sh.getRange(row,15).setValue(nextWageType);
       sh.getRange(row,16).setValue(Number((profile && profile.wageAmount) || 0)).setNumberFormat('#,##0.00');
       if (birthDate) sh.getRange(row,17).setValue(birthDate).setNumberFormat('dd/mm/yyyy'); else sh.getRange(row,17).clearContent();
       if (resignationDate) sh.getRange(row,18).setValue(resignationDate).setNumberFormat('dd/mm/yyyy'); else sh.getRange(row,18).clearContent();
@@ -1609,6 +1613,8 @@ function adminUpdateRegistration(token, registrationId, registration) {
   const branch=validateBranchV7_(registration.branch,false);
   const position=validateRegistrationChoice_(registration.position,['MANAGER','SUPERVISOR','STAFF'],'Position');
   const department=registration.department!==undefined?validateDepartmentV7_(registration.department,true):String(sh.getRange(row,30).getValue()||'');
+  const currentWageType=String(sh.getRange(row,23).getValue()||''),nextWageType=registration.wageType!==undefined?String(registration.wageType||'').trim():currentWageType;
+  if(nextWageType!==currentWageType)validateWageTypeV7_(nextWageType,true);
   const birthDate=parseIsoDate_(registration.birthDate), startDate=parseIsoDate_(registration.startDate);
   sh.getRange(row,8).setNumberFormat('@'); sh.getRange(row,16).setNumberFormat('@'); sh.getRange(row,11,1,2).setNumberFormat('dd/mm/yyyy');
   sh.getRange(row,4,1,17).setValues([[
@@ -1616,7 +1622,7 @@ function adminUpdateRegistration(token, registrationId, registration) {
     birthDate,startDate,String(registration.registeredAddress||''),String(registration.currentAddress||''),String(registration.emergencyName||''),String(registration.emergencyPhone||''),
     String(registration.emergencyRelationship||''),String(registration.photoUrl||sh.getRange(row,18).getValue()||''),sh.getRange(row,19).getValue(),String(registration.adminNote||'')
   ]]);
-  sh.getRange(row,23).setValue(String(registration.wageType||'')); sh.getRange(row,24).setValue(Number(registration.wageAmount)||0).setNumberFormat('#,##0.00');
+  sh.getRange(row,23).setValue(nextWageType); sh.getRange(row,24).setValue(Number(registration.wageAmount)||0).setNumberFormat('#,##0.00');
   sh.getRange(row,26).setNumberFormat('@').setValue(String(registration.bankName||'').trim()); sh.getRange(row,27).setNumberFormat('@').setValue(String(registration.bankAccountNo||'').replace(/[^0-9A-Za-z-]/g,'').trim()); sh.getRange(row,28).setNumberFormat('@').setValue(String(registration.bankAccountName||'').trim()); sh.getRange(row,29).setNumberFormat('@').setValue(String(registration.bankCode||'').trim());
   sh.getRange(row,30).setValue(department);
   return {ok:true};
@@ -1903,6 +1909,7 @@ function getSetting_(key) {
 const BRANCHES_SHEET = 'Branches';
 const DEPARTMENTS_SHEET = 'Departments';
 const SHIFTS_SHEET = 'Shifts';
+const WAGE_TYPES_SHEET = 'Wage_Types';
 const MANAGER_SCOPES_SHEET = 'Manager_Scopes';
 const WORK_SCHEDULES_SHEET = 'Work_Schedules';
 const SCHEDULE_VERSIONS_SHEET = 'Schedule_Versions';
@@ -1978,6 +1985,7 @@ function apiV7HandlePost_(payload) {
 
   // Admin organization / policy / payroll control.
   if (op === 'adminGetOrgMasters') return adminGetOrgMastersV7_(payload);
+  if (op === 'adminSaveWageType') return adminSaveWageTypeV7_(payload);
   if (op === 'adminSaveBranch') return adminSaveBranchV7_(payload);
   if (op === 'adminSaveDepartment') return adminSaveDepartmentV7_(payload);
   if (op === 'adminSaveShift') return adminSaveShiftV7_(payload);
@@ -2142,7 +2150,7 @@ function cacheRemoveV7_(keys) {
   const cache = CacheService.getScriptCache();
   (Array.isArray(keys)?keys:[keys]).filter(Boolean).forEach(k=>{ try { cache.remove(String(k)); } catch(e) {} });
 }
-function masterCacheKeysV7_(){return ['V7_BRANCHES_0','V7_BRANCHES_1','V7_DEPTS_0','V7_DEPTS_1','V7_SHIFTS_0','V7_SHIFTS_1'];}
+function masterCacheKeysV7_(){return ['V7_BRANCHES_0','V7_BRANCHES_1','V7_DEPTS_0','V7_DEPTS_1','V7_SHIFTS_0','V7_SHIFTS_1','V7_WAGE_TYPES_0','V7_WAGE_TYPES_1'];}
 
 function activeMasterRowsV7_(sheetName, columns) {
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName);
@@ -2163,6 +2171,9 @@ function getShiftsV7_(includeInactive) {
   const key='V7_SHIFTS_'+(includeInactive?'1':'0');
   return cacheJsonV7_(key,180,()=>activeMasterRowsV7_(SHIFTS_SHEET,14).filter(r=>includeInactive || r[10] !== false).map(r=>({code:String(r[0]||''),name:String(r[1]||''),startTime:String(r[2]||''),endTime:String(r[3]||''),crossMidnight:Boolean(r[4]),standardHours:Number(r[5])||12,nightAllowance:Number(r[6])||0,minStaffing:Number(r[7])||0,lateGraceMinutes:Number(r[8])||5,lateDeduction:Number(r[9])||0,active:r[10]!==false,sort:Number(r[11])||999,color:String(r[12]||''),note:String(r[13]||'')})).filter(x=>x.code).sort((a,b)=>a.sort-b.sort||a.name.localeCompare(b.name,'th')));
 }
+function ensureWageTypesSheetV7_(){const ss=SpreadsheetApp.openById(SPREADSHEET_ID);let sh=ss.getSheetByName(WAGE_TYPES_SHEET);if(sh)return sh;sh=ss.insertSheet(WAGE_TYPES_SHEET);sh.getRange(1,1,1,7).setValues([['Wage Type Code','Wage Type Name','Active','Sort Order','Admin Note','Created At','Updated At']]);const now=new Date();sh.getRange(2,1,3,7).setValues([['MONTHLY','รายเดือน',true,10,'ค่าเริ่มต้น',now,now],['DAILY','รายวัน',true,20,'ค่าเริ่มต้น',now,now],['HOURLY','รายชั่วโมง',true,30,'ค่าเริ่มต้น',now,now]]);sh.setFrozenRows(1);return sh}
+function getWageTypesV7_(includeInactive){const key='V7_WAGE_TYPES_'+(includeInactive?'1':'0');return cacheJsonV7_(key,180,()=>{const sh=ensureWageTypesSheetV7_(),last=sh.getLastRow();if(last<2)return[];return sh.getRange(2,1,last-1,7).getValues().filter(r=>String(r[0]||'').trim()&&(includeInactive||r[2]!==false)).map(r=>({code:String(r[0]||''),name:String(r[1]||''),active:r[2]!==false,sort:Number(r[3])||999,note:String(r[4]||''),createdAt:r[5]||null,updatedAt:r[6]||null})).sort((a,b)=>a.sort-b.sort||a.name.localeCompare(b.name,'th'))})}
+function validateWageTypeV7_(code,allowBlank){const value=String(code||'').trim();if(!value&&allowBlank)return'';if(!getWageTypesV7_(false).some(type=>type.code===value))throw new Error('ประเภทค่าแรงไม่ถูกต้อง');return value}
 function getShiftV7_(code) { return getShiftsV7_(true).find(x=>x.code===String(code||'')) || null; }
 function validateBranchV7_(code, allowBlank) { const c=String(code||'').trim(); if (!c && allowBlank) return ''; const x=getBranchesV7_(false).find(b=>b.code===c); if(!x)throw new Error('สาขาไม่ถูกต้อง'); return c; }
 function validateDepartmentV7_(code, allowBlank) { const c=String(code||'').trim(); if (!c && allowBlank) return ''; const x=getDepartmentsV7_(false).find(b=>b.code===c); if(!x)throw new Error('แผนกไม่ถูกต้อง'); return c; }
@@ -2665,12 +2676,13 @@ function leaveBalanceRowsV7_(employeeId,year){const sh=SpreadsheetApp.openById(S
 function adminSetLeaveBalanceV7_(payload){requireAdmin_(String(payload.adminToken||''));const emp=employeeRecordV7_(String(payload.employeeId||''));if(!emp)throw new Error('ไม่พบพนักงาน');const year=Number(payload.year)||new Date().getFullYear(),type=String(payload.leaveType||''),sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(LEAVE_BALANCES_SHEET),last=sh.getLastRow(),vals=last>=2?sh.getRange(2,1,last-1,10).getValues():[],found=vals.findIndex(r=>String(r[1])===emp.id&&String(r[2])===type&&Number(r[3])===year),ent=Number(payload.entitledDays)||0,used=Number(payload.usedDays)||0,res=Number(payload.reservedDays)||0,remaining=ent-used-res,id=found>=0?String(vals[found][0]):'BAL-'+Utilities.getUuid().slice(0,10).toUpperCase(),row=[id,emp.id,type,year,ent,used,res,remaining,new Date(),String(payload.note||'')];if(found>=0)sh.getRange(found+2,1,1,10).setValues([row]);else sh.appendRow(row);return{ok:true,balanceId:id}}
 function adminGetLeaveBalancesV7_(payload){requireAdmin_(String(payload.adminToken||''));return{rows:leaveBalanceRowsV7_(String(payload.employeeId||''),Number(payload.year)||new Date().getFullYear())}}
 
-function adminGetOrgMastersV7_(payload){requireAdmin_(String(payload.adminToken||''));const result={branches:getBranchesV7_(true),departments:getDepartmentsV7_(true),shifts:getShiftsV7_(true),serverEpochMs:Date.now()};if(payload.includeDevices!==false)result.devices=deviceRowsV7_();return result}
+function adminGetOrgMastersV7_(payload){requireAdmin_(String(payload.adminToken||''));const result={branches:getBranchesV7_(true),departments:getDepartmentsV7_(true),shifts:getShiftsV7_(true),wageTypes:getWageTypesV7_(true),serverEpochMs:Date.now()};if(payload.includeDevices!==false)result.devices=deviceRowsV7_();return result}
 function upsertMasterV7_(sheetName,idCol,id,values){
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName),last=sh.getLastRow();let row=0;
   if(last>=2){const vals=sh.getRange(2,idCol,last-1,1).getValues();for(let i=0;i<vals.length;i++)if(String(vals[i][0])===String(id)){row=i+2;break}}
   const targetRow=row||last+1;
   if(sheetName===BRANCHES_SHEET)sh.getRange(targetRow,7).setNumberFormat('@');
+  if(sheetName===WAGE_TYPES_SHEET)sh.getRange(targetRow,1).setNumberFormat('@');
   sh.getRange(targetRow,1,1,values.length).setValues([values]);
   return targetRow;
 }
@@ -2678,6 +2690,7 @@ function codeV7_(v,label){const s=String(v||'').trim().toUpperCase().replace(/[^
 function adminSaveBranchV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.branch||{},code=codeV7_(x.code,'สาขา'),old=getBranchesV7_(true).find(b=>b.code===code)||null,now=new Date();upsertMasterV7_(BRANCHES_SHEET,1,code,[code,String(x.name||'').trim(),String(x.shortName||x.name||'').trim(),x.active!==false,Number(x.sort)||999,String(x.address||''),String(x.phone||''),String(x.timezone||TZ),old?old.createdAt||now:now,now,String(x.note||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_BRANCH','BRANCH',code,old,x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
 function adminSaveDepartmentV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.department||{},code=codeV7_(x.code,'แผนก'),now=new Date();upsertMasterV7_(DEPARTMENTS_SHEET,1,code,[code,String(x.name||'').trim(),String(x.shortName||x.name||'').trim(),x.active!==false,Number(x.sort)||999,now,now,String(x.note||''),String(x.color||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_DEPARTMENT','DEPARTMENT',code,'',x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
 function adminSaveShiftV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.shift||{},code=codeV7_(x.code,'กะ');if(!/^\d{2}:\d{2}$/.test(String(x.startTime||''))||!/^\d{2}:\d{2}$/.test(String(x.endTime||'')))throw new Error('เวลาเริ่ม/จบกะต้องเป็น HH:mm');upsertMasterV7_(SHIFTS_SHEET,1,code,[code,String(x.name||'').trim(),String(x.startTime),String(x.endTime),Boolean(x.crossMidnight),Number(x.standardHours)||12,Number(x.nightAllowance)||0,Number(x.minStaffing)||0,Number(x.lateGraceMinutes)||5,Number(x.lateDeduction)||0,x.active!==false,Number(x.sort)||999,String(x.color||''),String(x.note||'')]);cacheRemoveV7_(masterCacheKeysV7_());auditLogV7_('ADMIN','ADMIN','SAVE_SHIFT','SHIFT',code,'',x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
+function adminSaveWageTypeV7_(payload){requireAdmin_(String(payload.adminToken||''));const x=payload.wageType||{},code=codeV7_(x.code,'ประเภทค่าแรง'),name=String(x.name||'').trim();if(!name)throw new Error('กรุณาระบุชื่อประเภทค่าแรง');ensureWageTypesSheetV7_();const old=getWageTypesV7_(true).find(item=>item.code===code)||null,now=new Date();upsertMasterV7_(WAGE_TYPES_SHEET,1,code,[code,name,x.active!==false,Number(x.sort)||999,String(x.note||''),old?old.createdAt||now:now,now]);cacheRemoveV7_(['V7_WAGE_TYPES_0','V7_WAGE_TYPES_1']);auditLogV7_('ADMIN','ADMIN','SAVE_WAGE_TYPE','WAGE_TYPE',code,old,x,String(x.note||''),String(payload.requestId||''));return{ok:true,code:code}}
 function adminGetPermissionUsersV7_(payload){
   requireAdmin_(String(payload.adminToken||''));
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET),last=sh?sh.getLastRow():0;
