@@ -14,6 +14,8 @@ for (const match of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)
 assert.match(admin, /call\(\{op:'adminGetOrgMasters',adminToken:state\.token,includeDevices:false\},\{timeoutMs:45000/, 'employee profile must use the authenticated Settings master source without loading devices');
 assert.match(admin, /id="refreshOrgMastersBtn"/);
 assert.match(admin, /id="orgShiftSummary"/);
+assert.match(admin, /ไม่มีสาขาที่เปิดใช้งาน/);
+assert.match(admin, /แผนกปัจจุบันไม่อยู่ในรายการที่เปิดใช้งาน/);
 assert.match(admin, /schedule\.html\?admin=1&amp;embed=1/, 'shift assignment must link to dated schedules');
 assert.doesNotMatch(admin, /id="dBranch"><option value="KORAT"/);
 assert.doesNotMatch(admin, /id="dDepartment"><option value="KITCHEN"/);
@@ -42,8 +44,10 @@ assert.deepEqual(Array.from(select.options, option => option.value), ['', 'A']);
 context.populate('dBranch', [{ code: 'A', name: 'Active', active: true }, { code: 'OLD', name: 'Old', active: false }], 'OLD');
 assert.equal(select.value, 'OLD');
 assert.match(select.options[2].textContent, /ปิดใช้งาน/);
+assert.equal(select.options[2].disabled, true, 'inactive settings must remain visible but unavailable for new assignments');
 context.populate('dBranch', [{ code: 'A', name: 'Active', active: true }], 'MISSING');
 assert.match(select.options[2].textContent, /ไม่มีในรายการ Settings ที่เปิดใช้งาน/);
+assert.equal(select.options[2].disabled, true, 'unknown legacy values must not be assignable');
 
 assert.match(backend, /if \(nextBranch !== currentBranch\) validateBranchV7_\(nextBranch, true\)/);
 assert.match(backend, /if \(nextDepartment !== currentDepartment\) validateDepartmentV7_\(nextDepartment, true\)/);
