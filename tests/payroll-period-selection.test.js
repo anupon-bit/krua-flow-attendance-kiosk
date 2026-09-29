@@ -14,6 +14,7 @@ assert.match(dashboard, /id="periodStart"/);
 assert.match(dashboard, /id="periodEnd"/);
 assert.match(dashboard, /id="periodPayDate"/);
 assert.match(dashboard, /id="applyPayrollPeriod"/);
+assert.match(dashboard, /document\.querySelector\('#payroll \.scroll'\);if\(payrollScroll\)payrollScroll\.style\.maxHeight='none'/, 'payroll rows must expand with the page instead of using an inner vertical scrollbar');
 assert.match(dashboard, /op:'adminDashboardPayrollBundle',adminToken:state\.token,startDate:state\.start,endDate:state\.end,payDate:state\.payDate/);
 
 const start = dashboard.indexOf('function payrollDateValue(');
