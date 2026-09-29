@@ -367,7 +367,7 @@ function apiAdminSetEmployeePin_(payload) {
 function apiAdminUpdateEmployeeProfile_(payload) {
   const r = adminUpdateEmployeeProfile(String(payload.adminToken || ''), payload.employeeId, payload.profile || {});
   invalidateAdminSummary_();
-  return { ok:true, result:r, serverEpochMs:Date.now() };
+  return { ok:true, result:r, employee:r.employee, serverEpochMs:Date.now() };
 }
 
 
@@ -1431,6 +1431,15 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
   for (let i=0;i<vals.length;i++) {
     if (String(vals[i][0]) === id) {
       const row = i + 2;
+      const currentProfile = sh.getRange(row,2,1,31).getValues()[0];
+      const currentName = String(currentProfile[0] || ''), currentBranch = String(currentProfile[9] || ''), currentDepartment = String(currentProfile[30] || '');
+      const nextFirstName = profile && profile.firstName !== undefined ? String(profile.firstName || '').trim() : String(currentProfile[10] || '');
+      const nextLastName = profile && profile.lastName !== undefined ? String(profile.lastName || '').trim() : String(currentProfile[11] || '');
+      const nextName = [nextFirstName, nextLastName].filter(Boolean).join(' ') || currentName;
+      const nextBranch = profile && profile.branch !== undefined ? String(profile.branch || '').trim() : currentBranch;
+      const nextDepartment = profile && profile.department !== undefined ? String(profile.department || '').trim() : currentDepartment;
+      if (nextBranch !== currentBranch) validateBranchV7_(nextBranch, true);
+      if (nextDepartment !== currentDepartment) validateDepartmentV7_(nextDepartment, true);
       const nickname = String((profile && profile.nickname) || '').trim();
       const phone = String((profile && profile.phone) || '').trim();
       const startDate = parseIsoDate_(profile && profile.startDate);
@@ -1439,9 +1448,10 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       sh.getRange(row,8).setValue(nickname);
       sh.getRange(row,9).setNumberFormat('@').setValue(phone);
       if (startDate) sh.getRange(row,10).setValue(startDate).setNumberFormat('dd/mm/yyyy'); else sh.getRange(row,10).clearContent();
-      sh.getRange(row,11).setValue(String((profile && profile.branch) || ''));
-      sh.getRange(row,12).setValue(String((profile && profile.firstName) || ''));
-      sh.getRange(row,13).setValue(String((profile && profile.lastName) || ''));
+      sh.getRange(row,11).setValue(nextBranch);
+      sh.getRange(row,2).setValue(nextName);
+      sh.getRange(row,12).setValue(nextFirstName);
+      sh.getRange(row,13).setValue(nextLastName);
       sh.getRange(row,14).setValue(String((profile && profile.position) || ''));
       sh.getRange(row,15).setValue(String((profile && profile.wageType) || ''));
       sh.getRange(row,16).setValue(Number((profile && profile.wageAmount) || 0)).setNumberFormat('#,##0.00');
@@ -1460,10 +1470,10 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       sh.getRange(row,29).setNumberFormat('@').setValue(String((profile && profile.bankAccountNo) || '').replace(/[^0-9A-Za-z-]/g,'').trim());
       sh.getRange(row,30).setNumberFormat('@').setValue(String((profile && profile.bankAccountName) || '').trim());
       sh.getRange(row,31).setNumberFormat('@').setValue(String((profile && profile.bankCode) || '').trim());
-      if (profile && profile.department !== undefined) sh.getRange(row,32).setValue(validateDepartmentV7_(profile.department,true));
+      if (profile && profile.department !== undefined) sh.getRange(row,32).setValue(nextDepartment);
       if (profile && profile.accessRole !== undefined) { sh.getRange(row,33).setValue(validateAccessRoleV7_(profile.accessRole)); invalidateAdminSummary_(); }
       sh.getRange(row,6).setValue(new Date());
-      return {ok:true};
+      return {ok:true,employee:adminGetEmployeeDetail_(token,id)};
     }
   }
   throw new Error('Employee not found');
