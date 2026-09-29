@@ -583,6 +583,9 @@ function recordAttendanceCore_(payload) {
   const now = new Date();
   const txId = 'ATT-' + Utilities.formatDate(now, TZ, 'yyyyMMdd-HHmmss') + '-' + Utilities.getUuid().slice(0,8).toUpperCase();
   const actionLabel = actionLabel_(payload.action);
+  const duplicateSeconds = Number(getSetting_('DUPLICATE_WINDOW_SECONDS')) || 120;
+  const branchCode = deviceBranchV7_(payload.deviceId || 'KIOSK');
+  const department = (employeeRecordV7_(emp.id) || {}).department || '';
 
   // อัปโหลดรูปนอก Lock เพื่อให้หลายเครื่องทำงานพร้อมกันได้
   const folder = ensurePhotoFolder_();
@@ -592,9 +595,8 @@ function recordAttendanceCore_(payload) {
 
   const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(5000);
+    lock.waitLock(30000);
     const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ATTENDANCE_SHEET);
-    const duplicateSeconds = Number(getSetting_('DUPLICATE_WINDOW_SECONDS')) || 120;
     rejectDuplicate_(sh, emp.id, payload.action, now, duplicateSeconds);
 
     const row = [
@@ -614,14 +616,14 @@ function recordAttendanceCore_(payload) {
       now,
       '',
       emp.nickname || '',
-      deviceBranchV7_(payload.deviceId || 'KIOSK'),
-      (employeeRecordV7_(emp.id) || {}).department || '',
+      branchCode,
+      department,
       'KIOSK'
     ];
     sh.appendRow(row);
     const rowNum = sh.getLastRow();
-    sh.getRange(rowNum, 2).setNumberFormat('dd/mm/yyyy hh:mm:ss');
-    sh.getRange(rowNum, 14).setNumberFormat('dd/mm/yyyy hh:mm:ss');
+    const timestampFormats=Array(13).fill('');timestampFormats[0]='dd/mm/yyyy hh:mm:ss';timestampFormats[12]='dd/mm/yyyy hh:mm:ss';
+    sh.getRange(rowNum, 2, 1, 13).setNumberFormats([timestampFormats]);
     // ใช้ลิงก์แทนการฝังรูปในชีต เพื่อลดเวลาบันทึกอย่างมาก
     sh.getRange(rowNum, 8).setFormula('=HYPERLINK("' + file.getUrl() + '","เปิดรูป")');
 
