@@ -234,7 +234,7 @@ function wf2AdminAttendanceRange_(payload) {
     rows: filtered.slice(0, limit),
     total: filtered.length,
     truncated: filtered.length > limit,
-    employees: employees.filter(employee => employee.active).map(employee => ({
+    employees: employees.map(employee => ({
       employeeId: employee.id,
       name: employee.name,
       nickname: employee.nickname,

@@ -109,7 +109,7 @@
   'use strict';
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-attendance-range-1';
+  const FRONTEND_VERSION = 'prod-attendance-range-2';
   const pageParams = new URLSearchParams(location.search);
   const isStaging = pageParams.get('staging') === '1';
   const configuredApiUrl = String((window.KRUA_FLOW_CONFIG || {})[isStaging ? 'STAGING_API_URL' : 'API_URL'] || '').split('?')[0];
