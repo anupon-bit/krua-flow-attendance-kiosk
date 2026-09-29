@@ -11,7 +11,7 @@ for (const match of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)
   new vm.Script(match[1], { filename: 'admin.html' });
 }
 
-assert.match(admin, /call\(\{op:'adminGetOrgMasters',adminToken:state\.token\}/, 'employee profile must use the authenticated Settings master source');
+assert.match(admin, /call\(\{op:'adminGetOrgMasters',adminToken:state\.token,includeDevices:false\},\{timeoutMs:45000/, 'employee profile must use the authenticated Settings master source without loading devices');
 assert.match(admin, /id="refreshOrgMastersBtn"/);
 assert.match(admin, /id="orgShiftSummary"/);
 assert.match(admin, /schedule\.html\?admin=1&amp;embed=1/, 'shift assignment must link to dated schedules');
@@ -51,5 +51,6 @@ assert.match(backend, /const nextName = \[nextFirstName, nextLastName\]\.filter\
 assert.match(backend, /sh\.getRange\(row,2\)\.setValue\(nextName\)/);
 assert.match(backend, /return \{ok:true,employee:adminGetEmployeeDetail_\(token,id\)\}/);
 assert.match(backend, /employee:r\.employee/);
+assert.match(backend, /if\(payload\.includeDevices!==false\)result\.devices=deviceRowsV7_\(\)/);
 
 console.log('employee profile linkage tests: pass');
