@@ -2684,12 +2684,16 @@ function adminGetPermissionUsersV7_(payload){
   if(!sh||last<2)return{rows:[]};
   const rows=sh.getRange(2,1,last-1,33).getValues()
     .filter(r=>String(r[0]||'').trim())
-    .map(r=>({
+    .map(r=>{
+      const employee={
       id:String(r[0]||''),name:String(r[1]||''),active:r[2]!==false,sort:Number(r[3])||999,
       nickname:String(r[7]||''),branch:String(r[10]||''),position:String(r[13]||''),
       employmentStatus:String(r[24]||'ACTIVE'),department:String(r[31]||''),
       accessRole:normalizeAccessRoleV7_(r[32],String(r[13]||'').toUpperCase()==='MANAGER'?'MANAGER':'EMPLOYEE')
-    }))
+      };
+      if(payload.includeRosterDetails)Object.assign(employee,{firstName:String(r[11]||''),lastName:String(r[12]||''),startDate:formatDateInputForClient_(r[9]),birthDate:formatDateInputForClient_(r[16]),resignationDate:formatDateInputForClient_(r[17])});
+      return employee;
+    })
     .sort((a,b)=>a.sort-b.sort||String(a.name).localeCompare(String(b.name),'th'));
   return{rows:rows,serverEpochMs:Date.now()};
 }

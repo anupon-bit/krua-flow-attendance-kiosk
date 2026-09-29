@@ -10,12 +10,15 @@
 body.kfEmbedded .head{display:none}
 body.kfEmbedded .wrap{max-width:none;padding:12px}
 body.kfEmbedded #dashboardBtn,body.kfEmbedded #settingsBtn,body.kfEmbedded #ownerHubBtn{display:none!important}
+body.kfEmployeeRoster #adminHeaderBar{display:none!important}
+.empRow{min-height:88px}.empMeta{white-space:pre-line;line-height:1.45}
+@media(max-width:760px){.empRow{min-height:78px}}
 </style><script src="./config.js?v=20260925-2"></script><script src="./mock-data.js?v=20260925-2"></script><script src="./ux.js?v=20260925-2"></script></head><body>
 <script>if(new URLSearchParams(location.search).get('embed')==='1')document.body.classList.add('kfEmbedded');</script>
 <iframe name="sink" id="sink" style="display:none"></iframe><div class="busy" id="busy"><div id="busyText">กำลังประมวลผล...</div></div>
 <div class="wrap"><div class="head"><div><div class="brand">Krua Flow</div><div class="sub">Attendance Admin <span style="font-size:12px;font-weight:800;color:#8a919d">V7.3</span></div></div><div class="status" id="status">ยังไม่เชื่อมต่อ</div></div>
 <section class="card login" id="login"><h2>เข้าสู่ระบบผู้ดูแล</h2><div class="meta" style="margin-bottom:14px">เชื่อมต่อ Backend ส่วนกลางอัตโนมัติ</div><div class="field" style="margin-top:14px"><label>PIN Admin 6 หลัก</label><input class="input pin" id="adminPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div><button class="btn primary" id="loginBtn" style="margin-top:14px">เข้าสู่ระบบ Admin</button><div class="msg err" id="loginErr"></div></section>
-<main id="dash"><div class="row" style="margin-bottom:14px"><h2 style="margin:0">ภาพรวมพนักงาน</h2><div class="spacer"></div><button class="btn secondary" id="dashboardBtn">Dashboard</button><button class="btn secondary" id="settingsBtn">ตั้งค่าระบบ</button><button class="btn secondary" id="refreshBtn">รีเฟรช</button><button class="btn secondary" id="sheetBtn">Google Sheet</button><button class="btn danger" id="logoutBtn">ออกจากระบบ</button></div>
+<main id="dash"><div class="row" id="adminHeaderBar" style="margin-bottom:14px"><h2 style="margin:0">ภาพรวมพนักงาน</h2><div class="spacer"></div><button class="btn secondary" id="dashboardBtn">Dashboard</button><button class="btn secondary" id="settingsBtn">ตั้งค่าระบบ</button><button class="btn secondary" id="refreshBtn">รีเฟรช</button><button class="btn secondary" id="sheetBtn">Google Sheet</button><button class="btn danger" id="logoutBtn">ออกจากระบบ</button></div>
 <section class="card" id="registrationLinkCard"><div class="row"><h2 style="margin:0">ลิงก์ลงทะเบียนพนักงาน</h2><div class="spacer"></div><span class="meta">ส่งลิงก์นี้ให้พนักงานกรอกเอง</span></div><div class="linkbox" style="margin-top:12px"><input class="input" id="registrationLink" readonly value="https://anupon-bit.github.io/krua-flow-attendance-kiosk/register.html"><button class="btn secondary" id="copyRegLinkBtn">คัดลอกลิงก์</button><button class="btn secondary" id="openRegLinkBtn">เปิดฟอร์ม</button></div></section>
 <section class="card" id="leaveAdminCard">
   <div class="row"><h2 style="margin:0">คำขอลาพนักงาน</h2><div class="spacer"></div><span class="meta" id="leaveCount">ยังไม่โหลด</span></div>
@@ -36,7 +39,7 @@ body.kfEmbedded #dashboardBtn,body.kfEmbedded #settingsBtn,body.kfEmbedded #owne
     <div class="employeeOverviewKpi"><div class="kLabel">ปิดใช้งาน</div><div class="kValue" id="empKpiInactive">0</div></div>
     <div class="employeeOverviewKpi"><div class="kLabel">ใบลงทะเบียนรอตรวจ</div><div class="kValue" id="empKpiPendingReg">0</div></div>
   </div>
-  <div class="searchBar"><input class="input" id="employeeSearch" list="employeeSearchList" placeholder="ค้นหาชื่อ / รหัสพนักงาน"><datalist id="employeeSearchList"></datalist><button class="btn secondary" id="clearSearchBtn">ล้างการค้นหา</button></div>
+  <div class="searchBar"><input class="input" id="employeeSearch" list="employeeSearchList" placeholder="ค้นหาชื่อ-นามสกุล / ชื่อเล่น / รหัสพนักงาน"><datalist id="employeeSearchList"></datalist><button class="btn secondary" id="clearSearchBtn">ล้างการค้นหา</button></div>
   <div class="employeeFilters">
     <button class="employeeFilter active" type="button" data-emp-filter="ALL">ทั้งหมด</button>
     <button class="employeeFilter" type="button" data-emp-filter="ACTIVE">กำลังใช้งาน</button>
@@ -257,6 +260,7 @@ function startAdminFromSession(){
     var view=requestedAdminView();
     $('login').style.display='none';$('dash').style.display='block';
     if(view==='employees'&&EMBED_MODE){
+      document.body.classList.add('kfEmployeeRoster');
       isolateAdminView(view);loadEmployeeList().catch(function(e){alert(e.message||String(e))});
       return true;
     }
@@ -311,7 +315,7 @@ function poll(id,resolve,reject,n){var pending=pendingCalls[id];if(!pending)retu
 function applySummary(r){state.sheet=r.sheetUrl||state.sheet||'';state.employees=r.employees||[];state.registrations=r.registrations||[];state.nextEmployeeId=r.nextEmployeeId||'';renderRegistrations(state.registrations);renderSearchOptions(state.employees);renderEmployeeOverviewKpis(r);applyEmployeeFilter();try{sessionStorage.setItem(SS_SUM,JSON.stringify(r))}catch(e){};$('status').textContent='ข้อมูลสรุปพร้อม • รายละเอียดหนักโหลดเมื่อกดดู'}
 async function loadEmployeeList(){
   $('status').textContent='กำลังโหลดรายชื่อพนักงาน...';
-  var r=await call({op:'adminGetPermissionUsers',adminToken:state.token},{timeoutMs:20000,pollDelayMs:400});
+  var r=await call({op:'adminGetPermissionUsers',adminToken:state.token,includeRosterDetails:true},{timeoutMs:20000,pollDelayMs:400});
   state.employees=r.rows||[];renderSearchOptions(state.employees);renderEmployeeOverviewKpis({pendingCount:null});applyEmployeeFilter();$('empKpiPendingReg').textContent='—';$('status').textContent='รายชื่อพร้อม • รายละเอียดและเอกสารโหลดเฉพาะคนที่เลือก'
 }
 async function login(){setMsg('loginErr','');try{state.api=apiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');var pin=only($('adminPin').value,6);if(pin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');busy(1,'กำลังเข้าสู่ระบบ...');var r=await call({op:'adminLoginFast',adminPin:pin});state.token=r.token||r.adminToken||r.sessionToken||'';if(!state.token)throw new Error('ไม่ได้รับ Admin Token');saveAdminSession(state.token);$('adminPin').value='';applySummary(r.summary||{});$('login').style.display='none';$('dash').style.display='block';var nextPage=new URLSearchParams(location.search).get('next');if(nextPage==='dashboard'||nextPage==='settings'){setTimeout(function(){location.href=nextPage==='settings'?'./admin-settings.html':'./dashboard.html'},120)}}catch(e){setMsg('loginErr',e.message||String(e));$('status').textContent='เชื่อมต่อไม่สำเร็จ'}finally{busy(0)}}
@@ -399,9 +403,9 @@ async function uploadPendingRegistrationDocument(r,type,label,input,btn,card){
 async function openRegistrationDocument(fileId,btn){
   if(!fileId)return;var old=btn.textContent,w=window.open('','_blank');if(!w){alert('Browser บล็อกหน้าต่างใหม่');return}w.document.write('<meta charset="utf-8"><title>กำลังโหลดเอกสาร...</title><p style="font:16px sans-serif;padding:24px">กำลังโหลดเอกสาร...</p>');w.document.close();try{btn.disabled=true;btn.textContent='กำลังเปิด...';var file=await fetchAdminFile('adminGetDocument',fileId),url=URL.createObjectURL(file.blob);w.location.replace(url);setTimeout(function(){URL.revokeObjectURL(url)},300000)}catch(e){var message=fileLoadMessage(e);try{w.document.body.textContent=message}catch(x){}alert(message)}finally{btn.disabled=false;btn.textContent=old}
 }
-function renderSearchOptions(a){var d=$('employeeSearchList');d.innerHTML='';a.forEach(function(e){var o=document.createElement('option');o.value=e.id+' — '+e.name+(e.nickname?' ('+e.nickname+')':'');d.appendChild(o)})}
+function renderSearchOptions(a){var d=$('employeeSearchList');d.innerHTML='';(a||[]).forEach(function(e){var fullName=[e.firstName,e.lastName].filter(Boolean).join(' '),names=Array.from(new Set([e.name,fullName].filter(Boolean))),o=document.createElement('option');o.value=e.id+' — '+names.join(' / ')+(e.nickname?' ('+e.nickname+')':'');d.appendChild(o)})}
 function renderEmployeeOverviewKpis(r){var all=state.employees.length,active=state.employees.filter(function(e){return e.active!==false&&String(e.employmentStatus||'ACTIVE').toUpperCase()!=='INACTIVE'}).length;$('empKpiAll').textContent=all;$('empKpiActive').textContent=active;$('empKpiInactive').textContent=Math.max(0,all-active);$('empKpiPendingReg').textContent=Number(r&&r.pendingCount!=null?r.pendingCount:state.registrations.filter(function(x){return String(x.status||'').toUpperCase()==='PENDING'}).length)}
-function applyEmployeeFilter(){var q=String($('employeeSearch').value||'').trim().toLowerCase(),mode=state.employeeFilter||'ALL';var a=state.employees.filter(function(e){var active=e.active!==false&&String(e.employmentStatus||'ACTIVE').toUpperCase()!=='INACTIVE';if(mode==='ACTIVE'&&!active)return false;if(mode==='INACTIVE'&&active)return false;if(!q)return true;var label=(e.id+' — '+e.name+(e.nickname?' ('+e.nickname+')':'')).toLowerCase();return label.indexOf(q)>=0||String(e.id||'').toLowerCase().indexOf(q)>=0||String(e.name||'').toLowerCase().indexOf(q)>=0||String(e.nickname||'').toLowerCase().indexOf(q)>=0});$('count').textContent='แสดง '+a.length+' จาก '+state.employees.length+' คน';renderEmps(a)}
+function applyEmployeeFilter(){var q=String($('employeeSearch').value||'').trim().toLowerCase(),mode=state.employeeFilter||'ALL';var a=state.employees.filter(function(e){var active=e.active!==false&&String(e.employmentStatus||'ACTIVE').toUpperCase()!=='INACTIVE';if(mode==='ACTIVE'&&!active)return false;if(mode==='INACTIVE'&&active)return false;if(!q)return true;var searchable=[e.id,e.name,e.firstName,e.lastName,e.nickname].filter(Boolean).join(' ').toLowerCase();return searchable.indexOf(q)>=0});$('count').textContent='แสดง '+a.length+' จาก '+state.employees.length+' คน';renderEmps(a)}
 function renderEmps(a){
   var h=$('emps');h.innerHTML='';
   if(!a.length){h.innerHTML='<div class="meta" style="padding:18px">ไม่พบพนักงานที่ค้นหา</div>';return}
@@ -409,7 +413,12 @@ function renderEmps(a){
     var b=document.createElement('button');b.type='button';b.className='empRow';
     b.innerHTML='<div class="empCode"></div><div><div class="empName"></div><div class="empMeta"></div></div><div class="empArrow">›</div>';
     b.querySelector('.empCode').textContent=e.id||'';
-    b.querySelector('.empName').textContent=e.name+(e.nickname?' ('+e.nickname+')':'');var active=e.active!==false&&String(e.employmentStatus||'ACTIVE').toUpperCase()!=='INACTIVE';b.querySelector('.empMeta').textContent=(e.position||'ไม่ระบุตำแหน่ง')+' • '+(e.branch||'ไม่ระบุสาขา')+' • '+(active?'ใช้งาน':'ปิดใช้งาน');
+    var employeeName=[e.firstName,e.lastName].filter(Boolean).join(' ')||e.name||'';
+    b.querySelector('.empName').textContent=employeeName+(e.nickname?' ('+e.nickname+')':'');
+    var active=e.active!==false&&String(e.employmentStatus||'ACTIVE').toUpperCase()!=='INACTIVE';
+    var workLine=(e.position||'ไม่ระบุตำแหน่ง')+' • '+(e.branch||'ไม่ระบุสาขา')+' • '+(e.department||'ไม่ระบุแผนก')+' • '+(active?'ใช้งาน':'ปิดใช้งาน');
+    var ageLine=e.birthDate?'อายุ '+ageLabel(e.birthDate):'อายุไม่ระบุ',tenureLine=e.startDate?'อายุงาน '+tenureLabel(e.startDate,e.resignationDate):'อายุงานไม่ระบุ';
+    var meta=b.querySelector('.empMeta');meta.textContent=workLine+'\n'+ageLine+' • '+tenureLine;meta.style.whiteSpace='pre-line';
     b.onclick=function(){openEmployeeDetail(e.id)};
     h.appendChild(b);
   })
