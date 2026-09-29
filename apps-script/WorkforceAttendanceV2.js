@@ -2,6 +2,7 @@
 
 function wf2AdminAttendanceControl_(payload){
   requireAdmin_(String(payload.adminToken||''));
+  if(payload.startDate||payload.endDate)return wf2AdminAttendanceRange_(payload);
   const dateKey=String(payload.date||Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd'));if(!parseIsoDate_(dateKey))throw new Error('วันที่ไม่ถูกต้อง');
   const branch=String(payload.branchCode||''),department=String(payload.departmentCode||''),employeeQuery=String(payload.employeeQuery||'').trim().toLowerCase(),statusFilter=String(payload.status||''),ss=SpreadsheetApp.openById(SPREADSHEET_ID),employees=getEmployeesAdmin_(),employeeMap={};employees.forEach(e=>employeeMap[e.id]=e);
   const published=new Set(scheduleVersionRowsV7_().filter(v=>v.status==='PUBLISHED').map(v=>v.versionId)),scheduleSh=ss.getSheetByName(WORK_SCHEDULES_SHEET),scheduled={};

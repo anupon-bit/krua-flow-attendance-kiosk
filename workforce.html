@@ -9,9 +9,9 @@
   <script src="./mock-data.js?v=prod-registration-approval-2"></script>
   <script src="./js/api-client.js?v=prod-registration-approval-2"></script>
   <script src="./js/admin-session.js?v=prod-registration-approval-2"></script>
-  <script src="./js/i18n.js?v=prod-employee-documents-1"></script>
+  <script src="./js/i18n.js?v=prod-attendance-range-1"></script>
   <script src="./js/registration-ui.js?v=prod-registration-approval-2"></script>
-  <link rel="stylesheet" href="./css/workforce.css?v=prod-employee-documents-1">
+  <link rel="stylesheet" href="./css/workforce.css?v=prod-attendance-range-1">
   <link rel="stylesheet" href="./css/registration-mobile.css?v=prod-registration-approval-2">
 </head>
 <body>
@@ -44,7 +44,7 @@
 
   const I18N = window.KruaFlowI18n;
   const SESSION = window.KruaFlowAdminSession;
-  const FRONTEND_VERSION = 'prod-employee-documents-1';
+  const FRONTEND_VERSION = 'prod-attendance-range-1';
   const t = I18N.t;
   const params = new URLSearchParams(location.search);
   const view = params.get('view') || 'dashboard';
@@ -837,7 +837,10 @@
     return match ? match[1] : '';
   }
 
+  const attendancePhotoBlobCache = new Map();
+
   async function fetchAttendancePhoto(fileId) {
+    if (attendancePhotoBlobCache.has(fileId)) return attendancePhotoBlobCache.get(fileId);
     const meta = await call('adminGetPhoto', { fileId: fileId });
     const legacy = String(meta.dataUrl || meta.photoData || '');
     if (legacy) {
@@ -846,23 +849,32 @@
       const raw = atob(match[2]);
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      return new Blob([bytes], { type: match[1] || meta.mimeType || 'image/jpeg' });
+      const blob = new Blob([bytes], { type: match[1] || meta.mimeType || 'image/jpeg' });
+      attendancePhotoBlobCache.set(fileId, blob);
+      return blob;
     }
     const size = Number(meta.size) || 0;
     const chunkSize = Math.min(Number(meta.chunkSize) || 49152, 49152);
     if (!size) throw new Error(t('attendance.photoLoadError'));
     const chunks = [];
-    let received = 0;
-    while (received < size) {
-      const part = await call('adminGetFileChunk', { fileId: fileId, offset: received, length: Math.min(chunkSize, size - received) });
-      const raw = atob(String(part.base64 || ''));
-      if (!raw.length) throw new Error(t('attendance.photoLoadError'));
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      chunks.push(bytes);
-      received += bytes.length;
+    const offsets = [];
+    for (let offset = 0; offset < size; offset += chunkSize) offsets.push(offset);
+    for (let index = 0; index < offsets.length; index += 4) {
+      const batch = await Promise.all(offsets.slice(index, index + 4).map(function (offset) {
+        return call('adminGetFileChunk', { fileId: fileId, offset: offset, length: Math.min(chunkSize, size - offset) });
+      }));
+      batch.forEach(function (part) {
+        const raw = atob(String(part.base64 || ''));
+        if (!raw.length) throw new Error(t('attendance.photoLoadError'));
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        chunks.push(bytes);
+      });
     }
-    return new Blob(chunks, { type: meta.mimeType || 'image/jpeg' });
+    const blob = new Blob(chunks, { type: meta.mimeType || 'image/jpeg' });
+    if (attendancePhotoBlobCache.size >= 24) attendancePhotoBlobCache.delete(attendancePhotoBlobCache.keys().next().value);
+    attendancePhotoBlobCache.set(fileId, blob);
+    return blob;
   }
 
   function attendanceEvidenceHtml(events) {
@@ -871,7 +883,8 @@
     return '<div class="attendanceEvidenceList">' + evidence.map(function (event, index) {
       const kind = attendanceActionKind(event.action);
       const fileId = attendancePhotoFileId(event);
-      return '<article class="attendanceEvidence"><div class="attendanceEvidenceHead"><div><span class="attendanceTime ' + (kind === 'IN' ? 'in' : 'out') + '">' + esc(t(kind === 'IN' ? 'table.checkIn' : 'table.checkOut')) + ' ' + esc(valueOf(event.time, '—')) + '</span><div class="metricMeta">' + esc(t('attendance.device')) + ': ' + esc(valueOf(event.deviceId, '—')) + '</div></div>' + (fileId ? '<button class="btn small" type="button" data-attendance-photo="' + esc(fileId) + '" data-photo-index="' + index + '">' + esc(t('attendance.viewPhoto')) + '</button>' : '<span class="attendancePhotoMissing">' + esc(t('attendance.noPhoto')) + '</span>') + '</div>' + (fileId ? '<div class="attendancePhotoHolder" hidden data-photo-holder="' + index + '"><div class="metricMeta">' + esc(t('attendance.loadingPhoto')) + '</div><img alt="' + esc(t('attendance.photoAlt')) + '"></div>' : '') + '</article>';
+      const verified = Boolean(fileId && String(event.status || '').toUpperCase() === 'VERIFIED_PHOTO');
+      return '<article class="attendanceEvidence"><div class="attendanceEvidenceHead"><div><span class="attendanceTime ' + (kind === 'IN' ? 'in' : 'out') + '">' + esc(t(kind === 'IN' ? 'table.checkIn' : 'table.checkOut')) + ' ' + esc(valueOf(event.time, '—')) + '</span><div class="metricMeta">' + esc(t('attendance.device')) + ': ' + esc(valueOf(event.deviceId, '—')) + '</div></div><div class="attendanceEvidenceActions">' + (verified ? '<span class="badge ok">' + esc(t('attendance.photoVerified')) + '</span>' : '') + (fileId ? '<button class="btn small" type="button" data-attendance-photo="' + esc(fileId) + '" data-photo-index="' + index + '">' + esc(t('attendance.viewPhoto')) + '</button>' : '<span class="attendancePhotoMissing">' + esc(t('attendance.noPhoto')) + '</span>') + '</div></div>' + (fileId ? '<div class="attendancePhotoHolder" hidden data-photo-holder="' + index + '"><div class="metricMeta">' + esc(t('attendance.loadingPhoto')) + '</div><img alt="' + esc(t('attendance.photoAlt')) + '"></div>' : '') + '</article>';
     }).join('') + '</div>';
   }
 
@@ -893,7 +906,7 @@
     container.querySelectorAll('[data-row-index]').forEach(function (button) {
       button.onclick = async function () {
         const row = rows[Number(button.dataset.rowIndex)] || {};
-        const date = document.getElementById('attendanceDate').value;
+        const selectedDate = row.date || document.getElementById('attendanceStartDate').value;
         const body = document.getElementById('drawerBody');
         document.getElementById('drawerTitle').textContent = valueOf(row.employeeName, t('drawer.title'));
         body.className = 'attendanceDrawerBody';
@@ -901,7 +914,7 @@
         document.getElementById('drawerBackdrop').hidden = false;
         document.getElementById('drawerClose').focus();
         try {
-          const result = await call('adminGetEmployeeAttendanceRange', { employeeId: row.employeeId, startDate: date, endDate: date });
+          const result = await call('adminGetEmployeeAttendanceRange', { employeeId: row.employeeId, startDate: selectedDate, endDate: selectedDate });
           const evidenceBox = document.getElementById('attendanceEvidence');
           if (!evidenceBox || body.className !== 'attendanceDrawerBody') return;
           evidenceBox.innerHTML = attendanceEvidenceHtml(rowsOf(result));
@@ -942,42 +955,82 @@
 
   async function renderAttendance() {
     const requestId = ++renderSequence;
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date(), today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    let currentRows = [], currentSummary = {}, currentTotal = 0, currentTruncated = false;
     app.innerHTML = flowLabel('summary.title') + '<div id="attendanceSummary" class="skeletonGrid">' + '<div class="skeleton skeletonCard"></div>'.repeat(4) + '</div>' +
-      flowLabel('action.title') + '<section class="section"><div class="toolbar"><input class="input" id="attendanceDate" type="date" value="' + today + '">' +
+      flowLabel('action.title') + '<section class="section"><div class="toolbar attendanceToolbar"><label class="attendanceDateField">' + esc(t('attendance.startDate')) + '<input class="input" id="attendanceStartDate" type="date" value="' + today + '"></label><label class="attendanceDateField">' + esc(t('attendance.endDate')) + '<input class="input" id="attendanceEndDate" type="date" value="' + today + '"></label>' +
       '<select class="select" id="attendanceBranch"><option value="">' + esc(t('common.allBranches')) + '</option>' + (bootstrap.branches || []).map(function (item) { return '<option value="' + esc(item.code) + '">' + esc(item.name) + '</option>'; }).join('') + '</select>' +
       '<select class="select" id="attendanceDepartment"><option value="">' + esc(t('common.allDepartments')) + '</option>' + (bootstrap.departments || []).map(function (item) { return '<option value="' + esc(item.code) + '">' + esc(item.name) + '</option>'; }).join('') + '</select>' +
+      '<select class="select" id="attendanceEmployee"><option value="">' + esc(t('attendance.allEmployees')) + '</option></select>' +
       '<select class="select" id="attendanceStatus"><option value="">' + esc(t('common.allStatuses')) + '</option>' + attendanceStatusOptions() + '</select>' +
-      '<input class="input" id="attendanceSearch" placeholder="' + esc(t('attendance.searchPlaceholder')) + '"><button class="btn" id="attendanceLoad" type="button">' + esc(t('common.refresh')) + '</button></div></section>' +
+      '<button class="btn" id="attendanceLoad" type="button">' + esc(t('common.refresh')) + '</button><button class="btn primary" id="attendanceExport" type="button" disabled>' + esc(t('attendance.exportExcel')) + '</button></div></section>' +
       flowLabel('detail.title') + '<section class="section"><div class="sectionHead"><div><h2>' + esc(t('attendance.listTitle')) + '</h2><div class="attendanceResultMeta" id="attendanceResultMeta"></div></div></div><div id="attendanceDetail"><div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div></div></section>';
+
+    function attendanceRangeKeys(startValue, endValue) {
+      const start = Date.parse(startValue + 'T00:00:00Z'), end = Date.parse(endValue + 'T00:00:00Z');
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) throw new Error(t('attendance.invalidDateRange'));
+      const days = Math.floor((end - start) / 86400000) + 1;
+      if (days > 31) throw new Error(t('attendance.maxDateRange'));
+      return days;
+    }
+
+    function filteredAttendanceRows() {
+      const branch = document.getElementById('attendanceBranch').value, department = document.getElementById('attendanceDepartment').value;
+      const employeeId = document.getElementById('attendanceEmployee').value, status = document.getElementById('attendanceStatus').value;
+      return currentRows.filter(function (row) {
+        return (!branch || row.branchCode === branch) && (!department || row.departmentCode === department) && (!employeeId || row.employeeId === employeeId) && (!status || row.status === status);
+      });
+    }
+
+    function drawAttendance(summary) {
+      const summaryBox = document.getElementById('attendanceSummary'), detailBox = document.getElementById('attendanceDetail');
+      const rows = filteredAttendanceRows();
+      currentSummary = summary || currentSummary;
+      const rangeExpected = rows.filter(function (row) { return row.expected; }).length;
+      summaryBox.className = 'grid';
+      summaryBox.innerHTML = metric('common.total', rangeExpected, t('view.attendance')) +
+        metric('metric.todayAttendance', rows.filter(function (row) { return row.checkIn; }).length, t('status.active')) +
+        metric('common.attention', rows.filter(function (row) { return ['ABSENT','NO_CHECK_OUT'].includes(row.status); }).length, t('view.review')) +
+        metric('common.pending', rows.filter(function (row) { return row.status === 'NOT_CHECKED_IN'; }).length, t('view.attendance'));
+      const resultMeta = document.getElementById('attendanceResultMeta');
+      resultMeta.textContent = t('attendance.resultCount', { count:rows.length, date:document.getElementById('attendanceStartDate').value + ' – ' + document.getElementById('attendanceEndDate').value }) + (currentTruncated ? ' · ' + t('attendance.truncated', { total:currentTotal }) : '');
+      const verification = function (verified, fileId) { return verified ? '<span class="badge ok">' + esc(t('attendance.photoVerified')) + '</span>' : fileId ? '<span class="badge warn">' + esc(t('attendance.photoUnverified')) + '</span>' : '—'; };
+      detailBox.innerHTML = rows.length ? '<div class="tableWrap attendanceTable"><table><thead><tr><th>' + esc(t('table.employee')) + '</th><th>' + esc(t('attendance.nickname')) + '</th><th>' + esc(t('table.branch')) + ' / ' + esc(t('table.department')) + '</th><th>' + esc(t('table.shift')) + '</th><th>' + esc(t('table.checkIn')) + '</th><th>' + esc(t('table.checkOut')) + '</th><th>' + esc(t('table.workedHours')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('attendance.checkInPhoto')) + '</th><th>' + esc(t('attendance.checkOutPhoto')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' +
+        rows.map(function (row, index) { return '<tr><td><strong>' + esc(row.employeeName) + '</strong><div class="metricMeta">' + esc(row.employeeId) + '</div></td><td>' + esc(row.nickname || '—') + '</td><td>' + esc(valueOf(row.branchCode, '—')) + '<div class="metricMeta">' + esc(valueOf(row.departmentCode, '—')) + '</div></td><td><strong>' + esc(valueOf(row.shiftCode, '—')) + '</strong><div class="metricMeta">' + esc(valueOf(row.scheduledShift, '—')) + '</div></td><td>' + attendanceTime(row.checkIn, 'in', row.status) + '</td><td>' + attendanceTime(row.checkOut, 'out', row.status) + '</td><td>' + attendanceHours(row) + '</td><td>' + attendanceStatusBadge(row.status) + '</td><td>' + verification(row.checkInPhotoVerified,row.checkInPhotoFileId) + '</td><td>' + verification(row.checkOutPhotoVerified,row.checkOutPhotoFileId) + '</td><td><button class="btn small" type="button" data-row-index="' + index + '">' + esc(t('attendance.viewEvidence')) + '</button></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">' + esc(t('common.noData')) + '</div>';
+      bindAttendanceDetails(detailBox, rows);
+      document.getElementById('attendanceExport').disabled = !rows.length;
+    }
+
+    function xmlEscape(value) { return String(value == null ? '' : value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+    function exportAttendanceExcel() {
+      const rows = filteredAttendanceRows(), headers = [t('table.date'),t('table.employeeId'),t('table.employee'),t('attendance.nickname'),t('table.branch'),t('table.department'),t('table.shift'),t('attendance.scheduledShift'),t('table.checkIn'),t('table.checkOut'),t('table.workedHours'),t('table.lateMinutes'),t('table.otHours'),t('table.status'),t('attendance.checkInPhoto'),t('attendance.checkOutPhoto')];
+      const data = [headers].concat(rows.map(function (row) { return [row.date,row.employeeId,row.employeeName,row.nickname,row.branchCode,row.departmentCode,row.shiftCode,row.scheduledShift,row.checkIn,row.checkOut,row.workedHours,row.lateMinutes,row.otHours,translateStatus(row.status),row.checkInPhotoVerified?t('attendance.photoVerified'):'',row.checkOutPhotoVerified?t('attendance.photoVerified'):'']; }));
+      const xmlRows = data.map(function (values) { return '<Row>' + values.map(function (value) { return '<Cell><Data ss:Type="String">' + xmlEscape(value) + '</Data></Cell>'; }).join('') + '</Row>'; }).join('');
+      const xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Attendance"><Table>' + xmlRows + '</Table></Worksheet></Workbook>';
+      const blob = new Blob(['\ufeff',xml],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download='attendance-'+document.getElementById('attendanceStartDate').value+'-'+document.getElementById('attendanceEndDate').value+'.xls';document.body.appendChild(link);link.click();link.remove();setTimeout(function(){URL.revokeObjectURL(url)},60000);
+    }
 
     async function load() {
       const ownRequest = ++renderSequence;
       const summaryBox = document.getElementById('attendanceSummary');
       const detailBox = document.getElementById('attendanceDetail');
       if (!summaryBox || !detailBox) return;
+      const startDate = document.getElementById('attendanceStartDate').value, endDate = document.getElementById('attendanceEndDate').value;
+      try { attendanceRangeKeys(startDate,endDate); } catch (error) { detailBox.innerHTML='<div class="error compact">'+esc(error.message)+'</div>'; return; }
       detailBox.innerHTML = '<div class="skeleton skeletonLine"></div><div class="skeleton skeletonLine"></div>';
       try {
         const result = await call('adminAttendanceControl', {
-          date: document.getElementById('attendanceDate').value,
-          branchCode: document.getElementById('attendanceBranch').value,
-          departmentCode: document.getElementById('attendanceDepartment').value,
-          employeeQuery: document.getElementById('attendanceSearch').value,
-          status: document.getElementById('attendanceStatus').value
+          startDate: startDate,
+          endDate: endDate,
+          employeeId: document.getElementById('attendanceEmployee').value
         });
         if (ownRequest !== renderSequence) return;
-        const summary = result.summary || {};
-        const rows = rowsOf(result);
-        const resultMeta = document.getElementById('attendanceResultMeta');
-        if (resultMeta) resultMeta.textContent = t('attendance.resultCount', { count: rows.length, date: document.getElementById('attendanceDate').value });
-        summaryBox.className = 'grid';
-        summaryBox.innerHTML = metric('common.total', summary.expected, t('view.attendance')) +
-          metric('metric.todayAttendance', summary.present, t('status.active')) +
-          metric('common.attention', Number(summary.absent || 0) + Number(summary.noCheckOut || 0), t('view.review')) +
-          metric('common.pending', summary.notCheckedIn, t('view.attendance'));
-        detailBox.innerHTML = rows.length ? '<div class="tableWrap attendanceTable"><table><thead><tr><th>' + esc(t('table.employee')) + '</th><th>' + esc(t('table.branch')) + ' / ' + esc(t('table.department')) + '</th><th>' + esc(t('table.shift')) + '</th><th>' + esc(t('table.checkIn')) + '</th><th>' + esc(t('table.checkOut')) + '</th><th>' + esc(t('table.workedHours')) + '</th><th>' + esc(t('table.status')) + '</th><th>' + esc(t('table.action')) + '</th></tr></thead><tbody>' +
-          rows.map(function (row, index) { return '<tr><td><strong>' + esc(row.employeeName) + '</strong><div class="metricMeta">' + esc(row.employeeId) + (row.nickname ? ' · ' + esc(row.nickname) : '') + '</div></td><td>' + esc(valueOf(row.branchCode, '—')) + '<div class="metricMeta">' + esc(valueOf(row.departmentCode, '—')) + '</div></td><td><strong>' + esc(valueOf(row.shiftCode, '—')) + '</strong><div class="metricMeta">' + esc(valueOf(row.scheduledShift, '—')) + '</div></td><td>' + attendanceTime(row.checkIn, 'in', row.status) + '</td><td>' + attendanceTime(row.checkOut, 'out', row.status) + '</td><td>' + attendanceHours(row) + '</td><td>' + attendanceStatusBadge(row.status) + '</td><td><button class="btn small" type="button" data-row-index="' + index + '">' + esc(t('attendance.viewEvidence')) + '</button></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">' + esc(t('common.noData')) + '</div>';
-        bindAttendanceDetails(detailBox, rows);
+        currentRows = rowsOf(result);currentTotal = Number(result.total) || currentRows.length;currentTruncated = Boolean(result.truncated);drawAttendance(result.summary||{});
+        const employeeSelect=document.getElementById('attendanceEmployee'),selectedEmployee=employeeSelect.value;
+        employeeSelect.innerHTML='<option value="">'+esc(t('attendance.allEmployees'))+'</option>'+(result.employees||[]).map(function(employee){return '<option value="'+esc(employee.employeeId)+'">'+esc((employee.name||employee.nickname||employee.employeeId)+(employee.nickname?' ('+employee.nickname+')':''))+' • '+esc(employee.employeeId)+'</option>';}).join('');
+        employeeSelect.value=selectedEmployee;
+        drawAttendance(result.summary||{});
       } catch (error) {
         if (ownRequest !== renderSequence) return;
         detailBox.innerHTML = '<div class="error"><strong>' + esc(t('common.error')) + '</strong><div>' + esc(I18N.errorText(error)) + '</div><button class="btn" id="attendanceRetry" type="button">' + esc(t('common.retry')) + '</button></div>';
@@ -986,12 +1039,13 @@
     }
 
     document.getElementById('attendanceLoad').onclick = load;
-    document.getElementById('attendanceDate').onchange = load;
-    document.getElementById('attendanceBranch').onchange = load;
-    document.getElementById('attendanceDepartment').onchange = load;
-    document.getElementById('attendanceStatus').onchange = load;
-    let timer;
-    document.getElementById('attendanceSearch').oninput = function () { clearTimeout(timer); timer = setTimeout(load, 350); };
+    document.getElementById('attendanceStartDate').onchange = load;
+    document.getElementById('attendanceEndDate').onchange = load;
+    document.getElementById('attendanceBranch').onchange = function () { drawAttendance(currentSummary); };
+    document.getElementById('attendanceDepartment').onchange = function () { drawAttendance(currentSummary); };
+    document.getElementById('attendanceStatus').onchange = function () { drawAttendance(currentSummary); };
+    document.getElementById('attendanceEmployee').onchange = load;
+    document.getElementById('attendanceExport').onclick = exportAttendanceExcel;
     if (requestId <= renderSequence) await load();
   }
 
