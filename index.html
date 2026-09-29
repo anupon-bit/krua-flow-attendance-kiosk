@@ -106,25 +106,41 @@
   setInterval(tick,1000);tick();
 
   function sanitizeApiUrl(url){url=String(url||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(url))throw new Error('กรุณาใช้ Web App URL ที่ลงท้าย /exec');return url.split('?')[0]}
+  const pendingRequests=new Map();
+
+  function settleRequest(requestId,result){
+    const pending=pendingRequests.get(requestId);
+    if(!pending||!result||result.ready!==true)return;
+    pendingRequests.delete(requestId);
+    result.ok?pending.resolve(result.data||{}):pending.reject(new Error(result.error||'ทำรายการไม่สำเร็จ'));
+  }
+
+  window.addEventListener('message',event=>{
+    const sink=$('apiSink'),message=event.data;
+    if(!sink||event.source!==sink.contentWindow||!message||message.type!=='KruaFlowApiResult'||!message.requestId)return;
+    settleRequest(String(message.requestId),message.result);
+  });
   function randomDeviceToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 
   function postBridge(payload){
     return new Promise((resolve,reject)=>{
-      const requestId=uid();payload.requestId=requestId;
+      const requestId=uid();payload.requestId=requestId;payload.clientOrigin=location.origin;
+      pendingRequests.set(requestId,{resolve,reject});
       const form=document.createElement('form');form.method='POST';form.action=state.apiUrl;form.target='apiSink';form.style.display='none';
       const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=JSON.stringify(payload);form.appendChild(input);document.body.appendChild(form);
-      try{form.submit()}catch(e){form.remove();reject(e);return}
+      try{form.submit()}catch(e){pendingRequests.delete(requestId);form.remove();reject(e);return}
       setTimeout(()=>form.remove(),5000);
       pollStatus(requestId,resolve,reject,0);
     });
   }
 
   function pollStatus(requestId,resolve,reject,attempt){
-    if(attempt>12){reject(new Error('เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'));return}
+    if(!pendingRequests.has(requestId))return;
+    if(attempt>12){settleRequest(requestId,{ready:true,ok:false,error:'เชื่อมต่อ Backend ไม่สำเร็จ กรุณาลองใหม่'});return}
     const cb='__kfcb_'+requestId.replace(/[^A-Za-z0-9_]/g,'_')+'_'+attempt;
     const script=document.createElement('script');
     let done=false;const cleanup=()=>{if(done)return;done=true;try{delete window[cb]}catch(e){};script.remove()};
-    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),700);return}if(res.ok)resolve(res.data||{});else reject(new Error(res.error||'ทำรายการไม่สำเร็จ'))};
+    window[cb]=(res)=>{cleanup();if(!res||!res.ready){setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),700);return}settleRequest(requestId,res)};
     script.onerror=()=>{cleanup();setTimeout(()=>pollStatus(requestId,resolve,reject,attempt+1),900)};
     script.src=state.apiUrl+`?api=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(cb)}&_=${Date.now()}`;
     document.head.appendChild(script);
@@ -186,7 +202,7 @@
 
   function resetFlow(){
     stopCamera();state.employee=null;state.pin='';state.pinVerified=false;state.action='';state.photoData='';
-    $('employeeSelect').value='';$('employeePin').value='';$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';
+    $('employeeSelect').value='';$('employeePin').value='';$('pinState').className='pinstate muted';$('pinState').textContent='เลือกชื่อและกรอกรหัส 4 หลัก';$('saveBtn').disabled=false;
     document.querySelectorAll('.action').forEach(b=>b.disabled=true);$('cameraSection').classList.remove('show');$('preview').style.display='none';$('video').style.display='block';$('captureBtn').style.display='';$('captureBtn').disabled=true;$('retakeBtn').style.display='none';$('saveBtn').style.display='none';setCamError('');
   }
 
@@ -225,6 +241,7 @@
 
   async function saveAttendance(){
     if(!state.photoData||!state.pinVerified||!state.employee)return;
+    $('saveBtn').disabled=true;
     try{showBusy('กำลังตรวจรหัสและบันทึกเวลา...');const res=await postBridge({op:'recordAttendance',deviceToken:state.deviceToken,employeeId:state.employee.id,employeePin:state.pin,action:state.action,photoData:state.photoData,deviceId:state.deviceId,clientTimestamp:new Date().toISOString()});hideBusy();$('successName').textContent=(res.employeeNickname||res.employeeName);$('successMeta').textContent=`${res.action} • ${res.time} น.`;$('success').classList.add('show');setTimeout(()=>{$('success').classList.remove('show');resetFlow();window.scrollTo({top:0,behavior:'smooth'})},1400)}
     catch(e){hideBusy();setCamError(e.message||String(e));$('saveBtn').disabled=false}
   }
