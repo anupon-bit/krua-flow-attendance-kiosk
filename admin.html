@@ -319,7 +319,32 @@ async function loadEmployeeList(){
   var r=await call({op:'adminGetPermissionUsers',adminToken:state.token,includeRosterDetails:true},{timeoutMs:20000,pollDelayMs:400});
   state.employees=r.rows||[];renderSearchOptions(state.employees);renderEmployeeOverviewKpis({pendingCount:null});applyEmployeeFilter();$('empKpiPendingReg').textContent='—';$('status').textContent='รายชื่อพร้อม • รายละเอียดและเอกสารโหลดเฉพาะคนที่เลือก'
 }
-async function login(){setMsg('loginErr','');try{state.api=apiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');var pin=only($('adminPin').value,6);if(pin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');busy(1,'กำลังเข้าสู่ระบบ...');var r=await call({op:'adminLoginFast',adminPin:pin});state.token=r.token||r.adminToken||r.sessionToken||'';if(!state.token)throw new Error('ไม่ได้รับ Admin Token');saveAdminSession(state.token);$('adminPin').value='';applySummary(r.summary||{});$('login').style.display='none';$('dash').style.display='block';var nextPage=new URLSearchParams(location.search).get('next');if(nextPage==='dashboard'||nextPage==='settings'){setTimeout(function(){location.href=nextPage==='settings'?'./admin-settings.html':'./dashboard.html'},120)}}catch(e){setMsg('loginErr',e.message||String(e));$('status').textContent='เชื่อมต่อไม่สำเร็จ'}finally{busy(0)}}
+async function login(){
+  setMsg('loginErr','');
+  try{
+    state.api=apiUrl((window.KRUA_FLOW_CONFIG&&window.KRUA_FLOW_CONFIG.API_URL)||'');
+    var pin=only($('adminPin').value,6);
+    if(pin.length!==6)throw new Error('กรุณากรอก PIN Admin 6 หลัก');
+    busy(1,'กำลังเข้าสู่ระบบ...');
+    var result=await call({op:'adminLogin',adminPin:pin});
+    state.token=result.token||result.adminToken||result.sessionToken||'';
+    if(!state.token)throw new Error('ไม่ได้รับ Admin Token');
+    saveAdminSession(state.token);
+    $('adminPin').value='';
+    var cached=null;
+    try{cached=JSON.parse(sessionStorage.getItem(SS_SUM)||'null')}catch(e){}
+    if(cached)applySummary(cached);
+    $('login').style.display='none';
+    $('dash').style.display='block';
+    $('status').textContent=cached?'กำลังอัปเดตข้อมูลล่าสุด...':'กำลังโหลดข้อมูลภาพรวม...';
+    load(false).catch(function(error){if(state.token)$('status').textContent='โหลดข้อมูลไม่สำเร็จ: '+String(error.message||error)});
+    var nextPage=new URLSearchParams(location.search).get('next');
+    if(nextPage==='dashboard'||nextPage==='settings')setTimeout(function(){location.href=nextPage==='settings'?'./admin-settings.html':'./dashboard.html'},120);
+  }catch(error){
+    setMsg('loginErr',error.message||String(error));
+    $('status').textContent='เชื่อมต่อไม่สำเร็จ';
+  }finally{busy(0)}
+}
 async function load(showBusy){if(showBusy!==false)busy(1,'กำลังรีเฟรชข้อมูลสรุป...');try{var r=await call({op:'adminSummary',adminToken:state.token});applySummary(r)}catch(e){if(/หมดอายุ|Admin|สิทธิ์/.test(e.message||'')){clearAdminSession();sessionStorage.removeItem(SS_SUM);state.token='';$('dash').style.display='none';$('login').style.display='block'}throw e}finally{if(showBusy!==false)busy(0)}}
 function dateOnly(v){if(!v)return null;const p=String(v).slice(0,10).split('-').map(Number);if(p.length!==3||!p[0]||!p[1]||!p[2])return null;return new Date(p[0],p[1]-1,p[2])}
 function ageLabel(v){const d=dateOnly(v);if(!d)return '-';const t=new Date();let y=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))y--;return y>=0?y+' ปี':'-'}

@@ -8,6 +8,7 @@ const vm = require('vm');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'js/admin-session.js'), 'utf8');
 const uxSource = fs.readFileSync(path.join(root, 'ux.js'), 'utf8');
+const admin = fs.readFileSync(path.join(root, 'admin.html'), 'utf8');
 const workspace = fs.readFileSync(path.join(root, 'workspace.html'), 'utf8');
 const workforce = fs.readFileSync(path.join(root, 'workforce.html'), 'utf8');
 const manager = fs.readFileSync(path.join(root, 'manager.html'), 'utf8');
@@ -52,6 +53,9 @@ assert.strictEqual(session.isAuthError(new Error('สิทธิ์ Admin ห�
 assert.strictEqual(session.isAuthError(new Error('PIN Admin ไม่ถูกต้อง')), false, 'wrong PIN is not an expired session');
 
 assert(workspace.includes("op: 'adminLogin'"), 'UAT page must support direct admin PIN login without loading an unused summary');
+assert(admin.includes("call({op:'adminLogin',adminPin:pin})"), 'Admin login must authenticate before loading the dashboard summary');
+assert(!admin.includes("call({op:'adminLoginFast',adminPin:pin})"), 'Admin login must not wait for the summary endpoint');
+assert(admin.includes("load(false).catch(function(error)"), 'Admin summary must load after login without blocking the dashboard');
 assert(workspace.includes('saveToken(value, result.expiresIn)'), 'login must store the backend token lifetime');
 assert(workspace.includes("type === 'KruaFlowAdminSessionExpired'"), 'workspace must return to login when the child session expires');
 assert(workspace.includes("type === 'KruaFlowAdminSessionActive'"), 'workspace must extend active sessions');

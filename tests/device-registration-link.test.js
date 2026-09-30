@@ -17,7 +17,7 @@ assert.match(settings, /url\.searchParams\.set\('v','prod-workforce-v2-labels-1'
 assert.match(settings, /line\.me\/R\/msg\/text/);
 assert.match(settings, /navigator\.share/);
 assert.doesNotMatch(settings.match(/function getDeviceRegistrationUrl\(\)[^\n]+/)[0], /adminPin|adminToken|deviceToken/i);
-assert.match(workspace, /const FRONTEND_VERSION = 'prod-wage-type-settings-1'/);
+assert.match(workspace, /const FRONTEND_VERSION = 'prod-admin-login-fast-1'/);
 
 let index = 0;
 for (const match of settings.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
