@@ -54,7 +54,10 @@ function apiPostMessageResponse_(requestId, result, clientOrigin) {
   const message = { type:'KruaFlowApiResult', requestId:String(requestId || ''), result:result || {ready:true,ok:false,error:'ไม่พบผลลัพธ์'} };
   const json = JSON.stringify(message).replace(/</g, '\\u003c');
   const target=clientOrigin?JSON.stringify(clientOrigin):'"*"';
-  const output=HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>try{parent.postMessage(' + json + ','+target+')}catch(e){}<\/script>');
+  // HtmlService nests user code inside an extra googleusercontent iframe.
+  // Deliver to the allowed app origin through each ancestor; other origins
+  // cannot receive the message because postMessage keeps its targetOrigin.
+  const output=HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>var recipient=parent;for(var depth=0;depth<4;depth++){try{recipient.postMessage(' + json + ','+target+')}catch(e){}try{if(recipient===recipient.parent)break;recipient=recipient.parent}catch(e){break}}<\/script>');
   return clientOrigin?output.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL):output;
 }
 
