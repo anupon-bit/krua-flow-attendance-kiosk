@@ -134,9 +134,16 @@ function apiPutResult_(requestId, value) {
   const json = JSON.stringify(value);
   // Apps Script CacheService จำกัดขนาด value ต่อ key; รูป/เอกสาร base64 อาจใหญ่เกินขีดจำกัด
   // กรณี payload ใหญ่ ให้ส่งกลับผ่าน postMessage โดยตรงและไม่เขียนลง cache
-  if (json.length > 90000) return false;
-  CacheService.getScriptCache().put(apiResultKey_(requestId), json, 300);
-  return true;
+  const byteLength=Utilities.newBlob(json,'application/json').getBytes().length;
+  if (byteLength > 90000) return false;
+  try {
+    CacheService.getScriptCache().put(apiResultKey_(requestId), json, 300);
+    return true;
+  } catch (e) {
+    // Cache is only the JSONP fallback. A cache quota/size failure must not replace
+    // a successful API result; the iframe postMessage response remains authoritative.
+    return false;
+  }
 }
 
 function apiResultKey_(requestId) {
@@ -2410,6 +2417,20 @@ function portalGetPayrollDisputesV7_(payload){const e=requirePortalV7_(payload.p
 
 // V7.4 performance: load the entire payroll dashboard in one backend call.
 // This avoids N separate adminGetPayrollPreview requests and reads each Sheet only once.
+function payrollDashboardPreviewV7_(preview){
+  const rows=preview&&Array.isArray(preview.rows)?preview.rows:[];
+  return{
+    periodKey:String(preview&&preview.periodKey||''),
+    totals:preview&&preview.totals?preview.totals:{},
+    indicators:{
+      lateDays:rows.filter(r=>Number(r.lateDeduction)>0).length,
+      lateOver15:rows.some(r=>Number(r.lateMinutes)>15),
+      noIn:rows.some(r=>String(r.note||'').indexOf('ไม่มีเวลาเข้า')>=0),
+      noOut:rows.some(r=>String(r.note||'').indexOf('ไม่มีเวลาออก')>=0)
+    }
+  };
+}
+
 function adminDashboardPayrollBundleV7_(payload){
   const started=Date.now(),token=String(payload.adminToken||'');requireAdmin_(token);
   const startDate=String(payload.startDate||''),endDate=String(payload.endDate||''),payDate=String(payload.payDate||'');
@@ -2431,7 +2452,7 @@ function adminDashboardPayrollBundleV7_(payload){
   employees.forEach(emp=>{
     try{
       const preview=payrollBundleCalcEmployeeV7_(emp,start,end,startKey,endKey,payDate,periodKey,input);
-      payroll.push({employeeId:String(emp.id),ok:true,preview:preview});
+      payroll.push({employeeId:String(emp.id),ok:true,preview:payrollDashboardPreviewV7_(preview)});
     }catch(err){payroll.push({employeeId:String(emp.id),ok:false,error:err&&err.message?err.message:String(err)})}
   });
   const snapshots=input.snapshots.filter(x=>x.startDate===startKey&&x.endDate===endKey&&(!payDate||x.payDate===payDate));
@@ -2505,7 +2526,10 @@ function payrollBundleReadDataV7_(ss,startKey,endKey,periodKey){
   // Payroll snapshots: one read for workflow status.
   const snap=ss.getSheetByName(PAYROLL_SNAPSHOTS_SHEET),snapLast=snap?snap.getLastRow():0;
   if(snap&&snapLast>=2){
-    snap.getRange(2,1,snapLast-1,19).getValues().forEach((r,i)=>snapshots.push({row:i+2,snapshotId:String(r[0]),periodKey:String(r[1]),employeeId:String(r[2]),startDate:formatDateInputForClient_(r[3]),endDate:formatDateInputForClient_(r[4]),payDate:formatDateInputForClient_(r[5]),status:String(r[6]),gross:Number(r[7])||0,deductions:Number(r[8])||0,net:Number(r[9])||0,detailJson:String(r[10]||''),createdAt:formatDateTimeForClient_(r[11]),createdBy:String(r[12]||''),finalizedAt:formatDateTimeForClient_(r[13]),paidAt:formatDateTimeForClient_(r[14]),paidReference:String(r[15]||''),employeeResponse:String(r[16]||''),employeeResponseAt:formatDateTimeForClient_(r[17]),updatedAt:formatDateTimeForClient_(r[18])}));
+    // Detail JSON can be very large and is not used by the dashboard. Read around column 11
+    // so the first paint is not delayed by historical payslip payloads.
+    const count=snapLast-1,head=snap.getRange(2,1,count,10).getValues(),tail=snap.getRange(2,12,count,8).getValues();
+    head.forEach((r,i)=>{const t=tail[i]||[];snapshots.push({row:i+2,snapshotId:String(r[0]),periodKey:String(r[1]),employeeId:String(r[2]),startDate:formatDateInputForClient_(r[3]),endDate:formatDateInputForClient_(r[4]),payDate:formatDateInputForClient_(r[5]),status:String(r[6]),gross:Number(r[7])||0,deductions:Number(r[8])||0,net:Number(r[9])||0,createdAt:formatDateTimeForClient_(t[0]),createdBy:String(t[1]||''),finalizedAt:formatDateTimeForClient_(t[2]),paidAt:formatDateTimeForClient_(t[3]),paidReference:String(t[4]||''),employeeResponse:String(t[5]||''),employeeResponseAt:formatDateTimeForClient_(t[6]),updatedAt:formatDateTimeForClient_(t[7])})});
   }
   return{eventsByEmployee:eventsByEmployee,leavesByEmployee:leavesByEmployee,itemsByEmployee:itemsByEmployee,adjustmentsByEmployee:adjustmentsByEmployee,snapshots:snapshots};
 }
