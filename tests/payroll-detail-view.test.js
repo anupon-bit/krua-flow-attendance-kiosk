@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict');
+const view=require('../js/payroll-detail-view.js');
+assert.equal(view.dayInfo('2026-10-01').className,'day4');
+assert.match(view.dayInfo('2026-10-01').label,/พฤหัสบดี/);
+assert.equal(new Set(['2026-10-01','2026-10-02','2026-10-03','2026-10-04','2026-10-05','2026-10-06','2026-10-07'].map(day=>view.dayInfo(day).className)).size,7);
+const rows=view.dailyRows([{date:'2026-10-01',worked:true,shift:'NIGHT',inTime:'20:00:00',outTime:'08:00:00',baseWage:470,lateDeduction:100,nightAllowance:65,otPay:58.75,otPaidHours:1,otBeforeMinutes:0,otAfterMinutes:60,dayNet:493.75,note:'<img src=x onerror=alert(1)>'},{date:'2026-10-02',worked:true,shift:'DAY',inTime:'08:00:00',outTime:''}]);
+assert.match(rows,/timeIn/);assert.match(rows,/timeOut/);assert.match(rows,/ออกวันถัดไป/);assert.match(rows,/timeMissing/);assert.match(rows,/reviewRow/);assert.match(rows,/58\.75/);assert.match(rows,/100\.00/);assert.doesNotMatch(rows,/<img/);
+const result={employee:{dailyWage:470},rows:[],totals:{baseWage:1410,nightAllowance:195,otPay:58.75,recurringEarnings:100,adjustmentEarnings:50,lateDeduction:100,recurringDeductions:20,adjustmentDeductions:30,gross:1813.75,totalDeductions:150,net:1663.75},recurringItems:[{name:'อาหาร',type:'EARNING',method:'PER_WORKDAY',amount:10,quantity:3,total:30,note:'<script>bad</script>'},{name:'รายการหัก',type:'DEDUCTION',method:'FIXED',amount:20,quantity:1,total:20}],adjustments:[{name:'ปรับยอด',type:'DEDUCTION',amount:30,effectiveDate:'2026-10-02'}]};
+const summary=view.summaryHtml(result);assert.match(summary,/403\.75/);assert.match(summary,/150\.00/);assert.match(summary,/1,663\.75/);
+const breakdown=view.breakdownHtml(result.totals);for(const label of ['หักสาย','เงินหักประจำ','เงินหักปรับยอด','เงินเพิ่มประจำ','เงินเพิ่มปรับยอด','รวมก่อนหัก','ยอดสุทธิ'])assert.ok(breakdown.includes(label));
+const financial=view.financialRows(result);assert.match(financial,/ต่อวันทำงาน/);assert.match(financial,/30\.00/);assert.match(financial,/2026-10-02/);assert.doesNotMatch(financial,/<script>/);
+const original=JSON.stringify(result);const elements={};view.render(result,{getElementById:id=>elements[id]||(elements[id]={})});assert.equal(JSON.stringify(result),original,'UI must not modify backend payroll values');
+assert.match(elements.financialRows.innerHTML,/รายการหัก/);assert.match(view.scanRows([{date:'2026-10-01',time:'12:00',action:'BREAK_OUT'}]),/reviewBadge/);
+console.log('payroll detail UI tests: pass');

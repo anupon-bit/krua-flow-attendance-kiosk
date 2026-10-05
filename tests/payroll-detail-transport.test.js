@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const page=fs.readFileSync('payroll-attendance.html','utf8'),backend=fs.readFileSync('apps-script/รหัส.js','utf8');
+const view=fs.readFileSync('js/payroll-detail-view.js','utf8');
 const script=[...page.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)][0][1];
 function source(text,name){const start=text.indexOf('function '+name+'('),end=text.indexOf('\nfunction ',start+1);assert.ok(start>=0);return text.slice(start,end<0?text.length:end);}
 const context=vm.createContext({});new vm.Script(source(page,'isApiResponseSource')).runInContext(context);
@@ -20,7 +21,7 @@ assert.equal(destinations.length,2,'nested response must reach the application a
 assert.ok(destinations.every(([,origin])=>origin==='https://example.test'),'targetOrigin must not widen to wildcard');
 
 async function run(response,timeout=false){
-  const elements={};for(const id of ['apiSink','retry','status','summary','dailySection','scanSection','employee','period','dailyRows','scanRows'])elements[id]={textContent:'',innerHTML:'',disabled:false,hidden:false};
+  const elements={};for(const id of ['apiSink','retry','print','status','summary','financialSection','financialBreakdown','financialRows','dailySection','scanSection','employee','period','dailyRows','scanRows'])elements[id]={textContent:'',innerHTML:'',disabled:false,hidden:false};
   elements.apiSink.contentWindow=sink;
   const listeners={},timers=[];
   const document={getElementById:id=>elements[id],head:{appendChild(){}},body:{appendChild(){}},createElement(tag){return{children:[],style:{},appendChild(child){this.children.push(child);},remove(){},submit(){
@@ -32,6 +33,7 @@ async function run(response,timeout=false){
     sessionStorage:{getItem:()=> 'test-token'},localStorage:{getItem:()=>null},URLSearchParams,crypto:{randomUUID:()=> 'test-id'},
     setTimeout:(fn,ms)=>{timers.push({fn,ms});return timers.length;},clearTimeout(){},console
   });
+  new vm.Script(view).runInContext(browser);
   new vm.Script(script).runInContext(browser);
   if(timeout){const deadline=timers.find(t=>t.ms===45000);assert.ok(deadline,'wait must be bounded to 45 seconds');deadline.fn();}
   await new Promise(resolve=>setImmediate(resolve));
