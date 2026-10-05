@@ -44,7 +44,23 @@ function wf2AdminRecordEmployeeMovement_(payload) {
   wf2AddEvent_(personId,employeeId,'EMPLOYEE_MOVEMENT',id,record['Movement Type'],key+': '+record['Old Value']+' → '+record['New Value'],{effectiveDate:effectiveKey,reason:record['Reason']},'ADMIN');auditLogV7_('ADMIN','ADMIN','RECORD_EMPLOYEE_MOVEMENT','EMPLOYEE',employeeId,{field:key,value:record['Old Value']},{field:key,value:record['New Value'],effectiveDate:effectiveKey},record['Reason'],String(payload.requestId||''));return{ok:true,movementId:id,status:status};
 }
 
-function wf2ApplyEmployeeField_(employeeId,header,value){const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET),headers=wf2Headers_(sh),idCol=headers.indexOf('Employee ID'),target=headers.indexOf(header);if(idCol<0||target<0)throw new Error('Employee schema ไม่มี '+header);const ids=sh.getRange(2,idCol+1,Math.max(0,sh.getLastRow()-1),1).getValues();for(let i=0;i<ids.length;i++)if(String(ids[i][0])===String(employeeId)){sh.getRange(i+2,target+1).setValue(value);invalidateAdminSummary_();return}throw new Error('ไม่พบพนักงาน')}
+function wf2ApplyEmployeeField_(employeeId,header,value){
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET),headers=wf2Headers_(sh),idCol=headers.indexOf('Employee ID'),target=headers.indexOf(header);
+  if(idCol<0||target<0)throw new Error('Employee schema ไม่มี '+header);
+  const ids=sh.getRange(2,idCol+1,Math.max(0,sh.getLastRow()-1),1).getValues();
+  for(let i=0;i<ids.length;i++)if(String(ids[i][0])===String(employeeId)){
+    const row=i+2;
+    if(header==='Wage Amount'||header==='Wage Type'){
+      const current=sh.getRange(row,1,1,27).getValues()[0];
+      const profile={};profile[header==='Wage Amount'?'wageAmount':'wageType']=value;
+      const wages=linkedWageFields_(profile,{wageType:current[14],wageAmount:current[15],dailyWage:current[26]});
+      sh.getRange(row,15,1,2).setValues([[wages.wageType,wages.wageAmount]]);
+      sh.getRange(row,27).setValue(wages.dailyWage);
+    }else sh.getRange(row,target+1).setValue(value);
+    invalidateAdminSummary_();return;
+  }
+  throw new Error('ไม่พบพนักงาน');
+}
 
 function wf2AdminApplyDueMovements_(payload){requireAdmin_(String(payload.adminToken||''));const today=attendanceDateKey_(new Date()),rows=wf2Rows_('Employee_Movements').filter(r=>String(r['Status'])==='SCHEDULED'&&attendanceDateKey_(r['Effective Date'])<=today),fields={BRANCH:'Branch',DEPARTMENT:'Department',POSITION:'Position',WAGE_AMOUNT:'Wage Amount',WAGE_TYPE:'Wage Type',ACCESS_ROLE:'Access Role',EMPLOYMENT_STATUS:'Employment Status'};rows.forEach(r=>{wf2ApplyEmployeeField_(String(r['Employee ID']),fields[String(r['Field Name'])],String(r['New Value']));wf2UpdateRow_('Employee_Movements',r._row,{'Status':'APPLIED','Applied At':new Date()})});return{ok:true,applied:rows.length}}
 

@@ -798,10 +798,33 @@ function fileToDataUrl_(fileId) {
 }
 
 
-const ADMIN_SUMMARY_CACHE_KEY_ = 'ADMIN_SUMMARY_V54';
+const ADMIN_SUMMARY_CACHE_KEY_ = 'ADMIN_SUMMARY_DAILY_V55';
+
+// Daily employees (including legacy blank types) use the Admin amount as their
+// canonical daily rate. Explicit monthly/hourly contracts remain separate.
+function linkedDailyWage_(wageType, wageAmount, dailyWage) {
+  const type=String(wageType||'').trim().toUpperCase();
+  if (type && type!=='DAILY') return Number(dailyWage)||0;
+  return Number(wageAmount)||Number(dailyWage)||0;
+}
+
+function linkedWageFields_(profile, current) {
+  profile=profile||{};current=current||{};
+  const type=String(profile.wageType!==undefined?profile.wageType:current.wageType||'').trim()||'DAILY';
+  let amount=Number((profile.wageAmount!==undefined?profile.wageAmount:current.wageAmount)||0);
+  let daily=Number((profile.dailyWage!==undefined?profile.dailyWage:current.dailyWage)||0);
+  if(type.toUpperCase()==='DAILY') {
+    // Preserve explicit zero on save; legacy reads may fall back to dailyWage.
+    const supplied=profile.wageAmount!==undefined?profile.wageAmount:profile.dailyWage;
+    amount=daily=supplied!==undefined?Number(supplied):linkedDailyWage_(type,amount,daily);
+  }
+  if(!Number.isFinite(amount)||!Number.isFinite(daily)||amount<0||daily<0)throw new Error('ค่าแรงต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป');
+  return {wageType:type,wageAmount:amount,dailyWage:daily};
+}
 
 function invalidateAdminSummary_() {
   try { CacheService.getScriptCache().remove(ADMIN_SUMMARY_CACHE_KEY_); } catch (e) {}
+  PropertiesService.getScriptProperties().setProperty('PAYROLL_WAGE_REVISION',Utilities.getUuid());
 }
 
 function employeeIdFromRows_(rows) {
@@ -839,10 +862,10 @@ function adminGetFastSummary_(token, forceFresh) {
       id:toClientText_(r[0]), name:toClientText_(r[1]), active:r[2] !== false, sort:Number(r[3])||999,
       pinSet:Boolean(String(r[6]||'').trim()), nickname:toClientText_(r[7]), phone:toClientText_(r[8]), startDate:formatDateInputForClient_(r[9]),
       branch:toClientText_(r[10]), firstName:toClientText_(r[11]), lastName:toClientText_(r[12]), position:toClientText_(r[13]),
-      wageType:toClientText_(r[14]), wageAmount:Number(r[15])||0, birthDate:formatDateInputForClient_(r[16]), resignationDate:formatDateInputForClient_(r[17]),
+      wageType:toClientText_(r[14] || 'DAILY'), wageAmount:(!String(r[14]||'').trim()||String(r[14]).toUpperCase()==='DAILY')?linkedDailyWage_(r[14],r[15],r[26]):Number(r[15])||0, birthDate:formatDateInputForClient_(r[16]), resignationDate:formatDateInputForClient_(r[17]),
       registeredAddress:toClientText_(r[18]), currentAddress:toClientText_(r[19]), emergencyName:toClientText_(r[20]), emergencyPhone:toClientText_(r[21]),
       emergencyRelationship:toClientText_(r[22]), photoUrl:toClientText_(r[23]), photoFileId:extractDriveFileId_(r[23]),
-      employmentStatus:toClientText_(r[24] || 'ACTIVE'), adminNote:toClientText_(r[25]), dailyWage:Number(r[26])||0,
+      employmentStatus:toClientText_(r[24] || 'ACTIVE'), adminNote:toClientText_(r[25]), dailyWage:linkedDailyWage_(r[14],r[15],r[26]),
       bankName:toClientText_(r[27]), bankAccountNo:toClientText_(r[28]), bankAccountName:toClientText_(r[29]), bankCode:toClientText_(r[30]),
       department:toClientText_(r[31]), accessRole:toClientText_(r[32] || (String(r[13]||'').toUpperCase()==='MANAGER'?'MANAGER':'EMPLOYEE'))
     }))
@@ -913,10 +936,10 @@ function adminGetEmployeeDetail_(token, employeeId) {
   return {
     id:toClientText_(r[0]), name:toClientText_(r[1]), active:r[2] !== false, sort:Number(r[3])||999, pinSet:Boolean(String(r[6]||'').trim()),
     nickname:toClientText_(r[7]), phone:toClientText_(r[8]), startDate:formatDateInputForClient_(r[9]), branch:toClientText_(r[10]),
-    firstName:toClientText_(r[11]), lastName:toClientText_(r[12]), position:toClientText_(r[13]), wageType:toClientText_(r[14]), wageAmount:Number(r[15])||0,
+    firstName:toClientText_(r[11]), lastName:toClientText_(r[12]), position:toClientText_(r[13]), wageType:toClientText_(r[14] || 'DAILY'), wageAmount:(!String(r[14]||'').trim()||String(r[14]).toUpperCase()==='DAILY')?linkedDailyWage_(r[14],r[15],r[26]):Number(r[15])||0,
     birthDate:formatDateInputForClient_(r[16]), resignationDate:formatDateInputForClient_(r[17]), registeredAddress:toClientText_(r[18]), currentAddress:toClientText_(r[19]),
     emergencyName:toClientText_(r[20]), emergencyPhone:toClientText_(r[21]), emergencyRelationship:toClientText_(r[22]), photoUrl:toClientText_(r[23]),
-    photoFileId:extractDriveFileId_(r[23]), employmentStatus:toClientText_(r[24] || 'ACTIVE'), adminNote:toClientText_(r[25]), dailyWage:Number(r[26])||0,
+    photoFileId:extractDriveFileId_(r[23]), employmentStatus:toClientText_(r[24] || 'ACTIVE'), adminNote:toClientText_(r[25]), dailyWage:linkedDailyWage_(r[14],r[15],r[26]),
       bankName:toClientText_(r[27]), bankAccountNo:toClientText_(r[28]), bankAccountName:toClientText_(r[29]), bankCode:toClientText_(r[30]),
       department:toClientText_(r[31]), accessRole:normalizeAccessRoleV7_(r[32],String(r[13]||'').toUpperCase()==='MANAGER'?'MANAGER':'EMPLOYEE'), serverEpochMs:Date.now()
   };
@@ -1070,7 +1093,7 @@ function actionKindServer_(a){
 function employeePayrollConfig_(ss, employeeId) {
   const sh=ss.getSheetByName(EMPLOYEE_SHEET),last=sh?sh.getLastRow():0;if(!sh||last<2)throw new Error('ไม่พบพนักงาน');
   const rows=sh.getRange(2,1,last-1,27).getValues();
-  for(const r of rows)if(String(r[0])===String(employeeId))return {id:String(r[0]),name:String(r[1]),nickname:String(r[7]||''),wageType:String(r[14]||''),wageAmount:Number(r[15])||0,dailyWage:Number(r[26])||0};
+  for(const r of rows)if(String(r[0])===String(employeeId))return {id:String(r[0]),name:String(r[1]),nickname:String(r[7]||''),wageType:String(r[14]||'DAILY'),wageAmount:(!String(r[14]||'').trim()||String(r[14]).toUpperCase()==='DAILY')?linkedDailyWage_(r[14],r[15],r[26]):Number(r[15])||0,dailyWage:linkedDailyWage_(r[14],r[15],r[26])};
   throw new Error('ไม่พบพนักงาน');
 }
 
@@ -1103,7 +1126,7 @@ function adminGetPayrollPreview_(token, employeeId, startDate, endDate, payDate)
       const key=Utilities.formatDate(s.outEvent.timestamp,TZ,'yyyy-MM-dd');if(key<startKey||key>endKey)return;const cur=byDay[key]||{sessions:[],outOnly:[]};cur.outOnly.push(s.outEvent);byDay[key]=cur;
     }
   });
-  const dailyWage=Number(emp.dailyWage)||0, rows=[];let totalBase=0,totalLateDeduction=0,totalNight=0,totalOtPay=0,totalOtHours=0,workedDays=0,nightShifts=0;
+  const dailyWage=linkedDailyWage_(emp.wageType,emp.wageAmount,emp.dailyWage), rows=[];let totalBase=0,totalLateDeduction=0,totalNight=0,totalOtPay=0,totalOtHours=0,workedDays=0,nightShifts=0;
   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
     const key=Utilities.formatDate(d,TZ,'yyyy-MM-dd'),bucket=byDay[key]||{sessions:[],outOnly:[]},leave=leaves.find(x=>x.startDate<=key&&x.endDate>=key)||null;
     let inEv=null,outEv=null,shift='UNKNOWN';
@@ -1247,13 +1270,14 @@ function adminApproveRegistrationFast_(token, registrationId, employee, registra
       if (!/^\d{4}$/.test(fallbackPin)) throw new Error('รายการเก่านี้ยังไม่มี PIN กรุณากำหนด PIN 4 หลัก');
       employeePinHash = hashPortablePin_(fallbackPin);
     }
-    const wageType=String((employee && employee.wageType)||r[22]||'').trim();
+    const wages=linkedWageFields_(employee,{wageType:r[22]||'DAILY',wageAmount:r[23],dailyWage:0});
+    const wageType=wages.wageType;
     if(wageType!==originalWageType)validateWageTypeV7_(wageType,true);
-    const wageAmount=Number((employee && employee.wageAmount)||r[23]||0);
+    const wageAmount=wages.wageAmount;
     const fullName=(String(r[4])+' '+String(r[5])).trim();
     const erow=empSh.getLastRow()+1;
     empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,19,1,2).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
-    empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number((employee&&employee.sort)||999),'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
+    empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number((employee&&employee.sort)||999),'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),linkedDailyWage_(wageType,wageAmount,0),String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
 
     regSh.getRange(regRow,3).setValue('APPROVED'); regSh.getRange(regRow,21).setValue(new Date()); regSh.getRange(regRow,22).setValue(id); regSh.getRange(regRow,23).setValue(wageType); regSh.getRange(regRow,24).setValue(wageAmount).setNumberFormat('#,##0.00');
     attachDocumentsToEmployee_(ss, registrationId, id);
@@ -1382,6 +1406,7 @@ function adminAddEmployee(token, employee) {
   const pin = String(employee.pin || '');
   if (!/^\d{4}$/.test(pin)) throw new Error('รหัสลงเวลาต้องเป็นตัวเลข 4 หลัก');
   if (findEmployeeAny_(id)) throw new Error('รหัสพนักงานนี้มีอยู่แล้ว');
+  const wages=linkedWageFields_(employee);
   const nickname = String(employee.nickname || '').trim();
   const phone = String(employee.phone || '').trim();
   const startDate = parseIsoDate_(employee.startDate);
@@ -1389,8 +1414,9 @@ function adminAddEmployee(token, employee) {
   const row = sh.getLastRow()+1;
   sh.getRange(row, 9).setNumberFormat('@');
   sh.getRange(row,22).setNumberFormat('@');
-  sh.getRange(row,1,1,33).setValues([[id, String(employee.name).trim(), true, Number(employee.sort)||999, '', new Date(), hashPortablePin_(pin), nickname, phone, startDate, String(employee.branch||''), String(employee.firstName||''), String(employee.lastName||''), String(employee.position||''), String(employee.wageType||''), Number(employee.wageAmount)||0, parseIsoDate_(employee.birthDate), parseIsoDate_(employee.resignationDate), String(employee.registeredAddress||''), String(employee.currentAddress||''), String(employee.emergencyName||''), String(employee.emergencyPhone||''), String(employee.emergencyRelationship||''), String(employee.photoUrl||''), String(employee.employmentStatus||'ACTIVE'), String(employee.adminNote||''), Number(employee.dailyWage)||0, String(employee.bankName||''), String(employee.bankAccountNo||''), String(employee.bankAccountName||''), String(employee.bankCode||''), String(employee.department||''), String(employee.accessRole||'EMPLOYEE')]]);
+  sh.getRange(row,1,1,33).setValues([[id, String(employee.name).trim(), true, Number(employee.sort)||999, '', new Date(), hashPortablePin_(pin), nickname, phone, startDate, String(employee.branch||''), String(employee.firstName||''), String(employee.lastName||''), String(employee.position||''), wages.wageType, wages.wageAmount, parseIsoDate_(employee.birthDate), parseIsoDate_(employee.resignationDate), String(employee.registeredAddress||''), String(employee.currentAddress||''), String(employee.emergencyName||''), String(employee.emergencyPhone||''), String(employee.emergencyRelationship||''), String(employee.photoUrl||''), String(employee.employmentStatus||'ACTIVE'), String(employee.adminNote||''), wages.dailyWage, String(employee.bankName||''), String(employee.bankAccountNo||''), String(employee.bankAccountName||''), String(employee.bankCode||''), String(employee.department||''), String(employee.accessRole||'EMPLOYEE')]]);
   if (startDate) sh.getRange(row, 10).setNumberFormat('dd/mm/yyyy');
+  invalidateAdminSummary_();
   return { ok:true };
 }
 
@@ -1447,7 +1473,8 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       const nextName = [nextFirstName, nextLastName].filter(Boolean).join(' ') || currentName;
       const nextBranch = profile && profile.branch !== undefined ? String(profile.branch || '').trim() : currentBranch;
       const nextDepartment = profile && profile.department !== undefined ? String(profile.department || '').trim() : currentDepartment;
-      const nextWageType = profile && profile.wageType !== undefined ? String(profile.wageType || '').trim() : currentWageType;
+      const wages=linkedWageFields_(profile,{wageType:currentWageType,wageAmount:currentProfile[14],dailyWage:currentProfile[25]});
+      const nextWageType = wages.wageType;
       if (nextBranch !== currentBranch) validateBranchV7_(nextBranch, true);
       if (nextDepartment !== currentDepartment) validateDepartmentV7_(nextDepartment, true);
       if (nextWageType !== currentWageType) validateWageTypeV7_(nextWageType, true);
@@ -1465,7 +1492,7 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       sh.getRange(row,13).setValue(nextLastName);
       sh.getRange(row,14).setValue(String((profile && profile.position) || ''));
       sh.getRange(row,15).setValue(nextWageType);
-      sh.getRange(row,16).setValue(Number((profile && profile.wageAmount) || 0)).setNumberFormat('#,##0.00');
+      sh.getRange(row,16).setValue(wages.wageAmount).setNumberFormat('#,##0.00');
       if (birthDate) sh.getRange(row,17).setValue(birthDate).setNumberFormat('dd/mm/yyyy'); else sh.getRange(row,17).clearContent();
       if (resignationDate) sh.getRange(row,18).setValue(resignationDate).setNumberFormat('dd/mm/yyyy'); else sh.getRange(row,18).clearContent();
       sh.getRange(row,19).setValue(String((profile && profile.registeredAddress) || ''));
@@ -1476,7 +1503,7 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       sh.getRange(row,24).setValue(String((profile && profile.photoUrl) || ''));
       sh.getRange(row,25).setValue(String((profile && profile.employmentStatus) || 'ACTIVE'));
       sh.getRange(row,26).setValue(String((profile && profile.adminNote) || ''));
-      sh.getRange(row,27).setValue(Number((profile && profile.dailyWage) || 0)).setNumberFormat('#,##0.00');
+      sh.getRange(row,27).setValue(wages.dailyWage).setNumberFormat('#,##0.00');
       sh.getRange(row,28).setNumberFormat('@').setValue(String((profile && profile.bankName) || '').trim());
       sh.getRange(row,29).setNumberFormat('@').setValue(String((profile && profile.bankAccountNo) || '').replace(/[^0-9A-Za-z-]/g,'').trim());
       sh.getRange(row,30).setNumberFormat('@').setValue(String((profile && profile.bankAccountName) || '').trim());
@@ -1484,6 +1511,7 @@ function adminUpdateEmployeeProfile(token, employeeId, profile) {
       if (profile && profile.department !== undefined) sh.getRange(row,32).setValue(nextDepartment);
       if (profile && profile.accessRole !== undefined) { sh.getRange(row,33).setValue(validateAccessRoleV7_(profile.accessRole)); invalidateAdminSummary_(); }
       sh.getRange(row,6).setValue(new Date());
+      invalidateAdminSummary_();
       return {ok:true,employee:adminGetEmployeeDetail_(token,id)};
     }
   }
@@ -1531,9 +1559,9 @@ function getEmployeesAdmin_() {
       id:String(r[0]), name:String(r[1]), active:r[2] !== false, sort:Number(r[3])||999,
       pinSet:Boolean(String(r[6]||'').trim()), nickname:String(r[7]||''), phone:String(r[8]||''), startDate:r[9] || '',
       branch:String(r[10]||''), firstName:String(r[11]||''), lastName:String(r[12]||''), position:String(r[13]||''),
-      wageType:String(r[14]||''), wageAmount:Number(r[15])||0, birthDate:r[16]||'', resignationDate:r[17]||'',
+      wageType:String(r[14]||'DAILY'), wageAmount:(!String(r[14]||'').trim()||String(r[14]).toUpperCase()==='DAILY')?linkedDailyWage_(r[14],r[15],r[26]):Number(r[15])||0, birthDate:r[16]||'', resignationDate:r[17]||'',
       registeredAddress:String(r[18]||''), currentAddress:String(r[19]||''), emergencyName:String(r[20]||''), emergencyPhone:String(r[21]||''),
-      emergencyRelationship:String(r[22]||''), photoUrl:String(r[23]||''), employmentStatus:String(r[24]||''), adminNote:String(r[25]||''), dailyWage:Number(r[26])||0,
+      emergencyRelationship:String(r[22]||''), photoUrl:String(r[23]||''), employmentStatus:String(r[24]||''), adminNote:String(r[25]||''), dailyWage:linkedDailyWage_(r[14],r[15],r[26]),
       bankName:String(r[27]||''), bankAccountNo:String(r[28]||''), bankAccountName:String(r[29]||''), bankCode:String(r[30]||''),
       department:String(r[31]||''), accessRole:String(r[32]||'') || (String(r[13]||'').toUpperCase()==='MANAGER'?'MANAGER':'EMPLOYEE')
     }))
@@ -1652,12 +1680,13 @@ function adminApproveRegistration(token, registrationId, employee, registration)
     employeePinHash = hashPortablePin_(pin);
   }
   if (findEmployeeAny_(id)) throw new Error('Employee ID already exists');
-  const wageType=String(employee.wageType||r[22]||'').trim();
-  const wageAmount=Number(employee.wageAmount||r[23]||0);
+  const wages=linkedWageFields_(employee,{wageType:r[22]||'DAILY',wageAmount:r[23],dailyWage:0});
+  const wageType=wages.wageType;
+  const wageAmount=wages.wageAmount;
   const fullName=(String(r[4])+' '+String(r[5])).trim();
   const empSh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EMPLOYEE_SHEET);
   const erow=empSh.getLastRow()+1; empSh.getRange(erow,9).setNumberFormat('@'); empSh.getRange(erow,10).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,16).setNumberFormat('#,##0.00'); empSh.getRange(erow,17,1,2).setNumberFormat('dd/mm/yyyy'); empSh.getRange(erow,22).setNumberFormat('@'); empSh.getRange(erow,28,1,4).setNumberFormat('@');
-  empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number(employee.sort)||999,'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),0,String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
+  empSh.getRange(erow,1,1,33).setValues([[id,fullName,true,Number(employee.sort)||999,'',new Date(),employeePinHash,String(r[6]||''),String(r[7]||''),r[11]||'',String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[9]||''),wageType,wageAmount,r[10]||'','',String(r[12]||''),String(r[13]||''),String(r[14]||''),String(r[15]||''),String(r[16]||''),String(r[17]||''),'ACTIVE',String(r[19]||''),linkedDailyWage_(wageType,wageAmount,0),String(r[25]||''),String(r[26]||''),String(r[27]||''),String(r[28]||''),String(r[29]||''),'EMPLOYEE']]);
   sh.getRange(row,3).setValue('APPROVED'); sh.getRange(row,21).setValue(new Date()); sh.getRange(row,22).setValue(id); sh.getRange(row,23).setValue(wageType); sh.getRange(row,24).setValue(wageAmount).setNumberFormat('#,##0.00');
   attachDocumentsToEmployee_(SpreadsheetApp.openById(SPREADSHEET_ID),registrationId,id);invalidateAdminSummary_();
   return {ok:true,employeeId:id};
@@ -2199,7 +2228,7 @@ function employeeRecordV7_(employeeId) {
     const r=rows[i]; if (String(r[0]||'') !== String(employeeId||'')) continue;
     const explicitRole=String(r[32]||'').toUpperCase();
     const role=normalizeAccessRoleV7_(explicitRole,String(r[13]||'').toUpperCase()==='MANAGER'?'MANAGER':'EMPLOYEE');
-    return {row:i+2,id:String(r[0]),name:String(r[1]||''),active:r[2]!==false,sort:Number(r[3])||999,pinHash:String(r[6]||''),nickname:String(r[7]||''),phone:String(r[8]||''),startDate:r[9]||'',branch:String(r[10]||''),firstName:String(r[11]||''),lastName:String(r[12]||''),position:String(r[13]||''),wageType:String(r[14]||''),wageAmount:Number(r[15])||0,birthDate:r[16]||'',resignationDate:r[17]||'',registeredAddress:String(r[18]||''),currentAddress:String(r[19]||''),emergencyName:String(r[20]||''),emergencyPhone:String(r[21]||''),emergencyRelationship:String(r[22]||''),photoUrl:String(r[23]||''),employmentStatus:String(r[24]||''),adminNote:String(r[25]||''),dailyWage:Number(r[26])||0,bankName:String(r[27]||''),bankAccountNo:String(r[28]||''),bankAccountName:String(r[29]||''),bankCode:String(r[30]||''),department:String(r[31]||''),accessRole:role};
+    return {row:i+2,id:String(r[0]),name:String(r[1]||''),active:r[2]!==false,sort:Number(r[3])||999,pinHash:String(r[6]||''),nickname:String(r[7]||''),phone:String(r[8]||''),startDate:r[9]||'',branch:String(r[10]||''),firstName:String(r[11]||''),lastName:String(r[12]||''),position:String(r[13]||''),wageType:String(r[14]||'DAILY'),wageAmount:(!String(r[14]||'').trim()||String(r[14]).toUpperCase()==='DAILY')?linkedDailyWage_(r[14],r[15],r[26]):Number(r[15])||0,birthDate:r[16]||'',resignationDate:r[17]||'',registeredAddress:String(r[18]||''),currentAddress:String(r[19]||''),emergencyName:String(r[20]||''),emergencyPhone:String(r[21]||''),emergencyRelationship:String(r[22]||''),photoUrl:String(r[23]||''),employmentStatus:String(r[24]||''),adminNote:String(r[25]||''),dailyWage:linkedDailyWage_(r[14],r[15],r[26]),bankName:String(r[27]||''),bankAccountNo:String(r[28]||''),bankAccountName:String(r[29]||''),bankCode:String(r[30]||''),department:String(r[31]||''),accessRole:role};
   }
   return null;
 }
@@ -2462,7 +2491,7 @@ function adminDashboardPayrollBundleV7_(payload){
   const days=Math.floor((end-start)/86400000)+1;if(days>31)throw new Error('เลือกช่วงได้สูงสุด 31 วัน');
   const today=new Date();today.setHours(0,0,0,0);if(end>=today)throw new Error('รอบคิดเงินจริงต้องสิ้นสุดก่อนวันปัจจุบัน');
   const startKey=Utilities.formatDate(start,TZ,'yyyy-MM-dd'),endKey=Utilities.formatDate(end,TZ,'yyyy-MM-dd'),periodKey=payrollPeriodKey_(startDate,endDate,payDate);
-  const cache=CacheService.getScriptCache(),cacheKey='KF_PAYROLL_DASH_'+startKey+'_'+endKey+'_'+String(payDate||'').replace(/-/g,'');
+  const cache=CacheService.getScriptCache(),cacheKey='KF_PAYROLL_DASH_'+startKey+'_'+endKey+'_'+String(payDate||'').replace(/-/g,'')+'_'+(PropertiesService.getScriptProperties().getProperty('PAYROLL_WAGE_REVISION')||'daily-v55');
   try{
     const raw=cache.get(cacheKey);
     if(raw){const hit=JSON.parse(raw);hit.fromCache=true;hit.durationMs=Date.now()-started;return hit}
@@ -2567,7 +2596,7 @@ function payrollBundleCalcEmployeeV7_(emp,start,end,startKey,endKey,payDate,peri
     }else if(s.outEvent){const key=Utilities.formatDate(s.outEvent.timestamp,TZ,'yyyy-MM-dd');if(key<startKey||key>endKey)return;const cur=byDay[key]||{sessions:[],outOnly:[]};cur.outOnly.push(s.outEvent);byDay[key]=cur}
   });
 
-  const dailyWage=Number(emp.dailyWage)||0,rows=[];let totalBase=0,totalLateDeduction=0,totalNight=0,totalOtPay=0,totalOtHours=0,workedDays=0,nightShifts=0;
+  const dailyWage=linkedDailyWage_(emp.wageType,emp.wageAmount,emp.dailyWage),rows=[];let totalBase=0,totalLateDeduction=0,totalNight=0,totalOtPay=0,totalOtHours=0,workedDays=0,nightShifts=0;
   for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
     const key=Utilities.formatDate(d,TZ,'yyyy-MM-dd'),bucket=byDay[key]||{sessions:[],outOnly:[]},leave=leaves.find(x=>x.startDate<=key&&x.endDate>=key)||null;
     let inEv=null,outEv=null,shift='UNKNOWN';
