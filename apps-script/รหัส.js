@@ -1058,10 +1058,10 @@ function attendanceEventsForPayroll_(ss, employeeId, startKey, endKey) {
     const k=attendanceDateKey_(dates[i][0]);if(!k)continue;
     if(!first&&k>=scanStartKey&&k<=scanEndKey)first=i+2;
     if(k>=scanStartKey&&k<=scanEndKey)lastRow=i+2;
-    if(first&&k>scanEndKey)break;
+    // Imported scans may be grouped by employee, not sorted by date.
   }
   if(!first||!lastRow)return[];
-  return sh.getRange(first,1,lastRow-first+1,Math.min(19,sh.getLastColumn())).getValues().filter(r=>String(r[4]||'')===String(employeeId) && String(r[11]||'').indexOf('VOID')!==0).map(r=>({
+  return sh.getRange(first,1,lastRow-first+1,Math.min(19,sh.getLastColumn())).getValues().filter(r=>{const key=attendanceDateKey_(r[2]);return key>=scanStartKey&&key<=scanEndKey&&String(r[4]||'')===String(employeeId)&&String(r[11]||'').indexOf('VOID')!==0}).map(r=>({
     transactionId:toClientText_(r[0]),timestamp:r[1] instanceof Date?r[1]:null,date:attendanceDateKey_(r[2]),time:formatTimeForClient_(r[3]),action:toClientText_(r[6]),photoUrl:toClientText_(r[8]),photoFileId:toClientText_(r[9]),deviceId:toClientText_(r[10]),status:toClientText_(r[11]),note:toClientText_(r[14]),nickname:toClientText_(r[15])
   })).filter(x=>x.timestamp).sort((a,b)=>a.timestamp-b.timestamp);
 }
@@ -2527,11 +2527,12 @@ function payrollBundleReadDataV7_(ss,startKey,endKey,periodKey){
       const k=attendanceDateKey_(dates[i][0]);if(!k)continue;
       if(!first&&k>=scanStartKey&&k<=scanEndKey)first=i+2;
       if(k>=scanStartKey&&k<=scanEndKey)lastRow=i+2;
-      if(first&&k>scanEndKey)break;
+      // Imported scans may be grouped by employee, not sorted by date.
     }
     if(first&&lastRow){
       const vals=att.getRange(first,1,lastRow-first+1,Math.min(19,att.getLastColumn())).getValues();
       vals.forEach(r=>{
+        const key=attendanceDateKey_(r[2]);if(key<scanStartKey||key>scanEndKey)return;
         const employeeId=String(r[4]||'');if(!employeeId||String(r[11]||'').indexOf('VOID')===0)return;
         const timestamp=r[1] instanceof Date?r[1]:null;if(!timestamp)return;
         const ev={transactionId:toClientText_(r[0]),timestamp:timestamp,date:attendanceDateKey_(r[2]),time:formatTimeForClient_(r[3]),action:toClientText_(r[6]),deviceId:toClientText_(r[10]),status:toClientText_(r[11]),note:toClientText_(r[14])};
